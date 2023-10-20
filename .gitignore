@@ -2,6 +2,9 @@
 cache/
 out/
 
+# gas snapshot files
+.gas-snapshot
+
 # Ignores development broadcast logs
 !/broadcast
 /broadcast/*/31337/
