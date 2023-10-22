@@ -4,9 +4,14 @@ pragma solidity >=0.8.13;
 import "./IGraphNode.sol";
 
 interface IGraph {
+
+    function trust(IGraphNode _node) external;
+    function untrust(IGraphNode _node) external;
+
     function isTrusted(IGraphNode _centerNode, IGraphNode _circleNode)
         external
         view
         returns (bool);
 
 }
+
