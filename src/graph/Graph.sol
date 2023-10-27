@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity >=0.8.13;
 
-import "./IGraph.sol";
+// import "./IGraph.sol";
 import "./ICircleNode.sol";
 import "./IGroup.sol";
+import "../migration/IHub.sol";
+import "../migration/IToken.sol";
+import "../proxy/ProxyFactory.sol";
 
 /// @author CirclesUBI
 /// @title A trust graph for path fungible tokens
-contract Graph { // is IGraph {
+contract Graph is ProxyFactory {
 
     // Types
 
@@ -17,14 +20,17 @@ contract Graph { // is IGraph {
      * to remain agnostic to any interface so it is a simple
      * type alias of Address.
      */
-    type Avatar is address;
+    // note: Explicit type conversion not allowed from "Graph.Avatar" to "address".solidity(9640)
+    // todo: figure out whether this is a solidity compiler bug, why would this be prohibited?
+    // type Avatar is address;
 
     /**
      * Organization is a type alias to refer to organizations
      * who can join the trust network, but do not get a corresponding
      * issuance node in the graph.
      */
-    type Organization is address;
+    // todo: same problem with types and casting
+    // type Organization is address;
 
     // Constants
 
@@ -33,11 +39,14 @@ contract Graph { // is IGraph {
 
     // State variables
 
+    /** Hub v1 contract reference to ensure correct migration of avatars */
+    IHubV1 public immutable ancestor;
+
     /** 
      * Avatar to node stores a mapping of which node has been created
      * for a given avatar.
      */
-    mapping(Avatar => ICircleNode) public avatarToNode;
+    mapping(address => ICircleNode) public avatarToNode;
 
     /**
      * Node to avatar stores an inverse mapping of the avatar given the node.
@@ -56,7 +65,7 @@ contract Graph { // is IGraph {
      * Organizations can enter the trust graph
      * without creating a circle node themselves.
      */
-    mapping(Organization => Organization) public organizations;
+    mapping(address => address) public organizations;
 
     /**
      * Groups, like organizations can enter the trust graph without creating
@@ -77,13 +86,29 @@ contract Graph { // is IGraph {
      */
     mapping(address => mapping(address => uint256)) public trustMarkers;
 
+    // Events
+
+    event Signup(address indexed avatar, address circleNode);
+    event OrganizationSignup(address indexed organization);
+    event GroupSignup(address indexed group);
+
     // Modifiers
+
+    modifier notYetOnTrustGraph(address _entity) {
+        require(
+            address(avatarToNode[_entity]) == address(0) &&
+            address(organizations[_entity]) == address(0) &&
+            address(groups[IGroup(_entity)]) == address(0),
+            "Entity is already registered as an avatar, an organisation or as a group."
+        );
+        _;
+    }
 
     modifier onTrustGraph(address _entity) {
         require(
+            address(avatarToNode[_entity]) != address(0) ||
             address(organizations[_entity]) != address(0) ||
-            address(groups[_entity]) != address(0) ||
-            address(avatarToNode[_entity]) != address(0),
+            address(groups[IGroup(_entity)]) != address(0),            
             "Entity is neither a registered organisation, group or avatar."
         );
         _;
@@ -92,15 +117,42 @@ contract Graph { // is IGraph {
     // Constructor
 
     constructor(
-
+        IHubV1 _ancestor
     ) {
-
+        ancestor = _ancestor;
     }
 
     // External functions
 
-    function trust(Avatar _avatar) external {
+    function registerAvatar() 
+        external 
+        notYetOnTrustGraph(msg.sender)
+    {
+        (address ancestorToken, bool ancestorTokenStopped) = 
+            checkHubV1Migration(msg.sender);
+        // todo: setting up proxy deployment of CircleNode and explicit implementation
+    }
 
+    function trust(address _avatar) external {
+
+    }
+
+    // Internal functions
+
+    function checkHubV1Migration(address _avatar) 
+        internal
+        returns (
+            address ancestorToken_,
+            bool ancestorMintingStopped_
+        )
+    {
+        ancestorMintingStopped_ = false;
+        ancestorToken_ = ancestor.userToToken(_avatar);
+        if (ancestorToken_ != address(0)) {
+            // avatar has been registered in the ancestor graph
+            // check if the old token has been stopped
+            ancestorMintingStopped_ = !ITokenV1(ancestorToken_).stopped();
+        }
     }
 
     // Private functions
