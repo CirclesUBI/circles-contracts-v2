@@ -8,9 +8,9 @@ interface IGraph {
     function trust(address _avatar) external;
     function untrust(address _avatar) external;
 
-    function isTrusted(address _centerAvatar, address _circleAvatar)
-        external
-        view
-        returns (bool);
+    function checkAncestorMigrations(address _avatar) external returns (
+        bool objectToStartMint_,
+        address[] memory migrationTokens_
+    );
 }
 
