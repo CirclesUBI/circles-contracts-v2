@@ -4,43 +4,34 @@ pragma solidity >=0.8.13;
 // import "./IGraph.sol";
 import "./ICircleNode.sol";
 import "./IGroup.sol";
+import "./IGraph.sol";
 import "../migration/IHub.sol";
 import "../migration/IToken.sol";
 import "../proxy/ProxyFactory.sol";
 
 /// @author CirclesUBI
 /// @title A trust graph for path fungible tokens
-contract Graph is ProxyFactory {
-
-    // Types
-
-    /** 
-     * Avatar is pointer to the SAFE contract that stands in
-     * as a representation of the person on-chain. We want
-     * to remain agnostic to any interface so it is a simple
-     * type alias of Address.
-     */
-    // note: Explicit type conversion not allowed from "Graph.Avatar" to "address".solidity(9640)
-    // todo: figure out whether this is a solidity compiler bug, why would this be prohibited?
-    // type Avatar is address;
-
-    /**
-     * Organization is a type alias to refer to organizations
-     * who can join the trust network, but do not get a corresponding
-     * issuance node in the graph.
-     */
-    // todo: same problem with types and casting
-    // type Organization is address;
+contract Graph is ProxyFactory, IGraph {
 
     // Constants
 
     /** Sentinel to mark the end of the linked list of Circle nodes */
     ICircleNode public constant SENTINEL_CIRCLE = ICircleNode(address(0x1));
 
+    /** Callprefix for ICircleNode::setup function */
+    bytes4 public constant CIRCLENOODE_SETUP_CALLPREFIX = bytes4(
+        keccak256(
+            "setup(address,bool,address[])"
+        )
+    );
+
     // State variables
 
     /** Hub v1 contract reference to ensure correct migration of avatars */
     IHubV1 public immutable ancestor;
+
+    /** Master copy of the circle node contract to deploy proxy's for */
+    ICircleNode public immutable masterCopyCircleNode;
 
     /** 
      * Avatar to node stores a mapping of which node has been created
@@ -117,9 +108,11 @@ contract Graph is ProxyFactory {
     // Constructor
 
     constructor(
-        IHubV1 _ancestor
+        IHubV1 _ancestor,
+        ICircleNode _masterCopyCircleNode
     ) {
         ancestor = _ancestor;
+        masterCopyCircleNode = _masterCopyCircleNode;
     }
 
     // External functions
@@ -128,32 +121,54 @@ contract Graph is ProxyFactory {
         external 
         notYetOnTrustGraph(msg.sender)
     {
-        (address ancestorToken, bool ancestorTokenStopped) = 
-            checkHubV1Migration(msg.sender);
-        // todo: setting up proxy deployment of CircleNode and explicit implementation
+        // there might not (yet) be a token in the ancestor graph
+        (bool objectToStartMint, address[] memory migrationTokens) = 
+            checkAncestorMigrations(msg.sender);
+
+        bytes memory circleNodeSetupData = abi.encodeWithSelector(
+            CIRCLENOODE_SETUP_CALLPREFIX,
+            msg.sender,
+            !objectToStartMint,
+            migrationTokens
+        );
+        ICircleNode circleNode = ICircleNode(address(
+            createProxy(address(masterCopyCircleNode), circleNodeSetupData)));
+    
     }
 
     function trust(address _avatar) external {
 
     }
 
-    // Internal functions
+    function untrust(address _avatar) external {
 
-    function checkHubV1Migration(address _avatar) 
-        internal
+    }
+
+    // Public functions
+
+    function checkAncestorMigrations(address _avatar) 
+        public
         returns (
-            address ancestorToken_,
-            bool ancestorMintingStopped_
+            bool objectToStartMint_,
+            address[] memory migrationTokens_
         )
     {
-        ancestorMintingStopped_ = false;
-        ancestorToken_ = ancestor.userToToken(_avatar);
-        if (ancestorToken_ != address(0)) {
-            // avatar has been registered in the ancestor graph
-            // check if the old token has been stopped
-            ancestorMintingStopped_ = !ITokenV1(ancestorToken_).stopped();
+        objectToStartMint_ = false;
+        address ancestorToken = ancestor.userToToken(_avatar);
+        if (ancestorToken != address(0)) {
+            migrationTokens_ = new address[](1);
+            // append ancestorToken to migrationTokens_
+            migrationTokens_[0] = ancestorToken;
+            // Avatar has been registered in the ancestor graph,
+            // so check if the old token has been stopped.
+            // If it has not been stopped, object to start the mint of v2.
+            objectToStartMint_ = !ITokenV1(ancestorToken).stopped();
+        } else {
+            migrationTokens_ = new address[](0);
         }
     }
+
+    // Internal functions
 
     // Private functions
 
