@@ -113,58 +113,118 @@ abstract contract TemporalDiscount is IERC20 {
      * @param _owner owns a temporally discounted balance of tokens.
      */
     function balanceOf(address _owner) external view returns (uint256 balance_) {
-        uint256 currentSpan = currentTimeSpan();
+        uint256 currentSpan = _currentTimeSpan();
         if (balanceTimeSpans[_owner] == currentSpan) {
             // within the same time span balances are constant
             return balance_ = temporalBalances[_owner];
         } else {
             // preserve the expectation balanceOf as a view function
             // and don't store the computed result on read operations.
-            return balance_ = calculateDiscountedBalance(
+            return balance_ = _calculateDiscountedBalance(
                 temporalBalances[_owner],
                 currentSpan - balanceTimeSpans[_owner]
             );
         }
     }
 
-    function transfer(address to, uint256 value) external returns (bool success) {
+    function transfer(address _to, uint256 _amount) external returns (bool) {
+        _transfer(msg.sender, _to, _amount);
+        return true;
+    }
 
+    function transferFrom(address _from, address _to, uint256 _amount) external returns (bool) {
+        _transfer(_from, _to, _amount);
+        // todo: approval
+        return true;
     }
 
     // Internal functions
+
+    function _transfer(address _from, address _to, uint256 _amount) internal {
+        uint256 currentSpan = _currentTimeSpan();
+        _discountBalanceThenSubtract(_from, _amount, currentSpan);
+        _discountBalanceThenAdd(_to, _amount, currentSpan);
+
+        emit Transfer(_from, _to, _amount);
+    }
 
     /**
      * @notice current time span returns the count of time spans (counted in weeks)
      *         that have passed since ZERO_TIME.
      */
-    function currentTimeSpan() internal view returns (uint256 currentTimeSpan_) {
+    function _currentTimeSpan() internal view returns (uint256 currentTimeSpan_) {
         // integer division rounds down, a difference less than one week
-        // is counted as zero (since ZERO_TIME, or when making)
+        // is counted as zero (since ZERO_TIME, or when substracting a difference)
         return
             ((block.timestamp - ZERO_TIME) / DISCOUNT_RESOLUTION);
     }
 
     // Private functions
 
-    function discountBalanceThenAdd(
+    function _discountBalanceThenAdd(
         address _owner,
         uint256 _amount,
         uint256 _currentSpan
-    ) private returns (uint256 discountedBalance_) {
-        // todo: continue here
+    ) private {
         if (balanceTimeSpans[_owner] == _currentSpan) {
-            // within the same time span balances are constant, noop
-            return discountedBalance_ = temporalBalances[_owner];
+            // Within the same time span balances are constant
+            // so simply add the amount to the balance,
+            // and no need to update the timespan.
+            temporalBalances[_owner] = temporalBalances[_owner] + _amount;
+
+            // opt to not emit DiscountCost event within same timespan
         } else {
-            // 
-            return calculateDiscountedBalance(
+            // if the balanceTimeSpan is small than currentSpan (only ever smaller)
+            // calculate the discounted balance
+            uint256 discountedBalance = _calculateDiscountedBalance(
                 temporalBalances[_owner],
                 _currentSpan - balanceTimeSpans[_owner]
             );
+            // report the discount cost explicitly
+            uint256 discountCost = temporalBalances[_owner] - discountedBalance;
+            // and update the balance with the addition of the amount
+            temporalBalances[_owner] = discountedBalance + _amount;
+            // and update the timespan in which we updated the balance.
+            balanceTimeSpans[_owner] = _currentSpan;
+
+            // emit DiscountCost only when effectively discounted.
+            emit DiscountCost(_owner, discountCost);
         }       
     }
 
-    function calculateDiscountedBalance(
+    function _discountBalanceThenSubtract(
+        address _owner,
+        uint256 _amount,
+        uint256 _currentSpan
+    ) private {
+        if (balanceTimeSpans[_owner] == _currentSpan) {
+            // Within the same time span balances are constant
+            // so simply subtract the amount from the balance,
+            // and no need to update the timespan.
+            temporalBalances[_owner] = temporalBalances[_owner] - _amount;
+
+            // opt to not emit DiscountCost event within same timespan
+        } else {
+            // if the balanceTimeSpan is small than currentSpan (only ever smaller)
+            // calculate the discounted balance
+            uint256 discountedBalance = _calculateDiscountedBalance(
+                temporalBalances[_owner],
+                _currentSpan - balanceTimeSpans[_owner]
+            );
+            // report the discount cost explicitly
+            uint256 discountCost = temporalBalances[_owner] - discountedBalance;
+            // and update the balance with the addition of the amount
+            temporalBalances[_owner] = discountedBalance - _amount;
+            // and update the timespan in which we updated the balance.
+            balanceTimeSpans[_owner] = _currentSpan;
+            
+            // emit DiscountCost only when effectively discounted.
+            emit DiscountCost(_owner, discountCost);
+        }       
+    }  
+
+
+    function _calculateDiscountedBalance(
         uint256 _balance,
         uint256 _numberOfTimeSpans
     ) private pure returns (uint256 discountedBalance_) {
