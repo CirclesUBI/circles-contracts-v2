@@ -68,12 +68,6 @@ abstract contract TemporalDiscount is IERC20 {
     // note: this is not strictly needed, can remove later if we want to optimise
     uint256 public creationTime;
 
-    /** Temporal total supply stores the total supply at the time it was last updated. */
-    uint256 private temporalTotalSupply;
-
-    /** Total supply time stores the time at which total supply was last written to. */
-    uint256 private totalSupplyTime;
-
     /**
      * Temporal balances store the amount of tokens an address
      * has, understood as in a certain time span,
@@ -88,6 +82,14 @@ abstract contract TemporalDiscount is IERC20 {
      */
     mapping(address => uint256) public balanceTimeSpans;
 
+    /** Temporal total supply stores the total supply at the time it was last updated. */
+    uint256 private temporalTotalSupply;
+
+    /** Total supply time stores the time at which total supply was last written to. */
+    uint256 private totalSupplyTime;
+
+    mapping(address => mapping(address => uint256)) private allowances;
+
     // Events
 
     event Transfer(address indexed from, address indexed to, uint256 amount);
@@ -101,10 +103,37 @@ abstract contract TemporalDiscount is IERC20 {
      */
     event DiscountCost(address indexed owner, uint256 cost);
 
+    event Approval(address indexed owner, address indexed spender, uint256 amount);
+
     // External functions
 
-    function totalSupply() external view returns(uint256 totalSupply_) {
+    function transfer(address _to, uint256 _amount) external returns (bool) {
+        _transfer(msg.sender, _to, _amount);
+        return true;
+    }
 
+    function transferFrom(address _from, address _to, uint256 _amount) external returns (bool) {
+        uint256 spentAllowance = allowances[_from][msg.sender] - _amount;
+        _approve(_from, msg.sender, spentAllowance);
+        _transfer(_from, _to, _amount);
+        return true;
+    }
+
+    function approve(address _spender, uint256 _amount) external returns (bool) {
+        _approve(msg.sender, _spender, _amount);
+        return true;
+    }
+
+    function increaseAllowance(address _spender, uint256 _incrementAmount) external returns (bool) {
+        uint256 increasedAllowance = allowances[msg.sender][_spender] + _incrementAmount;
+        _approve(msg.sender, _spender, increasedAllowance);
+        return true;
+    }
+
+    function decreaseAllowance(address _spender, uint256 _decreaseAmount) external returns (bool) {
+        uint256 decreasedAllowance = allowances[msg.sender][_spender] - _decreaseAmount;
+        _approve(msg.sender, _spender, decreasedAllowance);
+        return true;
     }
 
     /**
@@ -127,15 +156,21 @@ abstract contract TemporalDiscount is IERC20 {
         }
     }
 
-    function transfer(address _to, uint256 _amount) external returns (bool) {
-        _transfer(msg.sender, _to, _amount);
-        return true;
-    }
-
-    function transferFrom(address _from, address _to, uint256 _amount) external returns (bool) {
-        _transfer(_from, _to, _amount);
-        // todo: approval
-        return true;
+    function totalSupply() external view returns (uint256 totalSupply_) {
+        uint256 currentSpan = _currentTimeSpan();
+        if (totalSupplyTime == currentSpan) {
+            // no need to discount total supply
+            return totalSupply_ = temporalTotalSupply;
+        } else {
+            // totalSupplyTime must be in the past of now
+            uint256 numberOfTimeSpans = currentSpan - totalSupplyTime;
+            // compute the reduction factor
+            // note: same optimisation question as for _calculateDiscountedBalance()
+            int128 reduction64x64 = Math64x64.pow(GAMMA_64x64, numberOfTimeSpans);
+            // discounting the total supply is distributive over the sum of all individual balances
+            totalSupply_ = Math64x64.mulu(reduction64x64, temporalTotalSupply);
+            return totalSupply_;
+        }
     }
 
     // Internal functions
@@ -146,6 +181,25 @@ abstract contract TemporalDiscount is IERC20 {
         _discountBalanceThenAdd(_to, _amount, currentSpan);
 
         emit Transfer(_from, _to, _amount);
+    }
+
+    function _approve(address _owner, address _spender, uint256 _amount) internal {
+        require(address(_spender) != address(0), "Spender for approval must not be zero address.");
+
+        allowances[_owner][_spender] = _amount;
+        emit Approval(_owner, _spender, _amount);
+    }
+
+    function _mint(address _owner, uint256 _amount) internal {
+        uint256 currentSpan = _currentTimeSpan();
+        // note: we don't discount the total supply before adding an amount
+        // because we account for discounts in the individual balances
+        // and already subtract those, so we should not double count.
+        temporalTotalSupply += _amount;
+        totalSupplyTime = currentSpan;
+        _discountBalanceThenAdd(_owner, _amount, currentSpan);
+
+        emit Transfer(address(0), _owner, _amount);
     }
 
     /**
@@ -165,7 +219,7 @@ abstract contract TemporalDiscount is IERC20 {
         address _owner,
         uint256 _amount,
         uint256 _currentSpan
-    ) private {
+    ) private returns (uint256 discountCost_) {
         if (balanceTimeSpans[_owner] == _currentSpan) {
             // Within the same time span balances are constant
             // so simply add the amount to the balance,
@@ -173,6 +227,7 @@ abstract contract TemporalDiscount is IERC20 {
             temporalBalances[_owner] = temporalBalances[_owner] + _amount;
 
             // opt to not emit DiscountCost event within same timespan
+            return discountCost_ = uint256(0);
         } else {
             // if the balanceTimeSpan is small than currentSpan (only ever smaller)
             // calculate the discounted balance
@@ -181,22 +236,26 @@ abstract contract TemporalDiscount is IERC20 {
                 _currentSpan - balanceTimeSpans[_owner]
             );
             // report the discount cost explicitly
-            uint256 discountCost = temporalBalances[_owner] - discountedBalance;
+            discountCost_ = temporalBalances[_owner] - discountedBalance;
             // and update the balance with the addition of the amount
             temporalBalances[_owner] = discountedBalance + _amount;
             // and update the timespan in which we updated the balance.
             balanceTimeSpans[_owner] = _currentSpan;
+            
+            // adjust total supply to reflect discount cost
+            _subtractTotalSupply(discountCost_, _currentSpan);
 
             // emit DiscountCost only when effectively discounted.
-            emit DiscountCost(_owner, discountCost);
-        }       
+            emit DiscountCost(_owner, discountCost_);
+            return discountCost_;
+        }
     }
 
     function _discountBalanceThenSubtract(
         address _owner,
         uint256 _amount,
         uint256 _currentSpan
-    ) private {
+    ) private returns (uint256 discountCost_) {
         if (balanceTimeSpans[_owner] == _currentSpan) {
             // Within the same time span balances are constant
             // so simply subtract the amount from the balance,
@@ -204,6 +263,7 @@ abstract contract TemporalDiscount is IERC20 {
             temporalBalances[_owner] = temporalBalances[_owner] - _amount;
 
             // opt to not emit DiscountCost event within same timespan
+            return discountCost_ = uint256(0);
         } else {
             // if the balanceTimeSpan is small than currentSpan (only ever smaller)
             // calculate the discounted balance
@@ -212,17 +272,28 @@ abstract contract TemporalDiscount is IERC20 {
                 _currentSpan - balanceTimeSpans[_owner]
             );
             // report the discount cost explicitly
-            uint256 discountCost = temporalBalances[_owner] - discountedBalance;
+            discountCost_ = temporalBalances[_owner] - discountedBalance;
             // and update the balance with the addition of the amount
             temporalBalances[_owner] = discountedBalance - _amount;
             // and update the timespan in which we updated the balance.
             balanceTimeSpans[_owner] = _currentSpan;
             
-            // emit DiscountCost only when effectively discounted.
-            emit DiscountCost(_owner, discountCost);
-        }       
-    }  
+            // adjust total supply to reflect discount cost
+            _subtractTotalSupply(discountCost_, _currentSpan);
 
+            // emit DiscountCost only when effectively discounted.
+            emit DiscountCost(_owner, discountCost_);
+            return discountCost_;
+        }
+    }
+
+    function _subtractTotalSupply(uint256 _discountCost, uint256 _currentSpan) private {
+        // note: we don't discount the total supply in write operations,
+        // because we already have accounted for the discounts
+        // in the costs that get subtracted.
+        temporalTotalSupply = temporalTotalSupply - _discountCost;
+        totalSupplyTime = _currentSpan;
+    }
 
     function _calculateDiscountedBalance(
         uint256 _balance,
