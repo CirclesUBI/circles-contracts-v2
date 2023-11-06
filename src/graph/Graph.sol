@@ -25,6 +25,20 @@ contract Graph is ProxyFactory, IGraph {
         )
     );
 
+    /** Indefinitely, or approximate future infinity with uint256.max */
+    uint256 public constant INDEFINITELY = type(uint256).max;
+
+    /**
+     * Upon removing trust edges from the graph, it is important
+     * other processes (in particular the path finder processes)
+     * know in advance the updated state of the graph (as otherwise
+     * solutions might be invalid upon execution).
+     * We can solve this by adding edges instantaneously - they don't cause
+     * concurrency problems - but the removal of edges is enacted with a 
+     * calculable delay: enacted after current interval + 1 interval.
+     */
+    uint256 public constant TRUST_INTERVAL = 1 minutes;
+
     // State variables
 
     /** Hub v1 contract reference to ensure correct migration of avatars */
@@ -50,7 +64,7 @@ contract Graph is ProxyFactory, IGraph {
      * Circle nodes iterator allows to list all circle nodes from contract state
      * independent of indexer logic.
      */
-    mapping(ICircleNode => ICircleNode) public circleNodesIterator;
+    mapping(ICircleNode => ICircleNode) public circleNodesIterable;
 
     /**
      * Organizations can enter the trust graph
@@ -79,9 +93,11 @@ contract Graph is ProxyFactory, IGraph {
 
     // Events
 
-    event Signup(address indexed avatar, address circleNode);
-    event OrganizationSignup(address indexed organization);
-    event GroupSignup(address indexed group);
+    event RegisterAvatar(address indexed avatar, address circleNode);
+    event RegisterOrganization(address indexed organization);
+    event RegisterGroup(address indexed group);
+
+    event Trust(address indexed truster, address indexed trustee, uint256 expiryTime);
 
     // Modifiers
 
@@ -101,6 +117,16 @@ contract Graph is ProxyFactory, IGraph {
             address(organizations[_entity]) != address(0) ||
             address(groups[IGroup(_entity)]) != address(0),            
             "Entity is neither a registered organisation, group or avatar."
+        );
+        _;
+    }
+
+    modifier canBeTrusted(address _entity) {
+        require(
+            address(avatarToNode[_entity]) != address(0) ||
+            // address(organizations[_entity]) != address(0) ||
+            address(groups[IGroup(_entity)]) != address(0),            
+            "Entity to be trusted must be a registered group or avatar."
         );
         _;
     }
@@ -133,15 +159,42 @@ contract Graph is ProxyFactory, IGraph {
         );
         ICircleNode circleNode = ICircleNode(address(
             createProxy(address(masterCopyCircleNode), circleNodeSetupData)));
+        
+        avatarToNode[msg.sender] = circleNode;
+        _insertCircleNode(circleNode);
+
+        _trust(msg.sender, msg.sender, INDEFINITELY);
     
+        emit RegisterAvatar(msg.sender, address(circleNode));
     }
 
-    function trust(address _avatar) external {
+    function trust(address _entity) 
+        onTrustGraph(msg.sender)
+        canBeTrusted(_entity) 
+        external
+    {
+        // by default trust indefinitely
+        _trust(msg.sender, _entity, INDEFINITELY);
+    }
 
+    function trustWithExpiry(address _entity, uint256 _expiry)
+        onTrustGraph(msg.sender)
+        canBeTrusted(_entity)
+        external
+    {
+        _trust(msg.sender, _entity, _expiry);
     }
 
     function untrust(address _avatar) external {
 
+    }
+
+    function nodeToAvatar(ICircleNode _node) external returns (address avatar_) {
+        require(
+            address(circleNodesIterable[_node]) != address(0),
+            "Node is not registered on this graph."
+        );
+        return _node.avatar();
     }
 
     // Public functions
@@ -170,7 +223,32 @@ contract Graph is ProxyFactory, IGraph {
 
     // Internal functions
 
+    function _trust(
+        address _truster,
+        address _trusted,
+        uint256 _expiryTrustMarker
+    ) internal {
+        // take the floor of current timestamp to get current interval
+        uint256 currentTrustInterval = block.timestamp / TRUST_INTERVAL;
+        require(
+            _expiryTrustMarker >= (currentTrustInterval + 1) * TRUST_INTERVAL,
+            "Future expiry must be at least a full trust interval into the future."
+        );
+        // trust can instantly be registered
+        trustMarkers[_truster][_trusted] = _expiryTrustMarker;
+
+        emit Trust(_truster, _trusted, _expiryTrustMarker);
+    }
+
     // Private functions
+
+    function _insertCircleNode(ICircleNode _circleNode) private {
+        assert(address(_circleNode) != address(0));
+        assert(address(circleNodesIterable[_circleNode]) == address(0));
+        // prepend the new CircleNode in the iterable linked list
+        circleNodesIterable[_circleNode] = SENTINEL_CIRCLE;
+        circleNodesIterable[SENTINEL_CIRCLE] = _circleNode;
+    }
 
     // function registerTrust(IGraphNode _center)
 

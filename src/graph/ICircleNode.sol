@@ -5,4 +5,6 @@ pragma solidity >=0.8.13;
 /// @title Circle Node interface
 interface ICircleNode {
     function setup(address avatar, bool active, address[] calldata migrations) external;
+
+    function avatar() external returns (address);
 }
