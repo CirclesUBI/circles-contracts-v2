@@ -99,6 +99,8 @@ contract Graph is ProxyFactory, IGraph {
 
     event Trust(address indexed truster, address indexed trustee, uint256 expiryTime);
 
+    event PauseClaim(address indexed claimer, address indexed node);
+
     // Modifiers
 
     modifier notYetOnTrustGraph(address _entity) {
@@ -127,6 +129,18 @@ contract Graph is ProxyFactory, IGraph {
             // address(organizations[_entity]) != address(0) ||
             address(groups[IGroup(_entity)]) != address(0),            
             "Entity to be trusted must be a registered group or avatar."
+        );
+        _;
+    }
+
+    modifier activeCircleNode(ICircleNode _node) {
+        require(
+            address(circleNodesIterable[_node]) != address(0),
+            "Node is not registered to this graph."
+        );
+        require(
+            _node.isActive(),
+            "Circle node must be active."
         );
         _;
     }
@@ -185,11 +199,68 @@ contract Graph is ProxyFactory, IGraph {
         _trust(msg.sender, _entity, _expiry);
     }
 
-    function untrust(address _avatar) external {
+    function untrust(address _entity) 
+        onTrustGraph(msg.sender)
+        external
+    {
+        // wait at least a full trust interval before the edge can expire
+        uint256 earliestExpiry =
+            ((block.timestamp / TRUST_INTERVAL) + 2) * TRUST_INTERVAL;
 
+        require(
+            trustMarkers[msg.sender][_entity] > earliestExpiry,
+            "Trust is already set to (have) expire(d)."
+        );
+        trustMarkers[msg.sender][_entity] = earliestExpiry;
+
+        emit Trust(msg.sender, _entity, earliestExpiry);
     }
 
-    function nodeToAvatar(ICircleNode _node) external returns (address avatar_) {
+    // Note: a user can signup in v2 first, when no associated token in v1 exists
+    //       as such we would start minting in v2. We cover for the edge case
+    //       where a user signs up in v1, after signing up in v2, and would mint
+    //       double, by introducing 'pause()', in addition to 'stop()'.
+    //       With pause, an avatar can have a token in multiple graphs, but we
+    //       can ensure that all-but-one token can always be paused/unpaused. 
+    function claimNodeMustPause(ICircleNode _node) activeCircleNode(_node) external returns (bool paused_) {
+        // pause is idempotent, but emitting the event, or possible slashing is not
+        // but in the modifier we already check is `activeCircleNode`,
+        // which additionally prevents false claims if v2 node would have been stopped.
+
+        bool conflict = checkConcurrentMinting(_node);
+
+        if (conflict) {
+            _node.pause();
+            // todo: the hub can enforce slashing of circles and reward for claimer here
+            emit PauseClaim(msg.sender, address(_node));
+            return paused_ = true;
+        }
+        return paused_ = false;
+    }
+
+    function claimToUnpauseNode() external returns (bool paused_) {
+        ICircleNode node = avatarToNode[msg.sender];
+        // only the avatar can call to unpause their node.
+        require(
+            address(node) != address(0),
+            "Caller must be the registered avatar for a node on this graph."
+        );
+        require(
+            !node.stopped(),
+            "A stopped Cirlce node cannot be unpaused."
+        );
+
+        bool conflict = checkConcurrentMinting(node);
+        if (!conflict) {
+            node.unpause();
+            return paused_ = false;
+        }
+        return paused_ = true;
+    }
+
+    // Public functions
+
+    function nodeToAvatar(ICircleNode _node) public view returns (address avatar_) {
         require(
             address(circleNodesIterable[_node]) != address(0),
             "Node is not registered on this graph."
@@ -197,10 +268,33 @@ contract Graph is ProxyFactory, IGraph {
         return _node.avatar();
     }
 
-    // Public functions
+    function checkConcurrentMinting(ICircleNode _node) public view returns (bool conflict_) {
+        // get the associated avatar for the token
+        address avatar = nodeToAvatar(_node);
+        require(
+            avatar != address(0),
+            "Unknown Circle node, cannot check for conflicts."
+        );
+        require(
+            _node.isActive(),
+            "Search for conflict requires the node to be active."
+        );
+
+        // check recursively all paths to other graphs
+        // (for now only v1 ancestor graph)
+        ITokenV1 ancestorToken = ITokenV1(ancestor.userToToken(avatar));
+        require(
+            ancestorToken != ITokenV1(address(0)),
+            "Ancestor token must exist for a conflict to exist with this Circle node."
+        );
+        // if an ancestor token exists, but is not stopped (v1 only has stopped)
+        // then we do have a conflict.
+        return conflict_ = !ancestorToken.stopped();
+    }
 
     function checkAncestorMigrations(address _avatar) 
         public
+        view
         returns (
             bool objectToStartMint_,
             address[] memory migrationTokens_
@@ -231,7 +325,7 @@ contract Graph is ProxyFactory, IGraph {
         // take the floor of current timestamp to get current interval
         uint256 currentTrustInterval = block.timestamp / TRUST_INTERVAL;
         require(
-            _expiryTrustMarker >= (currentTrustInterval + 1) * TRUST_INTERVAL,
+            _expiryTrustMarker >= (currentTrustInterval + 2) * TRUST_INTERVAL,
             "Future expiry must be at least a full trust interval into the future."
         );
         // trust can instantly be registered

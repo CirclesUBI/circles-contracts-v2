@@ -11,8 +11,8 @@ interface IHubV1 {
     function signup() external;
     function organizationSignup() external;
 
-    function tokenToUser(address token) external returns (address);
-    function userToToken(address user) external returns (address);
+    function tokenToUser(address token) external view returns (address);
+    function userToToken(address user) external view returns (address);
     function limits(address truster, address trustee) external returns (uint256);
 
     function trust(address trustee, uint256 limit) external;

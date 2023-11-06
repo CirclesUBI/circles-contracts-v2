@@ -47,7 +47,9 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, ICircleNode {
 
     address public avatar;
 
-    bool public active;
+    bool public paused;
+
+    bool public stopped;
 
     /**
      * last issued stores the timestamp in seconds of when the last
@@ -63,6 +65,46 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, ICircleNode {
     uint256 public lastIssuanceTimeSpan;
 
     mapping(address => address) public migrations;
+
+    // Events
+
+    event Paused(address indexed caller);
+
+    // Modifiers
+
+    modifier onlyGraphOrAvatar() {
+        require(
+            msg.sender == address(graph) ||
+            msg.sender == avatar,
+            "Only graph or avatar can call this function."
+        );
+        _;
+    }
+
+    modifier onlyGraph() {
+        require(
+            msg.sender == address(graph),
+            "Only graph can call this function."
+        );
+        _;
+    }
+
+    modifier onlyActive() {
+        require(
+            isActive(),
+            "Node must be active to call this function."
+        );
+        _;
+    }
+
+    modifier notStopped() {
+        require(
+            !stopped,
+            "Node can not have been stopped."
+        );
+        _;
+    }
+
 
     // External functions
 
@@ -86,7 +128,8 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, ICircleNode {
         // graph contract must set up Time Circle node.
         graph = IGraph(msg.sender);
         avatar = _avatar;
-        active =  _active;
+        paused =  !_active;
+        stopped = false;
         lastIssued = block.timestamp;
         lastIssuanceTimeSpan = _currentTimeSpan();
 
@@ -110,7 +153,7 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, ICircleNode {
         }
     }
 
-    function claimIssuance() external {
+    function claimIssuance() onlyActive() external {
         uint256 currentSpan = _currentTimeSpan();
         uint256 outstandingBalance = _calculateIssuance(currentSpan);
         require(
@@ -120,12 +163,38 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, ICircleNode {
 
         // mint the discounted balance for avatar
         _mint(avatar, outstandingBalance);
-        lastIssuanceTimeSpan = _currentTimeSpan();
+        lastIssuanceTimeSpan = currentSpan;
         lastIssued = block.timestamp;
     }
 
-    function calculateIssuance() external view returns (uint256 outstandingBalance_) {
+    function pause() onlyGraphOrAvatar() notStopped() external {
+        // pause can be quitely idempotent
+        if (!paused) {
+            paused = true;
+            emit Paused(msg.sender);
+        }
+    }
+
+    function unpause() onlyGraph() notStopped() external {
+        require(
+            paused,
+            "Node must be explicitly paused, to unpause."
+        );
+        // explicitly reset last issuance time to now to set a fresh clock,
+        // but without issuing tokens for the paused time.
+        lastIssuanceTimeSpan = _currentTimeSpan();
+        lastIssued = block.timestamp;
+        paused = false;
+    }
+
+    function calculateIssuance() onlyActive() external view returns (uint256 outstandingBalance_) {
         return _calculateIssuance(_currentTimeSpan());
+    }
+
+    // Public functions
+
+    function isActive() public view returns (bool active_) {
+        return !paused && !stopped;
     }
 
     // Internal functions
