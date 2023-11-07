@@ -205,7 +205,7 @@ contract Graph is ProxyFactory, IGraph {
     {
         // wait at least a full trust interval before the edge can expire
         uint256 earliestExpiry =
-            ((block.timestamp / TRUST_INTERVAL) + 2) * TRUST_INTERVAL;
+            ((block.timestamp / TRUST_INTERVAL) + 1) * TRUST_INTERVAL;
 
         require(
             trustMarkers[msg.sender][_entity] > earliestExpiry,
@@ -259,6 +259,17 @@ contract Graph is ProxyFactory, IGraph {
     }
 
     // Public functions
+
+    function isTrusted(address _truster, address _trustee)
+        onTrustGraph(_truster)
+        canBeTrusted(_trustee)
+        public view returns (
+            bool trusted_
+    ) {
+        uint256 currentTrustInterval = block.timestamp / TRUST_INTERVAL;
+
+        return trustMarkers[_truster][_trustee] >= currentTrustInterval;
+    }
 
     function nodeToAvatar(ICircleNode _node) public view returns (address avatar_) {
         require(
@@ -325,7 +336,7 @@ contract Graph is ProxyFactory, IGraph {
         // take the floor of current timestamp to get current interval
         uint256 currentTrustInterval = block.timestamp / TRUST_INTERVAL;
         require(
-            _expiryTrustMarker >= (currentTrustInterval + 2) * TRUST_INTERVAL,
+            _expiryTrustMarker >= (currentTrustInterval + 1) * TRUST_INTERVAL,
             "Future expiry must be at least a full trust interval into the future."
         );
         // trust can instantly be registered
