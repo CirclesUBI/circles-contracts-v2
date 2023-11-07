@@ -12,20 +12,21 @@ import "../proxy/ProxyFactory.sol";
 /// @author CirclesUBI
 /// @title A trust graph for path fungible tokens
 contract Graph is ProxyFactory, IGraph {
-
     // Constants
 
-    /** Sentinel to mark the end of the linked list of Circle nodes */
+    /**
+     * Sentinel to mark the end of the linked list of Circle nodes
+     */
     ICircleNode public constant SENTINEL_CIRCLE = ICircleNode(address(0x1));
 
-    /** Callprefix for ICircleNode::setup function */
-    bytes4 public constant CIRCLENOODE_SETUP_CALLPREFIX = bytes4(
-        keccak256(
-            "setup(address,bool,address[])"
-        )
-    );
+    /**
+     * Callprefix for ICircleNode::setup function
+     */
+    bytes4 public constant CIRCLENOODE_SETUP_CALLPREFIX = bytes4(keccak256("setup(address,bool,address[])"));
 
-    /** Indefinitely, or approximate future infinity with uint256.max */
+    /**
+     * Indefinitely, or approximate future infinity with uint256.max
+     */
     uint256 public constant INDEFINITELY = type(uint256).max;
 
     /**
@@ -34,20 +35,24 @@ contract Graph is ProxyFactory, IGraph {
      * know in advance the updated state of the graph (as otherwise
      * solutions might be invalid upon execution).
      * We can solve this by adding edges instantaneously - they don't cause
-     * concurrency problems - but the removal of edges is enacted with a 
+     * concurrency problems - but the removal of edges is enacted with a
      * calculable delay: enacted after current interval + 1 interval.
      */
     uint256 public constant TRUST_INTERVAL = 1 minutes;
 
     // State variables
 
-    /** Hub v1 contract reference to ensure correct migration of avatars */
+    /**
+     * Hub v1 contract reference to ensure correct migration of avatars
+     */
     IHubV1 public immutable ancestor;
 
-    /** Master copy of the circle node contract to deploy proxy's for */
+    /**
+     * Master copy of the circle node contract to deploy proxy's for
+     */
     ICircleNode public immutable masterCopyCircleNode;
 
-    /** 
+    /**
      * Avatar to node stores a mapping of which node has been created
      * for a given avatar.
      */
@@ -79,7 +84,7 @@ contract Graph is ProxyFactory, IGraph {
      */
     mapping(IGroup => IGroup) public groups;
 
-    /** 
+    /**
      * Trust markers map the time marker at which trust of an entity
      * for a trusted entity expires. By default, for all entities
      * the trust marks expiration at the zero-th marker, effectively
@@ -105,9 +110,8 @@ contract Graph is ProxyFactory, IGraph {
 
     modifier notYetOnTrustGraph(address _entity) {
         require(
-            address(avatarToNode[_entity]) == address(0) &&
-            address(organizations[_entity]) == address(0) &&
-            address(groups[IGroup(_entity)]) == address(0),
+            address(avatarToNode[_entity]) == address(0) && address(organizations[_entity]) == address(0)
+                && address(groups[IGroup(_entity)]) == address(0),
             "Entity is already registered as an avatar, an organisation or as a group."
         );
         _;
@@ -115,9 +119,8 @@ contract Graph is ProxyFactory, IGraph {
 
     modifier onTrustGraph(address _entity) {
         require(
-            address(avatarToNode[_entity]) != address(0) ||
-            address(organizations[_entity]) != address(0) ||
-            address(groups[IGroup(_entity)]) != address(0),            
+            address(avatarToNode[_entity]) != address(0) || address(organizations[_entity]) != address(0)
+                || address(groups[IGroup(_entity)]) != address(0),
             "Entity is neither a registered organisation, group or avatar."
         );
         _;
@@ -125,92 +128,63 @@ contract Graph is ProxyFactory, IGraph {
 
     modifier canBeTrusted(address _entity) {
         require(
-            address(avatarToNode[_entity]) != address(0) ||
+            address(avatarToNode[_entity]) != address(0)
             // address(organizations[_entity]) != address(0) ||
-            address(groups[IGroup(_entity)]) != address(0),            
+            || address(groups[IGroup(_entity)]) != address(0),
             "Entity to be trusted must be a registered group or avatar."
         );
         _;
     }
 
     modifier activeCircleNode(ICircleNode _node) {
-        require(
-            address(circleNodesIterable[_node]) != address(0),
-            "Node is not registered to this graph."
-        );
-        require(
-            _node.isActive(),
-            "Circle node must be active."
-        );
+        require(address(circleNodesIterable[_node]) != address(0), "Node is not registered to this graph.");
+        require(_node.isActive(), "Circle node must be active.");
         _;
     }
 
     // Constructor
 
-    constructor(
-        IHubV1 _ancestor,
-        ICircleNode _masterCopyCircleNode
-    ) {
+    constructor(IHubV1 _ancestor, ICircleNode _masterCopyCircleNode) {
         ancestor = _ancestor;
         masterCopyCircleNode = _masterCopyCircleNode;
     }
 
     // External functions
 
-    function registerAvatar() 
-        external 
-        notYetOnTrustGraph(msg.sender)
-    {
+    function registerAvatar() external notYetOnTrustGraph(msg.sender) {
         // there might not (yet) be a token in the ancestor graph
-        (bool objectToStartMint, address[] memory migrationTokens) = 
-            checkAncestorMigrations(msg.sender);
+        (bool objectToStartMint, address[] memory migrationTokens) = checkAncestorMigrations(msg.sender);
 
-        bytes memory circleNodeSetupData = abi.encodeWithSelector(
-            CIRCLENOODE_SETUP_CALLPREFIX,
-            msg.sender,
-            !objectToStartMint,
-            migrationTokens
-        );
-        ICircleNode circleNode = ICircleNode(address(
-            createProxy(address(masterCopyCircleNode), circleNodeSetupData)));
-        
+        bytes memory circleNodeSetupData =
+            abi.encodeWithSelector(CIRCLENOODE_SETUP_CALLPREFIX, msg.sender, !objectToStartMint, migrationTokens);
+        ICircleNode circleNode = ICircleNode(address(createProxy(address(masterCopyCircleNode), circleNodeSetupData)));
+
         avatarToNode[msg.sender] = circleNode;
         _insertCircleNode(circleNode);
 
         _trust(msg.sender, msg.sender, INDEFINITELY);
-    
+
         emit RegisterAvatar(msg.sender, address(circleNode));
     }
 
-    function trust(address _entity) 
-        onTrustGraph(msg.sender)
-        canBeTrusted(_entity) 
-        external
-    {
+    function trust(address _entity) external onTrustGraph(msg.sender) canBeTrusted(_entity) {
         // by default trust indefinitely
         _trust(msg.sender, _entity, INDEFINITELY);
     }
 
     function trustWithExpiry(address _entity, uint256 _expiry)
+        external
         onTrustGraph(msg.sender)
         canBeTrusted(_entity)
-        external
     {
         _trust(msg.sender, _entity, _expiry);
     }
 
-    function untrust(address _entity) 
-        onTrustGraph(msg.sender)
-        external
-    {
+    function untrust(address _entity) external onTrustGraph(msg.sender) {
         // wait at least a full trust interval before the edge can expire
-        uint256 earliestExpiry =
-            ((block.timestamp / TRUST_INTERVAL) + 1) * TRUST_INTERVAL;
+        uint256 earliestExpiry = ((block.timestamp / TRUST_INTERVAL) + 1) * TRUST_INTERVAL;
 
-        require(
-            trustMarkers[msg.sender][_entity] > earliestExpiry,
-            "Trust is already set to (have) expire(d)."
-        );
+        require(trustMarkers[msg.sender][_entity] > earliestExpiry, "Trust is already set to (have) expire(d).");
         trustMarkers[msg.sender][_entity] = earliestExpiry;
 
         emit Trust(msg.sender, _entity, earliestExpiry);
@@ -221,8 +195,8 @@ contract Graph is ProxyFactory, IGraph {
     //       where a user signs up in v1, after signing up in v2, and would mint
     //       double, by introducing 'pause()', in addition to 'stop()'.
     //       With pause, an avatar can have a token in multiple graphs, but we
-    //       can ensure that all-but-one token can always be paused/unpaused. 
-    function claimNodeMustPause(ICircleNode _node) activeCircleNode(_node) external returns (bool paused_) {
+    //       can ensure that all-but-one token can always be paused/unpaused.
+    function claimNodeMustPause(ICircleNode _node) external activeCircleNode(_node) returns (bool paused_) {
         // pause is idempotent, but emitting the event, or possible slashing is not
         // but in the modifier we already check is `activeCircleNode`,
         // which additionally prevents false claims if v2 node would have been stopped.
@@ -241,14 +215,8 @@ contract Graph is ProxyFactory, IGraph {
     function claimToUnpauseNode() external returns (bool paused_) {
         ICircleNode node = avatarToNode[msg.sender];
         // only the avatar can call to unpause their node.
-        require(
-            address(node) != address(0),
-            "Caller must be the registered avatar for a node on this graph."
-        );
-        require(
-            !node.stopped(),
-            "A stopped Cirlce node cannot be unpaused."
-        );
+        require(address(node) != address(0), "Caller must be the registered avatar for a node on this graph.");
+        require(!node.stopped(), "A stopped Cirlce node cannot be unpaused.");
 
         bool conflict = checkConcurrentMinting(node);
         if (!conflict) {
@@ -261,35 +229,27 @@ contract Graph is ProxyFactory, IGraph {
     // Public functions
 
     function isTrusted(address _truster, address _trustee)
+        public
+        view
         onTrustGraph(_truster)
         canBeTrusted(_trustee)
-        public view returns (
-            bool trusted_
-    ) {
+        returns (bool trusted_)
+    {
         uint256 currentTrustInterval = block.timestamp / TRUST_INTERVAL;
 
         return trustMarkers[_truster][_trustee] >= currentTrustInterval;
     }
 
     function nodeToAvatar(ICircleNode _node) public view returns (address avatar_) {
-        require(
-            address(circleNodesIterable[_node]) != address(0),
-            "Node is not registered on this graph."
-        );
+        require(address(circleNodesIterable[_node]) != address(0), "Node is not registered on this graph.");
         return _node.avatar();
     }
 
     function checkConcurrentMinting(ICircleNode _node) public view returns (bool conflict_) {
         // get the associated avatar for the token
         address avatar = nodeToAvatar(_node);
-        require(
-            avatar != address(0),
-            "Unknown Circle node, cannot check for conflicts."
-        );
-        require(
-            _node.isActive(),
-            "Search for conflict requires the node to be active."
-        );
+        require(avatar != address(0), "Unknown Circle node, cannot check for conflicts.");
+        require(_node.isActive(), "Search for conflict requires the node to be active.");
 
         // check recursively all paths to other graphs
         // (for now only v1 ancestor graph)
@@ -303,13 +263,10 @@ contract Graph is ProxyFactory, IGraph {
         return conflict_ = !ancestorToken.stopped();
     }
 
-    function checkAncestorMigrations(address _avatar) 
+    function checkAncestorMigrations(address _avatar)
         public
         view
-        returns (
-            bool objectToStartMint_,
-            address[] memory migrationTokens_
-        )
+        returns (bool objectToStartMint_, address[] memory migrationTokens_)
     {
         objectToStartMint_ = false;
         address ancestorToken = ancestor.userToToken(_avatar);
@@ -328,11 +285,7 @@ contract Graph is ProxyFactory, IGraph {
 
     // Internal functions
 
-    function _trust(
-        address _truster,
-        address _trusted,
-        uint256 _expiryTrustMarker
-    ) internal {
+    function _trust(address _truster, address _trusted, uint256 _expiryTrustMarker) internal {
         // take the floor of current timestamp to get current interval
         uint256 currentTrustInterval = block.timestamp / TRUST_INTERVAL;
         require(
@@ -354,7 +307,5 @@ contract Graph is ProxyFactory, IGraph {
         circleNodesIterable[_circleNode] = SENTINEL_CIRCLE;
         circleNodesIterable[SENTINEL_CIRCLE] = _circleNode;
     }
-
-    // function registerTrust(IGraphNode _center)
 
 }

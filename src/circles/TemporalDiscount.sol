@@ -16,10 +16,11 @@ interface IERC20 {
 }
 
 contract TemporalDiscount is IERC20 {
-
     // Constants
 
-    /** Decimals of tokens are set to 18 */
+    /**
+     * Decimals of tokens are set to 18
+     */
     uint8 public constant DECIMALS = uint8(18);
 
     /**
@@ -30,19 +31,23 @@ contract TemporalDiscount is IERC20 {
      */
     uint256 public constant DISCOUNT_WINDOW = 1 weeks;
 
-    /** 
+    /**
      * Arbitrary origin for counting time since 10 December 2021
      *  "Hope" is the thing with feathers -
      */
     uint256 internal constant ZERO_TIME = uint256(1639094400);
 
-    /** EXA factor as 10^18 */
+    /**
+     * EXA factor as 10^18
+     */
     uint256 internal constant EXA = uint256(1000000000000000000);
 
-    /** Store the signed 128-bit 64.64 representation of 1 as a constant */
+    /**
+     * Store the signed 128-bit 64.64 representation of 1 as a constant
+     */
     int128 private constant ONE_64x64 = int128(18446744073709551616);
 
-    /** 
+    /**
      * Reduction factor gamma for temporally discounting balances
      *   balance(t) = gamma^t * balance(t=0)
      * where 't' is expressed in units of DISCOUNT_WINDOW seconds,
@@ -60,12 +65,14 @@ contract TemporalDiscount is IERC20 {
      *   => gamma = (0.93)^(1/52)
      *            = 0.998605383136377398...
      *   => gamma_64x64 = 18421018000000000000
-    */
+     */
     int128 private constant GAMMA_64x64 = int128(18421018000000000000);
 
     // State variables
 
-    /** Creation time stores the time this time circle node was created */
+    /**
+     * Creation time stores the time this time circle node was created
+     */
     // note: this is not strictly needed, can remove later if we want to optimise
     uint256 public creationTime;
 
@@ -78,15 +85,19 @@ contract TemporalDiscount is IERC20 {
     mapping(address => uint256) public temporalBalances;
 
     /**
-     * Balance time spans stores the time span in which 
+     * Balance time spans stores the time span in which
      * temporalBalances was written to.
      */
     mapping(address => uint256) public balanceTimeSpans;
 
-    /** Temporal total supply stores the total supply at the time it was last updated. */
+    /**
+     * Temporal total supply stores the total supply at the time it was last updated.
+     */
     uint256 private temporalTotalSupply;
 
-    /** Total supply time stores the time at which total supply was last written to. */
+    /**
+     * Total supply time stores the time at which total supply was last written to.
+     */
     uint256 private totalSupplyTime;
 
     mapping(address => mapping(address => uint256)) private allowances;
@@ -154,10 +165,8 @@ contract TemporalDiscount is IERC20 {
         } else {
             // preserve the expectation balanceOf as a view function
             // and don't store the computed result on read operations.
-            return balance_ = _calculateDiscountedBalance(
-                temporalBalances[_owner],
-                currentSpan - balanceTimeSpans[_owner]
-            );
+            return
+                balance_ = _calculateDiscountedBalance(temporalBalances[_owner], currentSpan - balanceTimeSpans[_owner]);
         }
     }
 
@@ -196,7 +205,7 @@ contract TemporalDiscount is IERC20 {
     }
 
     function _mint(address _owner, uint256 _amount) internal {
-        // note: we only call mint once from TimeCircles, 
+        // note: we only call mint once from TimeCircles,
         // which already needs to calculate current time span,
         // but the pattern is off if we change the signature to pass currentSpan,
         // todo: evaluate if it is worth splitting the signatures for this...
@@ -218,17 +227,15 @@ contract TemporalDiscount is IERC20 {
     function _currentTimeSpan() internal view returns (uint256 currentTimeSpan_) {
         // integer division rounds down, a difference less than one week
         // is counted as zero (since ZERO_TIME, or when substracting a difference)
-        return
-            ((block.timestamp - ZERO_TIME) / DISCOUNT_WINDOW);
+        return ((block.timestamp - ZERO_TIME) / DISCOUNT_WINDOW);
     }
 
     // Private functions
 
-    function _discountBalanceThenAdd(
-        address _owner,
-        uint256 _amount,
-        uint256 _currentSpan
-    ) private returns (uint256 discountCost_) {
+    function _discountBalanceThenAdd(address _owner, uint256 _amount, uint256 _currentSpan)
+        private
+        returns (uint256 discountCost_)
+    {
         if (balanceTimeSpans[_owner] == _currentSpan) {
             // Within the same time span balances are constant
             // so simply add the amount to the balance,
@@ -240,17 +247,15 @@ contract TemporalDiscount is IERC20 {
         } else {
             // if the balanceTimeSpan is small than currentSpan (only ever smaller)
             // calculate the discounted balance
-            uint256 discountedBalance = _calculateDiscountedBalance(
-                temporalBalances[_owner],
-                _currentSpan - balanceTimeSpans[_owner]
-            );
+            uint256 discountedBalance =
+                _calculateDiscountedBalance(temporalBalances[_owner], _currentSpan - balanceTimeSpans[_owner]);
             // report the discount cost explicitly
             discountCost_ = temporalBalances[_owner] - discountedBalance;
             // and update the balance with the addition of the amount
             temporalBalances[_owner] = discountedBalance + _amount;
             // and update the timespan in which we updated the balance.
             balanceTimeSpans[_owner] = _currentSpan;
-            
+
             // adjust total supply to reflect discount cost
             _subtractTotalSupply(discountCost_, _currentSpan);
 
@@ -260,11 +265,10 @@ contract TemporalDiscount is IERC20 {
         }
     }
 
-    function _discountBalanceThenSubtract(
-        address _owner,
-        uint256 _amount,
-        uint256 _currentSpan
-    ) private returns (uint256 discountCost_) {
+    function _discountBalanceThenSubtract(address _owner, uint256 _amount, uint256 _currentSpan)
+        private
+        returns (uint256 discountCost_)
+    {
         if (balanceTimeSpans[_owner] == _currentSpan) {
             // Within the same time span balances are constant
             // so simply subtract the amount from the balance,
@@ -276,17 +280,15 @@ contract TemporalDiscount is IERC20 {
         } else {
             // if the balanceTimeSpan is small than currentSpan (only ever smaller)
             // calculate the discounted balance
-            uint256 discountedBalance = _calculateDiscountedBalance(
-                temporalBalances[_owner],
-                _currentSpan - balanceTimeSpans[_owner]
-            );
+            uint256 discountedBalance =
+                _calculateDiscountedBalance(temporalBalances[_owner], _currentSpan - balanceTimeSpans[_owner]);
             // report the discount cost explicitly
             discountCost_ = temporalBalances[_owner] - discountedBalance;
             // and update the balance with the addition of the amount
             temporalBalances[_owner] = discountedBalance - _amount;
             // and update the timespan in which we updated the balance.
             balanceTimeSpans[_owner] = _currentSpan;
-            
+
             // adjust total supply to reflect discount cost
             _subtractTotalSupply(discountCost_, _currentSpan);
 
@@ -304,14 +306,15 @@ contract TemporalDiscount is IERC20 {
         totalSupplyTime = _currentSpan;
     }
 
-    function _calculateDiscountedBalance(
-        uint256 _balance,
-        uint256 _numberOfTimeSpans
-    ) internal pure returns (uint256 discountedBalance_) {
+    function _calculateDiscountedBalance(uint256 _balance, uint256 _numberOfTimeSpans)
+        internal
+        pure
+        returns (uint256 discountedBalance_)
+    {
         // don't call this function in the implementation
         // if there is no discount; let's not waste gas
         assert(_numberOfTimeSpans > 0);
-        if (_numberOfTimeSpans == uint256(0)) { return discountedBalance_ = _balance; }
+        if (_numberOfTimeSpans == uint256(0)) return discountedBalance_ = _balance;
         // exponentiate the reduction factor by the number of time spans (of one week)
         // todo: as most often the number of time spans would be a low integer
         //       we can cache a table of the initial reduction factors.
@@ -320,7 +323,8 @@ contract TemporalDiscount is IERC20 {
         int128 reduction64x64 = ONE_64x64;
         if (_numberOfTimeSpans == uint256(1)) {
             reduction64x64 = GAMMA_64x64;
-        } else { // for n >= 2
+        } else {
+            // for n >= 2
             reduction64x64 = Math64x64.pow(GAMMA_64x64, _numberOfTimeSpans);
         }
         // return the discounted balance

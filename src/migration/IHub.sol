@@ -7,7 +7,6 @@ pragma solidity >=0.8.13;
  * @notice legacy interface of Hub contract in Circles v1
  */
 interface IHubV1 {
-
     function signup() external;
     function organizationSignup() external;
 

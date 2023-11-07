@@ -7,7 +7,7 @@ interface ICircleNode {
     function setup(address avatar, bool active, address[] calldata migrations) external;
 
     function avatar() external view returns (address);
-    
+
     function paused() external view returns (bool paused);
     function stopped() external view returns (bool stopped);
     function isActive() external view returns (bool active);

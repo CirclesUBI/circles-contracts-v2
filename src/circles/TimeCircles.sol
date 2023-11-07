@@ -7,7 +7,6 @@ import "../graph/ICircleNode.sol";
 import "../graph/IGraph.sol";
 
 contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, ICircleNode {
-
     // Constants
 
     address public constant SENTINEL_MIGRATION = address(0x1);
@@ -28,9 +27,9 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, ICircleNode {
      * Per call to claim issuance, the maximum amount of tokens
      * that can be claimed only goes back 2 weeks in time.
      */
-    uint256 public constant MAX_ISSUANCE =  2 weeks / ISSUANCE_PERIOD;
+    uint256 public constant MAX_ISSUANCE = 2 weeks / ISSUANCE_PERIOD;
 
-    uint256 public constant MAX_CLAIM_DURATION =  2 weeks;
+    uint256 public constant MAX_CLAIM_DURATION = 2 weeks;
 
     /**
      * compute the number of issuance periods per discount window:
@@ -38,8 +37,7 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, ICircleNode {
      * note: before issuance these tokens still need to discounted
      *       per discount window.
      */
-    uint256 internal constant PERIODS_PER_DISCOUNT =
-        DISCOUNT_WINDOW / ISSUANCE_PERIOD;
+    uint256 internal constant PERIODS_PER_DISCOUNT = DISCOUNT_WINDOW / ISSUANCE_PERIOD;
 
     // State variables
 
@@ -73,62 +71,36 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, ICircleNode {
     // Modifiers
 
     modifier onlyGraphOrAvatar() {
-        require(
-            msg.sender == address(graph) ||
-            msg.sender == avatar,
-            "Only graph or avatar can call this function."
-        );
+        require(msg.sender == address(graph) || msg.sender == avatar, "Only graph or avatar can call this function.");
         _;
     }
 
     modifier onlyGraph() {
-        require(
-            msg.sender == address(graph),
-            "Only graph can call this function."
-        );
+        require(msg.sender == address(graph), "Only graph can call this function.");
         _;
     }
 
     modifier onlyActive() {
-        require(
-            isActive(),
-            "Node must be active to call this function."
-        );
+        require(isActive(), "Node must be active to call this function.");
         _;
     }
 
     modifier notStopped() {
-        require(
-            !stopped,
-            "Node can not have been stopped."
-        );
+        require(!stopped, "Node can not have been stopped.");
         _;
     }
 
-
     // External functions
 
-    function setup(
-        address _avatar,
-        bool _active,
-        address[] calldata _migrations
-    )
-        external
-    {
-        require(
-            address(graph) == address(0),
-            "Time Circle contract has already been setup."
-        );
+    function setup(address _avatar, bool _active, address[] calldata _migrations) external {
+        require(address(graph) == address(0), "Time Circle contract has already been setup.");
 
-        require(
-            address(_avatar) != address(0),
-            "Avatar must not be zero address."
-        );
+        require(address(_avatar) != address(0), "Avatar must not be zero address.");
 
         // graph contract must set up Time Circle node.
         graph = IGraph(msg.sender);
         avatar = _avatar;
-        paused =  !_active;
+        paused = !_active;
         stopped = false;
         lastIssued = block.timestamp;
         lastIssuanceTimeSpan = _currentTimeSpan();
@@ -136,7 +108,7 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, ICircleNode {
         // instantiate the linked list
         // todo: this is not necessary with a prepend-linked list?
         // migrations[SENTINEL_MIGRATION] = SENTINEL_MIGRATION;
-        
+
         // loop over memory array to insert migration history into linked list
         for (uint256 i = 0; i < _migrations.length; i++) {
             _insertMigration(_migrations[i]);
@@ -153,13 +125,10 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, ICircleNode {
         }
     }
 
-    function claimIssuance() onlyActive() external {
+    function claimIssuance() external onlyActive {
         uint256 currentSpan = _currentTimeSpan();
         uint256 outstandingBalance = _calculateIssuance(currentSpan);
-        require(
-            outstandingBalance == uint256(0),
-            "Minimally wait one hour between claims."
-        );
+        require(outstandingBalance == uint256(0), "Minimally wait one hour between claims.");
 
         // mint the discounted balance for avatar
         _mint(avatar, outstandingBalance);
@@ -167,7 +136,7 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, ICircleNode {
         lastIssued = block.timestamp;
     }
 
-    function pause() onlyGraphOrAvatar() notStopped() external {
+    function pause() external onlyGraphOrAvatar notStopped {
         // pause can be quitely idempotent
         if (!paused) {
             paused = true;
@@ -175,11 +144,8 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, ICircleNode {
         }
     }
 
-    function unpause() onlyGraph() notStopped() external {
-        require(
-            paused,
-            "Node must be explicitly paused, to unpause."
-        );
+    function unpause() external onlyGraph notStopped {
+        require(paused, "Node must be explicitly paused, to unpause.");
         // explicitly reset last issuance time to now to set a fresh clock,
         // but without issuing tokens for the paused time.
         lastIssuanceTimeSpan = _currentTimeSpan();
@@ -187,7 +153,7 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, ICircleNode {
         paused = false;
     }
 
-    function calculateIssuance() onlyActive() external view returns (uint256 outstandingBalance_) {
+    function calculateIssuance() external view onlyActive returns (uint256 outstandingBalance_) {
         return _calculateIssuance(_currentTimeSpan());
     }
 
@@ -199,26 +165,22 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, ICircleNode {
 
     // Internal functions
 
-    function _calculateIssuance(uint256 _currentSpan) internal view returns (
-        uint256 outstandingBalance_
-    ) {
+    function _calculateIssuance(uint256 _currentSpan) internal view returns (uint256 outstandingBalance_) {
         uint256 newIssuanceTime = block.timestamp;
         // the duration over which tokens can be claimed
         // is the duration since last claim for a maximum
         // of two weeks.
-        uint256 durationClaimable = _min(MAX_CLAIM_DURATION,
-            newIssuanceTime - lastIssued);
+        uint256 durationClaimable = _min(MAX_CLAIM_DURATION, newIssuanceTime - lastIssued);
 
         // use integer division to round down towards the number
         // of completed issuance periods since last issued.
-        uint256 balanceWithoutDiscounting = 
-            durationClaimable / ISSUANCE_PERIOD;
+        uint256 balanceWithoutDiscounting = durationClaimable / ISSUANCE_PERIOD;
 
         // don't bother discounting if oustanding balance is zero
         if (balanceWithoutDiscounting == 0) {
             return outstandingBalance_ = uint256(0);
         }
-        
+
         // the number of discounting windows that have passed.
         uint256 discountWindows = _currentSpan - lastIssuanceTimeSpan;
 
@@ -226,7 +188,7 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, ICircleNode {
             // within the same discount window, no discounts are applied
             return outstandingBalance_ = balanceWithoutDiscounting;
         }
-        
+
         // note: because the maximal claim duration is only a few discount windows
         //       the start and end span are the majority of cases and covered better by
         //       a naive loop; for different parameters, this loop could be longer
@@ -253,12 +215,9 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, ICircleNode {
     }
 
     // Private function
-    
+
     function _insertMigration(address _migration) private {
-        require(
-            _migration != address(0),
-            "Migration address cannot be zero address."
-        );
+        require(_migration != address(0), "Migration address cannot be zero address.");
         // idempotent under repeated insertion
         if (migrations[_migration] != address(0)) {
             return;
