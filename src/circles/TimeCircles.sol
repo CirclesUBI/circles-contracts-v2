@@ -27,7 +27,7 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, ICircleNode {
      * Per call to claim issuance, the maximum amount of tokens
      * that can be claimed only goes back 2 weeks in time.
      */
-    uint256 public constant MAX_ISSUANCE = 2 weeks / ISSUANCE_PERIOD;
+    uint256 public constant MAX_ISSUANCE = MAX_CLAIM_DURATION / ISSUANCE_PERIOD;
 
     uint256 public constant MAX_CLAIM_DURATION = 2 weeks;
 
@@ -102,6 +102,7 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, ICircleNode {
         avatar = _avatar;
         paused = !_active;
         stopped = false;
+        creationTime = block.timestamp;
         lastIssued = block.timestamp;
         lastIssuanceTimeSpan = _currentTimeSpan();
 
@@ -151,7 +152,11 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, ICircleNode {
         lastIssuanceTimeSpan = _currentTimeSpan();
         lastIssued = block.timestamp;
         paused = false;
+
+        // todo: emit event
     }
+
+    // todo: function stop()
 
     function calculateIssuance() external view onlyActive returns (uint256 outstandingBalance_) {
         return _calculateIssuance(_currentTimeSpan());

@@ -59,13 +59,6 @@ contract Graph is ProxyFactory, IGraph {
     mapping(address => ICircleNode) public avatarToNode;
 
     /**
-     * Node to avatar stores an inverse mapping of the avatar given the node.
-     * @dev this not actively used, and the node stores the owner, so consider
-     *      replacing it with a linked list of all the nodes; or removing it
-     */
-    // mapping(ICircleNode => Avatar) public nodeToAvatar;
-
-    /**
      * Circle nodes iterator allows to list all circle nodes from contract state
      * independent of indexer logic.
      */
