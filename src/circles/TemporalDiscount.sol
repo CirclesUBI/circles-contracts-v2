@@ -66,7 +66,7 @@ contract TemporalDiscount is IERC20 {
      *            = 0.998605383136377398...
      *   => gamma_64x64 = 18421018000000000000
      */
-    int128 private constant GAMMA_64x64 = int128(18421018000000000000);
+    int128 public constant GAMMA_64x64 = int128(18421018000000000000);
 
     // State variables
 
@@ -260,7 +260,12 @@ contract TemporalDiscount is IERC20 {
             _subtractTotalSupply(discountCost_, _currentSpan);
 
             // emit DiscountCost only when effectively discounted.
-            emit DiscountCost(_owner, discountCost_);
+            // if the original balance was zero before adding,
+            // discount cost can still be zero, even when discounted
+            // todo: possibly optimise? at cost of more if clauses?
+            if (discountCost_ != uint256(0)) {
+                emit DiscountCost(_owner, discountCost_);
+            }
             return discountCost_;
         }
     }

@@ -4,7 +4,6 @@ pragma solidity >=0.8.13;
 import "../../src/circles/TemporalDiscount.sol";
 
 contract MockTimeCircles is TemporalDiscount {
-
     // State variables
 
     /**
