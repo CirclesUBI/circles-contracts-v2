@@ -161,6 +161,10 @@ contract Graph is ProxyFactory, IGraph {
     }
 
     function trust(address _entity) external onTrustGraph(msg.sender) canBeTrusted(_entity) {
+        require(
+            _entity != msg.sender,
+            "Cannot edit your own trust relation."
+        );
         // by default trust indefinitely
         _trust(msg.sender, _entity, INDEFINITELY);
     }
@@ -170,10 +174,18 @@ contract Graph is ProxyFactory, IGraph {
         onTrustGraph(msg.sender)
         canBeTrusted(_entity)
     {
+        require(
+            _entity != msg.sender,
+            "Cannot edit your own trust relation."
+        );
         _trust(msg.sender, _entity, _expiry);
     }
 
     function untrust(address _entity) external onTrustGraph(msg.sender) {
+        require(
+            _entity != msg.sender,
+            "Cannot edit your own trust relation."
+        );
         // wait at least a full trust interval before the edge can expire
         uint256 earliestExpiry = ((block.timestamp / TRUST_INTERVAL) + 1) * TRUST_INTERVAL;
 
