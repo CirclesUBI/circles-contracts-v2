@@ -281,6 +281,41 @@ contract Graph is ProxyFactory, IGraph {
 
     // Internal functions
 
+    /**
+     * @dev abi.encodePacked of an array uint16[] would still pad each uint16 - I think
+     *      if abi packing does not add padding this function is redundant and should be thrown out
+     *      Unpacks the packed coordinates from bytes.
+     *      Each coordinate is 16 bits, and each triplet is thus 48 bits.
+     * @param _packedData The packed data containing the coordinates.
+     * @param _numberOfTriplets The number of coordinate triplets in the packed data.
+     * @return unpackedCoordinates_ An array of unpacked coordinates (of length 3* numberOfTriplets)
+     */
+    function unpackCoordinates(
+        bytes calldata _packedData,
+        uint256 _numberOfTriplets
+    ) internal pure returns (
+        uint16[] memory unpackedCoordinates_
+    ) {
+        require(
+            _packedData.length == _numberOfTriplets * 6,
+            "Invalid packed data length"
+        );
+
+        unpackedCoordinates_ = new uint16[](_numberOfTriplets * 3);
+        uint256 index = 0;
+
+        for (uint256 i = 0; i < _packedData.length; i += 6) {
+            unpackedCoordinates_[index++] = uint16(uint8(_packedData[i])) << 8 | uint16(uint8(_packedData[i + 1]));
+            unpackedCoordinates_[index++] = uint16(uint8(_packedData[i + 2])) << 8 | uint16(uint8(_packedData[i + 3]));
+            unpackedCoordinates_[index++] = uint16(uint8(_packedData[i + 4])) << 8 | uint16(uint8(_packedData[i + 5]));
+        }
+    }
+
+    // function _verifyFlowMatrix(
+    //     address[] memory pathAvatars,
+
+    // ) internal view returns ()
+
     function _trust(address _truster, address _trusted, uint256 _expiryTrustMarker) internal {
         // take the floor of current timestamp to get current interval
         uint256 currentTrustInterval = block.timestamp / TRUST_INTERVAL;
@@ -298,6 +333,7 @@ contract Graph is ProxyFactory, IGraph {
 
     function _insertCircleNode(ICircleNode _circleNode) private {
         assert(address(_circleNode) != address(0));
+        assert(_circleNode != SENTINEL_CIRCLE);
         assert(address(circleNodesIterable[_circleNode]) == address(0));
         // prepend the new CircleNode in the iterable linked list
         circleNodesIterable[_circleNode] = SENTINEL_CIRCLE;
