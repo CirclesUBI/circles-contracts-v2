@@ -304,6 +304,7 @@ contract Graph is ProxyFactory, IGraph {
         unpackedCoordinates_ = new uint16[](_numberOfTriplets * 3);
         uint256 index = 0;
 
+        // per three coordinates, shift each upper byte left
         for (uint256 i = 0; i < _packedData.length; i += 6) {
             unpackedCoordinates_[index++] = uint16(uint8(_packedData[i])) << 8 | uint16(uint8(_packedData[i + 1]));
             unpackedCoordinates_[index++] = uint16(uint8(_packedData[i + 2])) << 8 | uint16(uint8(_packedData[i + 3]));

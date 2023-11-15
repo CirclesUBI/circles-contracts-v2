@@ -5,29 +5,29 @@ import "../../src/migration/IHub.sol";
 
 contract MockHubV1 is IHubV1 {
 
-    function signup() external {
+    function signup() external pure {
         notMocked();
     }
 
-    function organizationSignup() external {
+    function organizationSignup() external pure {
         notMocked();
     }
 
-    function tokenToUser(address token) external view returns (address) {
+    function tokenToUser(address /*token*/) external pure returns (address) {
         notMocked();
         return address(0);
     }
-    function userToToken(address user) external view returns (address) {
+    function userToToken(address /*user*/) external pure returns (address) {
         notMocked();
         return address(0);
     }
 
-    function limits(address truster, address trustee) external returns (uint256) {
+    function limits(address /*truster*/, address /*trustee*/) external pure returns (uint256) {
         notMocked();
         return uint256(0);
     }
 
-    function trust(address trustee, uint256 limit) external {
+    function trust(address /*trustee*/, uint256 /*limit*/) external pure {
         notMocked();
     }
 
