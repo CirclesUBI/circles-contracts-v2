@@ -34,7 +34,7 @@ contract MockInternalGraph is Graph {
     ) public pure returns (
         uint16[] memory unpackedCoordinates_
     ) {
-        return super.unpackCoordinates(
+        return super._unpackCoordinates(
             _packedData,
             _numberOfTriplets
         );

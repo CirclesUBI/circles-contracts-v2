@@ -279,10 +279,107 @@ contract Graph is ProxyFactory, IGraph {
         }
     }
 
+    function circleNodeForEntity(address _entity) canBeTrusted(_entity) public view returns (ICircleNode circleNode_) {
+        // first see if the entity is a registered avatar
+        circleNode_ = avatarToNode[_entity];
+        if (address(circleNode_) != address(0)) {
+            return circleNode_;
+        }
+        // we already check this in modifier, by exclusion. Leave this here during development.
+        assert(address(groups[IGroup(_entity)]) != address(0));
+        // return the group itself as the circle node
+        assert(false); // todo: not yet implemented, think proper about group currencies
+        return ICircleNode(_entity);
+    }
+
     // Internal functions
 
     /**
-     * @dev abi.encodePacked of an array uint16[] would still pad each uint16 - I think
+     * 
+     * @param _flowVertices Flow vertices list (without repetition) the addresses of entities
+     *     involved in the (batch) of path transfers. The vertices are the columns of a flow marix.
+     * @param _flow Flow is the amount of tokens that flow (for positive flow number),
+     *     from "from" to "to" (and a negative flow 'flows' from "to" to "from").
+     *     Note that we need to cast this to int256 to add and subtract numbers, so it will revert
+     *     for any flow number bigger than type(int256).max.
+     * @param _coordinates For each flow, three coordinates must be provided to characterize the flow.
+     *     The coordinates are the array indices of the _flowVertices array provided, expressed as uint16.
+     *     1. The first coordinate indicates the token to be sent, which will be looked up from the entity in
+     *     the _flowVertices array under the coordinate index.
+     *     2. The second coordindate indicates "from" whom the token should be sent. Again this is expressed
+     *     as the coordinate index of the _flowVertices array. The sender should have a sufficient balance,
+     *     but we rely on the default requirements of transfer to not underflow the balance upon executing
+     *     the transfer.
+     *     3. The third coordinate indicates "to" whom the token should be sent. Again the coordinate is
+     *     used to look up under the index in the _flowVertices array the receiver entity address.
+     *     This entity should currently trust, and as such accept the token provided in the first coordinate,
+     *     otherwise _verifyFlowMatrix will revert.
+     * @param _cleanupClosedPath When _cleanupClosedPath is `true`, the `to` coordinate MUST equal the `token`
+     *     coordinate. This restricts all flows to return tokens to the original minter address.
+     *     Let's explain the rationale a bit more verbose: a special path transfer is also the case
+     *     where all flow vertices have a conserved balance after the path transfer,
+     *     ie. there is no net sender or receiver.
+     *     This is particularly useful if anyone wants to clean up balances,
+     *     by swapping tokens back to their original minters. For a closed path no signatures or intents are
+     *     required, because everyone simply exchanges tokens they trust. However, we want to prevent irrational
+     *     actors from simply disturbing the network by shuffling tokens around without good reason.
+     *     We therefore make a closed path more difficult by only allowing tokens to be sent back to the original
+     *     minters, and not allow them to be shuffled among people who trust someone's token.
+     * @return nettedFlow_ The nettedFlow_ is returned as an array of int256 (not uint256!) of the same length
+     *     as the input _flowVertices array, and should be read as concerning the same entities as the input array.
+     *     a negative netted flow indicates a net amount sent from this entity (summed over all tokens).
+     *     Zero indicates that (respecting trust relations) an equal amount was received as was sent.
+     *     This can be either because the entity was an intermediate vertex along the path, or because in a batch
+     *     they incidentally initiated to send as much as they happened to have received in this batch.
+     *     Finally a positive netted flow indicates a net received amount of tokens.
+     */
+    function _verifyFlowMatrix(
+        address[] calldata _flowVertices,
+        uint256[] calldata _flow,
+        uint16[] memory _coordinates,
+        bool _cleanupClosedPath
+    ) internal view returns (
+        int256[] memory nettedFlow_
+    ) {
+        require(
+            3 * _flow.length == _coordinates.length,
+            "Every flow row must have three coordinates."
+        );
+        // todo: we should probably introduce a lower maximum,
+        // because 65k vertices probably never fits in a block
+        require(
+            _flowVertices.length <= type(uint16).max,
+            "Flow matrix cannot have more than 65536 columns"
+        );
+
+        // cast the number of columns to uint16
+        uint16 columnOutOfBound = uint16(_flowVertices.length);
+
+        // initialize the netted flow array
+        nettedFlow_ = new int256[](_flowVertices.length);
+
+        // iterate over the coordinate index
+        uint16 index = uint16(0);
+
+        // iterate over all flow edges in the path
+        for (uint256 i = 0; i < _flow.length; i++) {
+            // retrieve the flow vertices associated with this flow edge
+            address tokenEntity = _flowVertices[_coordinates[index++]];
+            address from = _flowVertices[_coordinates[index++]];
+            address to = _flowVertices[_coordinates[index++]];
+            // cast the flow amount from uint256 to int256,
+            // will revert if flow is larger than type(int256).max
+            int256 flow = int256(_flow[i]);
+
+            ICircleNode node = circleNodeForEntity(tokenEntity);
+
+            // todo: continue
+        }
+    }
+
+
+    /**
+     * @dev abi.encodePacked of an array uint16[] would still pad each uint16 - I think;
      *      if abi packing does not add padding this function is redundant and should be thrown out
      *      Unpacks the packed coordinates from bytes.
      *      Each coordinate is 16 bits, and each triplet is thus 48 bits.
@@ -290,7 +387,7 @@ contract Graph is ProxyFactory, IGraph {
      * @param _numberOfTriplets The number of coordinate triplets in the packed data.
      * @return unpackedCoordinates_ An array of unpacked coordinates (of length 3* numberOfTriplets)
      */
-    function unpackCoordinates(
+    function _unpackCoordinates(
         bytes calldata _packedData,
         uint256 _numberOfTriplets
     ) internal pure returns (
