@@ -326,12 +326,12 @@ contract Graph is ProxyFactory, IGraph {
      *     We therefore make a closed path more difficult by only allowing tokens to be sent back to the original
      *     minters, and not allow them to be shuffled among people who trust someone's token.
      * @return nettedFlow_ The nettedFlow_ is returned as an array of int256 (not uint256!) of the same length
-     *     as the input _flowVertices array, and should be read as concerning the same entities as the input array.
-     *     a negative netted flow indicates a net amount sent from this entity (summed over all tokens).
-     *     Zero indicates that (respecting trust relations) an equal amount was received as was sent.
+     *     as the input _flowVertices array, and should be read as concerning the same entities as this input array.
+     *     - A negative netted flow indicates a net amount sent from this entity (summed over all tokens).
+     *     - Zero indicates that (respecting trust relations) an equal amount was received as was sent.
      *     This can be either because the entity was an intermediate vertex along the path, or because in a batch
      *     they incidentally initiated to send as much as they happened to have received in this batch.
-     *     Finally a positive netted flow indicates a net received amount of tokens.
+     *     - Finally a positive netted flow indicates a net received amount of tokens.
      */
     function _verifyFlowMatrix(
         address[] calldata _flowVertices,
@@ -361,20 +361,49 @@ contract Graph is ProxyFactory, IGraph {
         // iterate over the coordinate index
         uint16 index = uint16(0);
 
+        // check for membership of all flow vertices
+        for (uint256 i = 0; i < _flowVertices.length; i++) {
+            address entity = _flowVertices[i];
+            require(
+                address(avatarToNode[entity]) != address(0) || address(organizations[entity]) != address(0)
+                    || address(groups[IGroup(entity)]) != address(0),
+                "Flow vertex is neither a registered organisation, group or avatar."
+            );
+        }
+
         // iterate over all flow edges in the path
         for (uint256 i = 0; i < _flow.length; i++) {
             // retrieve the flow vertices associated with this flow edge
             address tokenEntity = _flowVertices[_coordinates[index++]];
-            address from = _flowVertices[_coordinates[index++]];
-            address to = _flowVertices[_coordinates[index++]];
+            uint16 fromIndex = index++;
+            address from = _flowVertices[_coordinates[fromIndex]];
+            uint16 toIndex = index++;
+            address to = _flowVertices[_coordinates[toIndex]];
             // cast the flow amount from uint256 to int256,
             // will revert if flow is larger than type(int256).max
             int256 flow = int256(_flow[i]);
 
             ICircleNode node = circleNodeForEntity(tokenEntity);
 
-            // todo: continue
+            // check receiver is within the trust circle of the token being sent
+            require(
+                isTrusted(to, tokenEntity),
+                "The receiver does not trust the token being sent in the flow edge."
+            );
+            require(
+                !_cleanupClosedPath || (to == tokenEntity),
+                "For closed paths, tokens may only be sent to original avatar."
+            );
+
+            // don't execute the transfers yet (although we could do so here later for gas optimisation)
+            // but keep the function as view
+
+            // nett the flow across tokens
+            nettedFlow_[fromIndex] -= flow;
+            nettedFlow_[toIndex] += flow;
         }
+
+        return nettedFlow_;
     }
 
 
