@@ -137,6 +137,10 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, ICircleNode {
         lastIssued = block.timestamp;
     }
 
+    function pathTransfer(address _from, address _to, uint256 _amount) external onlyGraph {
+        _transfer(_from, _to, _amount);
+    }
+
     function pause() external onlyGraphOrAvatar notStopped {
         // pause can be quitely idempotent
         if (!paused) {

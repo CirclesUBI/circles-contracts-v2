@@ -295,9 +295,10 @@ contract Graph is ProxyFactory, IGraph {
     // Internal functions
 
     /**
-     * 
      * @param _flowVertices Flow vertices list (without repetition) the addresses of entities
      *     involved in the (batch) of path transfers. The vertices are the columns of a flow marix.
+     *     To make it gas-efficient to ensure no duplicate entries are in the array of _flowVertices
+     *     the addresses must be sorted in ascending order.
      * @param _flow Flow is the amount of tokens that flow (for positive flow number),
      *     from "from" to "to" (and a negative flow 'flows' from "to" to "from").
      *     Note that we need to cast this to int256 to add and subtract numbers, so it will revert
@@ -338,7 +339,7 @@ contract Graph is ProxyFactory, IGraph {
         uint256[] calldata _flow,
         uint16[] memory _coordinates,
         bool _cleanupClosedPath
-    ) internal view returns (
+    ) internal returns (
         int256[] memory nettedFlow_
     ) {
         require(
@@ -351,9 +352,10 @@ contract Graph is ProxyFactory, IGraph {
             _flowVertices.length <= type(uint16).max,
             "Flow matrix cannot have more than 65536 columns"
         );
-
-        // cast the number of columns to uint16
-        uint16 columnOutOfBound = uint16(_flowVertices.length);
+        require(
+            _flowVertices.length > 0 && _flow.length > 0,
+            "Must be a flow matrix."
+        );
 
         // initialize the netted flow array
         nettedFlow_ = new int256[](_flowVertices.length);
@@ -362,7 +364,11 @@ contract Graph is ProxyFactory, IGraph {
         uint16 index = uint16(0);
 
         // check for membership of all flow vertices
-        for (uint256 i = 0; i < _flowVertices.length; i++) {
+        for (uint256 i = 0; i < _flowVertices.length - 1; i++) {
+            require(
+                uint160(_flowVertices[i]) < uint160(_flowVertices[i + 1]),
+                "Flow vertices must be sorted in ascending order and cannot repeat."
+            );
             address entity = _flowVertices[i];
             require(
                 address(avatarToNode[entity]) != address(0) || address(organizations[entity]) != address(0)
@@ -395,8 +401,8 @@ contract Graph is ProxyFactory, IGraph {
                 "For closed paths, tokens may only be sent to original avatar."
             );
 
-            // don't execute the transfers yet (although we could do so here later for gas optimisation)
-            // but keep the function as view
+            // execute the path transfer; rely on reverting if balance fails
+            node.pathTransfer(from, to, _flow[i]);
 
             // nett the flow across tokens
             nettedFlow_[fromIndex] -= flow;
