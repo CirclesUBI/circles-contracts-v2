@@ -360,9 +360,6 @@ contract Graph is ProxyFactory, IGraph {
         // initialize the netted flow array
         nettedFlow_ = new int256[](_flowVertices.length);
 
-        // iterate over the coordinate index
-        uint16 index = uint16(0);
-
         // check for membership of all flow vertices
         for (uint256 i = 0; i < _flowVertices.length - 1; i++) {
             require(
@@ -376,6 +373,16 @@ contract Graph is ProxyFactory, IGraph {
                 "Flow vertex is neither a registered organisation, group or avatar."
             );
         }
+        // don't miss checking the last vertex for registration on the graph
+        address lastEntity = _flowVertices[_flowVertices.length - 1];
+        require(
+            address(avatarToNode[lastEntity]) != address(0) || address(organizations[lastEntity]) != address(0)
+                || address(groups[IGroup(lastEntity)]) != address(0),
+            "Flow vertex is neither a registered organisation, group or avatar."
+        );
+
+        // iterate over the coordinate index
+        uint16 index = uint16(0);
 
         // iterate over all flow edges in the path
         for (uint256 i = 0; i < _flow.length; i++) {
