@@ -10,9 +10,8 @@ import "./MockHubV1.sol";
 import "./MockInternalGraph.sol";
 
 contract GraphTest is Test {
-
     // State variables
-    
+
     TimeCircle public masterContractTimeCircle;
 
     MockHubV1 public mockHubV1;
@@ -25,7 +24,6 @@ contract GraphTest is Test {
     address bob = makeAddr("bob");
 
     function setUp() public {
-
         // no need to call setup() on master copy
         masterContractTimeCircle = new TimeCircle();
 

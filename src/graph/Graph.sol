@@ -224,6 +224,44 @@ contract Graph is ProxyFactory, IGraph {
 
     // Public functions
 
+    function singlePathTransfer(
+        uint16 _senderCoordinateIndex,
+        uint16 _receiverCoordinateIndex,
+        uint256 _amount,
+        address[] calldata _flowVertices,
+        uint256[] calldata _flow,
+        bytes calldata _packedCoordinates
+    ) public {
+        // first unpack the coordinates to array of uint16
+        uint16[] memory coordinates = _unpackCoordinates(_packedCoordinates, _flow.length);
+        
+        require(
+            _flowVertices[_senderCoordinateIndex] == msg.sender,
+            "For a single path transfer the message must be sent by the sender."
+        );
+
+        // forcibly cast amount to int256
+        int256 nettFlow = int256(_amount);
+        // set up the intended netted flow
+        int256[] memory intendedNettedFlow = new int256[](_flowVertices.length);
+        // set the nett flow to go from sender to receiver
+        intendedNettedFlow[_senderCoordinateIndex] = int256(-1) * nettFlow;
+        intendedNettedFlow[_receiverCoordinateIndex] = nettFlow;
+
+        int256[] memory verifiedNettedFlow = _verifyFlowMatrix(
+            _flowVertices,
+            _flow,
+            coordinates,
+            false
+        );
+
+        // match the equality of the intended flow with the verified path flow
+        _matchNettedFlows(
+            intendedNettedFlow,
+            verifiedNettedFlow
+        );
+    }
+
     function isTrusted(address _truster, address _trustee)
         public
         view
@@ -279,7 +317,11 @@ contract Graph is ProxyFactory, IGraph {
         }
     }
 
-    function circleNodeForEntity(address _entity) canBeTrusted(_entity) public view returns (ICircleNode circleNode_) {
+    function circleNodeForEntity(
+        address _entity
+    ) public view canBeTrusted(_entity) returns (
+        ICircleNode circleNode_
+    ) {
         // first see if the entity is a registered avatar
         circleNode_ = avatarToNode[_entity];
         if (address(circleNode_) != address(0)) {
@@ -339,23 +381,12 @@ contract Graph is ProxyFactory, IGraph {
         uint256[] calldata _flow,
         uint16[] memory _coordinates,
         bool _cleanupClosedPath
-    ) internal returns (
-        int256[] memory nettedFlow_
-    ) {
-        require(
-            3 * _flow.length == _coordinates.length,
-            "Every flow row must have three coordinates."
-        );
+    ) internal returns (int256[] memory nettedFlow_) {
+        require(3 * _flow.length == _coordinates.length, "Every flow row must have three coordinates.");
         // todo: we should probably introduce a lower maximum,
         // because 65k vertices probably never fits in a block
-        require(
-            _flowVertices.length <= type(uint16).max,
-            "Flow matrix cannot have more than 65536 columns"
-        );
-        require(
-            _flowVertices.length > 0 && _flow.length > 0,
-            "Must be a flow matrix."
-        );
+        require(_flowVertices.length <= type(uint16).max, "Flow matrix cannot have more than 65536 columns");
+        require(_flowVertices.length > 0 && _flow.length > 0, "Must be a flow matrix.");
 
         // initialize the netted flow array
         nettedFlow_ = new int256[](_flowVertices.length);
@@ -399,10 +430,7 @@ contract Graph is ProxyFactory, IGraph {
             ICircleNode node = circleNodeForEntity(tokenEntity);
 
             // check receiver is within the trust circle of the token being sent
-            require(
-                isTrusted(to, tokenEntity),
-                "The receiver does not trust the token being sent in the flow edge."
-            );
+            require(isTrusted(to, tokenEntity), "The receiver does not trust the token being sent in the flow edge.");
             require(
                 !_cleanupClosedPath || (to == tokenEntity),
                 "For closed paths, tokens may only be sent to original avatar."
@@ -419,6 +447,18 @@ contract Graph is ProxyFactory, IGraph {
         return nettedFlow_;
     }
 
+    function _matchNettedFlows(
+        int256[] memory _intendedNettedFlow,
+        int256[] memory _verifiedNettedFlow
+    ) internal {
+        assert(_intendedNettedFlow.length == _verifiedNettedFlow.length);
+        for (uint256 i = 0; i < _intendedNettedFlow.length; i++) {
+            require(
+                _intendedNettedFlow[i] == _verifiedNettedFlow[i],
+                "Intended flow does not match verified flow."
+            );
+        }
+    }
 
     /**
      * @dev abi.encodePacked of an array uint16[] would still pad each uint16 - I think;
@@ -429,16 +469,12 @@ contract Graph is ProxyFactory, IGraph {
      * @param _numberOfTriplets The number of coordinate triplets in the packed data.
      * @return unpackedCoordinates_ An array of unpacked coordinates (of length 3* numberOfTriplets)
      */
-    function _unpackCoordinates(
-        bytes calldata _packedData,
-        uint256 _numberOfTriplets
-    ) internal pure returns (
-        uint16[] memory unpackedCoordinates_
-    ) {
-        require(
-            _packedData.length == _numberOfTriplets * 6,
-            "Invalid packed data length"
-        );
+    function _unpackCoordinates(bytes calldata _packedData, uint256 _numberOfTriplets)
+        internal
+        pure
+        returns (uint16[] memory unpackedCoordinates_)
+    {
+        require(_packedData.length == _numberOfTriplets * 6, "Invalid packed data length");
 
         unpackedCoordinates_ = new uint16[](_numberOfTriplets * 3);
         uint256 index = 0;

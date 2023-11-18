@@ -4,7 +4,6 @@ pragma solidity >=0.8.13;
 import "../../src/migration/IHub.sol";
 
 contract MockHubV1 is IHubV1 {
-
     function signup() external pure {
         notMocked();
     }
@@ -13,21 +12,22 @@ contract MockHubV1 is IHubV1 {
         notMocked();
     }
 
-    function tokenToUser(address /*token*/) external pure returns (address) {
-        notMocked();
-        return address(0);
-    }
-    function userToToken(address /*user*/) external pure returns (address) {
+    function tokenToUser(address /*token*/ ) external pure returns (address) {
         notMocked();
         return address(0);
     }
 
-    function limits(address /*truster*/, address /*trustee*/) external pure returns (uint256) {
+    function userToToken(address /*user*/ ) external pure returns (address) {
+        notMocked();
+        return address(0);
+    }
+
+    function limits(address, /*truster*/ address /*trustee*/ ) external pure returns (uint256) {
         notMocked();
         return uint256(0);
     }
 
-    function trust(address /*trustee*/, uint256 /*limit*/) external pure {
+    function trust(address, /*trustee*/ uint256 /*limit*/ ) external pure {
         notMocked();
     }
 

@@ -6,11 +6,7 @@ import "../../src/graph/ICircleNode.sol";
 import "../../src/migration/IHub.sol";
 
 contract MockInternalGraph is Graph {
-
-    constructor(IHubV1 _ancestor, ICircleNode _masterCopyCircleNode
-    ) Graph(_ancestor, _masterCopyCircleNode) {
-
-    }
+    constructor(IHubV1 _ancestor, ICircleNode _masterCopyCircleNode) Graph(_ancestor, _masterCopyCircleNode) {}
 
     // function trust(address _avatar) external override {
     //     notMocked();
@@ -28,16 +24,12 @@ contract MockInternalGraph is Graph {
     //         return (false, nothing);
     //     }
 
-    function accessUnpackCoordinates(
-        bytes calldata _packedData,
-        uint256 _numberOfTriplets
-    ) public pure returns (
-        uint16[] memory unpackedCoordinates_
-    ) {
-        return super._unpackCoordinates(
-            _packedData,
-            _numberOfTriplets
-        );
+    function accessUnpackCoordinates(bytes calldata _packedData, uint256 _numberOfTriplets)
+        public
+        pure
+        returns (uint16[] memory unpackedCoordinates_)
+    {
+        return super._unpackCoordinates(_packedData, _numberOfTriplets);
     }
 
     function notMocked() private pure {
