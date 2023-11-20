@@ -248,6 +248,9 @@ contract Graph is ProxyFactory, IGraph {
         intendedNettedFlow[_senderCoordinateIndex] = int256(-1) * nettFlow;
         intendedNettedFlow[_receiverCoordinateIndex] = nettFlow;
 
+        // verify the correctness of the flow matrix describing the path itself,
+        // ie. well-definedness of the flow matrix itself,
+        // check all entities are registered, and the trust relations are respected.
         int256[] memory verifiedNettedFlow = _verifyFlowMatrix(
             _flowVertices,
             _flow,
@@ -259,6 +262,15 @@ contract Graph is ProxyFactory, IGraph {
         _matchNettedFlows(
             intendedNettedFlow,
             verifiedNettedFlow
+        );
+
+        // effectuate the actual path transfers
+        // rely on revert upon underflow of balances to roll back
+        // if any balance is insufficient
+        _effectPathTranfers(
+            _flowVertices,
+            _flow,
+            coordinates
         );
     }
 
@@ -381,7 +393,7 @@ contract Graph is ProxyFactory, IGraph {
         uint256[] calldata _flow,
         uint16[] memory _coordinates,
         bool _cleanupClosedPath
-    ) internal returns (int256[] memory nettedFlow_) {
+    ) internal view returns (int256[] memory nettedFlow_) {
         require(3 * _flow.length == _coordinates.length, "Every flow row must have three coordinates.");
         // todo: we should probably introduce a lower maximum,
         // because 65k vertices probably never fits in a block
@@ -420,14 +432,11 @@ contract Graph is ProxyFactory, IGraph {
             // retrieve the flow vertices associated with this flow edge
             address tokenEntity = _flowVertices[_coordinates[index++]];
             uint16 fromIndex = index++;
-            address from = _flowVertices[_coordinates[fromIndex]];
             uint16 toIndex = index++;
             address to = _flowVertices[_coordinates[toIndex]];
             // cast the flow amount from uint256 to int256,
             // will revert if flow is larger than type(int256).max
             int256 flow = int256(_flow[i]);
-
-            ICircleNode node = circleNodeForEntity(tokenEntity);
 
             // check receiver is within the trust circle of the token being sent
             require(isTrusted(to, tokenEntity), "The receiver does not trust the token being sent in the flow edge.");
@@ -435,9 +444,6 @@ contract Graph is ProxyFactory, IGraph {
                 !_cleanupClosedPath || (to == tokenEntity),
                 "For closed paths, tokens may only be sent to original avatar."
             );
-
-            // execute the path transfer; rely on reverting if balance fails
-            node.pathTransfer(from, to, _flow[i]);
 
             // nett the flow across tokens
             nettedFlow_[fromIndex] -= flow;
@@ -450,13 +456,42 @@ contract Graph is ProxyFactory, IGraph {
     function _matchNettedFlows(
         int256[] memory _intendedNettedFlow,
         int256[] memory _verifiedNettedFlow
-    ) internal {
+    ) internal pure {
         assert(_intendedNettedFlow.length == _verifiedNettedFlow.length);
         for (uint256 i = 0; i < _intendedNettedFlow.length; i++) {
             require(
                 _intendedNettedFlow[i] == _verifiedNettedFlow[i],
                 "Intended flow does not match verified flow."
             );
+        }
+    }
+
+    /**
+     * @dev Cricital: effect transfer assumes that all the validity checks have been performed,
+     *      and passed; it will simply execute the transfers, so any caller MUST ensure
+     *      instructions passed in are valid to execute.
+     */
+    function _effectPathTranfers(
+        address[] calldata _flowVertices,
+        uint256[] calldata _flow,
+        uint16[] memory _coordinates
+    ) internal {
+
+        // track the three coordinate indices per flow edge
+        uint16 index = uint16(0);
+
+        // for each flow effectuate the transfers
+        for (uint256 i = 0; i < _flow.length; i++) {
+            // retrieve the flow vertices associated with this flow edge
+            address tokenEntity = _flowVertices[_coordinates[index++]];
+            uint16 fromIndex = index++;
+            address from = _flowVertices[_coordinates[fromIndex]];
+            uint16 toIndex = index++;
+            address to = _flowVertices[_coordinates[toIndex]];
+
+            ICircleNode node = circleNodeForEntity(tokenEntity);
+
+            node.pathTransfer(from, to, _flow[i]);
         }
     }
 
