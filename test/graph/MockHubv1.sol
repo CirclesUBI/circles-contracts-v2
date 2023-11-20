@@ -18,7 +18,8 @@ contract MockHubV1 is IHubV1 {
     }
 
     function userToToken(address /*user*/ ) external pure returns (address) {
-        notMocked();
+        // notMocked();
+        // return always zero addres, ie. "not signed up in v1"
         return address(0);
     }
 

@@ -10,6 +10,8 @@ interface ICircleNode is IERC20 {
 
     function avatar() external view returns (address);
 
+    function claimIssuance() external;
+
     function pathTransfer(address from, address to, uint256 amount) external;
 
     function paused() external view returns (bool paused);
