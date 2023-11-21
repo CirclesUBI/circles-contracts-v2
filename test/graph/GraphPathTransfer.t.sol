@@ -10,6 +10,13 @@ import "../setup/TimeSetup.sol";
 import "./MockHubV1.sol";
 
 contract GraphPathTransferTest is Test, TimeSetup {
+    // Constant
+
+    // number of avatars in the graph
+    uint256 public constant N = 4;
+
+    uint256 public constant TIC = uint256(10 ** 18);
+
     // State variables
 
     TimeCircle public masterContractTimeCircle;
@@ -18,10 +25,9 @@ contract GraphPathTransferTest is Test, TimeSetup {
 
     Graph public graph;
 
-    address alice = makeAddr("alice");
-    address bob = makeAddr("bob");
-    address charlie = makeAddr("charlie");
-    address david = makeAddr("david");
+    string[N] public avatars = ["alice", "bob", "charlie", "david"];
+    address[N] public addresses;
+    ICircleNode[N] public circleNodes;
 
     function setUp() public {
         // no need to call setup() on master copy
@@ -33,27 +39,16 @@ contract GraphPathTransferTest is Test, TimeSetup {
 
         startTime();
 
-        vm.prank(alice);
-        graph.registerAvatar();
-        vm.prank(bob);
-        graph.registerAvatar();
-        vm.prank(charlie);
-        graph.registerAvatar();
-        vm.prank(david);
-        graph.registerAvatar();
+        for (uint256 i = 0; i < N; i++) {
+            addresses[i] = makeAddr(avatars[i]);
+            vm.prank(addresses[i]);
+            graph.registerAvatar();
+            circleNodes[i] = graph.avatarToNode(addresses[i]);
+        }
         // they all get an initial signup bonus
     }
 
     function testSinglePathTransfer() public {
-        
-    }
-
-
-    // Private functions
-
-    // Private helper function to set up the blockchain time
-    function _setUpTime(uint256 _startTime) private {
-        // Move the blockchain time to _startTime
-        vm.warp(_startTime);
+        assertEq(circleNodes[0].balanceOf(addresses[0]), masterContractTimeCircle.TIME_BONUS() * TIC);
     }
 }
