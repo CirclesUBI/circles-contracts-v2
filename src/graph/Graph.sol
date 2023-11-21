@@ -274,16 +274,16 @@ contract Graph is ProxyFactory, IGraph {
         );
     }
 
-    function isTrusted(address _truster, address _trustee)
+    function isTrusted(address _truster, address _trusted)
         public
         view
         onTrustGraph(_truster)
-        canBeTrusted(_trustee)
-        returns (bool trusted_)
+        canBeTrusted(_trusted)
+        returns (bool isTrusted_)
     {
         uint256 currentTrustInterval = block.timestamp / TRUST_INTERVAL;
 
-        return trustMarkers[_truster][_trustee] >= currentTrustInterval;
+        return isTrusted_ = trustMarkers[_truster][_trusted] >= currentTrustInterval;
     }
 
     function nodeToAvatar(ICircleNode _node) public view returns (address avatar_) {
@@ -446,8 +446,8 @@ contract Graph is ProxyFactory, IGraph {
             );
 
             // nett the flow across tokens
-            nettedFlow_[fromIndex] -= flow;
-            nettedFlow_[toIndex] += flow;
+            nettedFlow_[_coordinates[fromIndex]] -= flow;
+            nettedFlow_[_coordinates[toIndex]] += flow;
         }
 
         return nettedFlow_;
@@ -521,11 +521,6 @@ contract Graph is ProxyFactory, IGraph {
             unpackedCoordinates_[index++] = uint16(uint8(_packedData[i + 4])) << 8 | uint16(uint8(_packedData[i + 5]));
         }
     }
-
-    // function _verifyFlowMatrix(
-    //     address[] memory pathAvatars,
-
-    // ) internal view returns ()
 
     function _trust(address _truster, address _trusted, uint256 _expiryTrustMarker) internal {
         // take the floor of current timestamp to get current interval
