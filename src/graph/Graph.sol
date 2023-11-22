@@ -12,17 +12,30 @@ import "../proxy/ProxyFactory.sol";
 /// @author CirclesUBI
 /// @title A trust graph for path fungible tokens
 contract Graph is ProxyFactory, IGraph {
+    // Type declarations
+
+    /**
+     * @notice A trust marker stores the address of the previously
+     *     trusted entity such that it can be iterated as a linked list;
+     *     as well as the remaining 96 bits for an expiry timestamp
+     *     after which the trust of this entity expires. 
+     */
+    struct TrustMarker {
+        address previous;
+        uint96 expiry;
+    }
+
     // Constants
 
     /**
-     * Sentinel to mark the end of the linked list of Circle nodes
+     * Sentinel to mark the end of the linked list of Circle nodes or entities
      */
-    ICircleNode public constant SENTINEL_CIRCLE = ICircleNode(address(0x1));
+    address public constant SENTINEL = address(0x1);
 
     /**
      * Callprefix for ICircleNode::setup function
      */
-    bytes4 public constant CIRCLENOODE_SETUP_CALLPREFIX = bytes4(keccak256("setup(address,bool,address[])"));
+    bytes4 public constant CIRCLE_NODE_SETUP_CALLPREFIX = bytes4(keccak256("setup(address,bool,address[])"));
 
     /**
      * Indefinitely, or approximate future infinity with uint256.max
@@ -87,7 +100,7 @@ contract Graph is ProxyFactory, IGraph {
      * the state of the smart contract with other processes,
      * so we want to introduce a predictable time marker for the expiration of trust.
      */
-    mapping(address => mapping(address => uint256)) public trustMarkers;
+    mapping(address => mapping(address => TrustMarker)) public trustMarkers;
 
     // Events
 
@@ -140,6 +153,9 @@ contract Graph is ProxyFactory, IGraph {
     constructor(IHubV1 _ancestor, ICircleNode _masterCopyCircleNode) {
         ancestor = _ancestor;
         masterCopyCircleNode = _masterCopyCircleNode;
+
+        // initialize the linked list for circle nodes in the graph
+        circleNodesIterable[ICircleNode(SENTINEL)] = ICircleNode(SENTINEL);
     }
 
     // External functions
@@ -149,7 +165,7 @@ contract Graph is ProxyFactory, IGraph {
         (bool objectToStartMint, address[] memory migrationTokens) = checkAncestorMigrations(msg.sender);
 
         bytes memory circleNodeSetupData =
-            abi.encodeWithSelector(CIRCLENOODE_SETUP_CALLPREFIX, msg.sender, !objectToStartMint, migrationTokens);
+            abi.encodeWithSelector(CIRCLE_NODE_SETUP_CALLPREFIX, msg.sender, !objectToStartMint, migrationTokens);
         ICircleNode circleNode = ICircleNode(address(createProxy(address(masterCopyCircleNode), circleNodeSetupData)));
 
         avatarToNode[msg.sender] = circleNode;
@@ -178,10 +194,10 @@ contract Graph is ProxyFactory, IGraph {
     function untrust(address _entity) external onTrustGraph(msg.sender) {
         require(_entity != msg.sender, "Cannot edit your own trust relation.");
         // wait at least a full trust interval before the edge can expire
-        uint256 earliestExpiry = ((block.timestamp / TRUST_INTERVAL) + 1) * TRUST_INTERVAL;
+        uint256 earliestExpiry = ((block.timestamp / TRUST_INTERVAL) + 2) * TRUST_INTERVAL;
 
-        require(trustMarkers[msg.sender][_entity] > earliestExpiry, "Trust is already set to (have) expire(d).");
-        trustMarkers[msg.sender][_entity] = earliestExpiry;
+        require(getTrustExpiry(msg.sender, _entity) > earliestExpiry, "Trust is already set to (have) expire(d).");
+        _upsertTrustMarker(msg.sender, _entity, uint96(earliestExpiry));
 
         emit Trust(msg.sender, _entity, earliestExpiry);
     }
@@ -281,9 +297,15 @@ contract Graph is ProxyFactory, IGraph {
         canBeTrusted(_trusted)
         returns (bool isTrusted_)
     {
-        uint256 currentTrustInterval = block.timestamp / TRUST_INTERVAL;
+        uint256 endOfCurrentTrustInterval = ((block.timestamp / TRUST_INTERVAL) + 1) * TRUST_INTERVAL;
 
-        return isTrusted_ = trustMarkers[_truster][_trusted] >= currentTrustInterval;
+        return isTrusted_ = getTrustExpiry(_truster, _trusted) >= endOfCurrentTrustInterval;
+    }
+
+    function getTrustExpiry(address _truster, address _trusted)
+        public view returns (uint256 expiry_)
+    {
+        return expiry_ = uint256(trustMarkers[_truster][_trusted].expiry);
     }
 
     function nodeToAvatar(ICircleNode _node) public view returns (address avatar_) {
@@ -530,19 +552,46 @@ contract Graph is ProxyFactory, IGraph {
             "Future expiry must be at least a full trust interval into the future."
         );
         // trust can instantly be registered
-        trustMarkers[_truster][_trusted] = _expiryTrustMarker;
+        _upsertTrustMarker(_truster, _trusted, uint96(_expiryTrustMarker));
 
         emit Trust(_truster, _trusted, _expiryTrustMarker);
     }
 
     // Private functions
 
+    function _upsertTrustMarker(address _truster, address _trusted, uint96 _expiryTrustMarker)
+        private
+    {
+        assert(_truster != address(0));
+        assert(_trusted != address(0));
+        assert(_trusted != SENTINEL);
+
+        TrustMarker storage sentinelMarker = trustMarkers[_truster][SENTINEL];
+        if (sentinelMarker.previous == address(0)) {
+            // initialize the linked list for truster
+            sentinelMarker.previous = SENTINEL;
+        }
+
+        TrustMarker storage trustMarker = trustMarkers[_truster][_trusted];
+        if (trustMarker.previous == address(0)) {
+            // insert the trust marker
+            trustMarker.previous = sentinelMarker.previous;
+            sentinelMarker.previous = _trusted;
+        }
+
+        // update the expiry; checks must be done by caller
+        trustMarker.expiry = _expiryTrustMarker;
+    }
+
     function _insertCircleNode(ICircleNode _circleNode) private {
         assert(address(_circleNode) != address(0));
-        assert(_circleNode != SENTINEL_CIRCLE);
+        assert(_circleNode != ICircleNode(SENTINEL));
         assert(address(circleNodesIterable[_circleNode]) == address(0));
+
+        // the linked list for circle nodes is initialized in the constructor
+
         // prepend the new CircleNode in the iterable linked list
-        circleNodesIterable[_circleNode] = SENTINEL_CIRCLE;
-        circleNodesIterable[SENTINEL_CIRCLE] = _circleNode;
+        circleNodesIterable[_circleNode] = circleNodesIterable[ICircleNode(SENTINEL)];
+        circleNodesIterable[ICircleNode(SENTINEL)] = _circleNode;
     }
 }
