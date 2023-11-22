@@ -6,7 +6,7 @@ import "../proxy/MasterCopyNonUpgradable.sol";
 import "../graph/ICircleNode.sol";
 import "../graph/IGraph.sol";
 
-contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, ICircleNode {
+contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleNode {
     // Constants
 
     address public constant SENTINEL_MIGRATION = address(0x1);
@@ -124,6 +124,10 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, ICircleNode {
             // and clearer to understand for new users.
             _mint(avatar, TIME_BONUS * EXA);
         }
+    }
+
+    function entity() external view returns (address entity_) {
+        return entity_ = avatar;
     }
 
     function claimIssuance() external onlyActive {

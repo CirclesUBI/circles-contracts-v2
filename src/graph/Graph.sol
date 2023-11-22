@@ -3,7 +3,6 @@ pragma solidity >=0.8.13;
 
 // import "./IGraph.sol";
 import "./ICircleNode.sol";
-import "./IGroup.sol";
 import "./IGraph.sol";
 import "../migration/IHub.sol";
 import "../migration/IToken.sol";
@@ -56,7 +55,7 @@ contract Graph is ProxyFactory, IGraph {
      * Avatar to node stores a mapping of which node has been created
      * for a given avatar.
      */
-    mapping(address => ICircleNode) public avatarToNode;
+    mapping(address => IAvatarCircleNode) public avatarToNode;
 
     /**
      * Circle nodes iterator allows to list all circle nodes from contract state
@@ -75,7 +74,13 @@ contract Graph is ProxyFactory, IGraph {
      * a circle node themselves. Groups can wrap tokens into a group currency.
      * Groups can be trusted to enable the flow of group currency.
      */
-    mapping(IGroup => IGroup) public groups;
+    mapping(address => address) public groups;
+
+    /**
+     * @notice Group to node stores a mapping of which circle node 
+     *     has been created for a group.
+     */
+    mapping(address => IGroupCircleNode) public groupToNode;
 
     /**
      * Trust markers map the time marker at which trust of an entity
@@ -104,7 +109,7 @@ contract Graph is ProxyFactory, IGraph {
     modifier notYetOnTrustGraph(address _entity) {
         require(
             address(avatarToNode[_entity]) == address(0) && address(organizations[_entity]) == address(0)
-                && address(groups[IGroup(_entity)]) == address(0),
+                && address(groups[_entity]) == address(0),
             "Entity is already registered as an avatar, an organisation or as a group."
         );
         _;
@@ -113,7 +118,7 @@ contract Graph is ProxyFactory, IGraph {
     modifier onTrustGraph(address _entity) {
         require(
             address(avatarToNode[_entity]) != address(0) || address(organizations[_entity]) != address(0)
-                || address(groups[IGroup(_entity)]) != address(0),
+                || address(groups[_entity]) != address(0),
             "Entity is neither a registered organisation, group or avatar."
         );
         _;
@@ -123,7 +128,7 @@ contract Graph is ProxyFactory, IGraph {
         require(
             address(avatarToNode[_entity]) != address(0)
             // address(organizations[_entity]) != address(0) ||
-            || address(groups[IGroup(_entity)]) != address(0),
+            || address(groups[_entity]) != address(0),
             "Entity to be trusted must be a registered group or avatar."
         );
         _;
@@ -150,7 +155,7 @@ contract Graph is ProxyFactory, IGraph {
 
         bytes memory circleNodeSetupData =
             abi.encodeWithSelector(CIRCLENOODE_SETUP_CALLPREFIX, msg.sender, !objectToStartMint, migrationTokens);
-        ICircleNode circleNode = ICircleNode(address(createProxy(address(masterCopyCircleNode), circleNodeSetupData)));
+        IAvatarCircleNode circleNode = IAvatarCircleNode(address(createProxy(address(masterCopyCircleNode), circleNodeSetupData)));
 
         avatarToNode[msg.sender] = circleNode;
         _insertCircleNode(circleNode);
@@ -192,7 +197,7 @@ contract Graph is ProxyFactory, IGraph {
     //       double, by introducing 'pause()', in addition to 'stop()'.
     //       With pause, an avatar can have a token in multiple graphs, but we
     //       can ensure that all-but-one token can always be paused/unpaused.
-    function claimNodeMustPause(ICircleNode _node) external activeCircleNode(_node) returns (bool paused_) {
+    function claimNodeMustPause(IAvatarCircleNode _node) external activeCircleNode(_node) returns (bool paused_) {
         // pause is idempotent, but emitting the event, or possible slashing is not
         // but in the modifier we already check is `activeCircleNode`,
         // which additionally prevents false claims if v2 node would have been stopped.
@@ -209,7 +214,7 @@ contract Graph is ProxyFactory, IGraph {
     }
 
     function claimToUnpauseNode() external returns (bool paused_) {
-        ICircleNode node = avatarToNode[msg.sender];
+        IAvatarCircleNode node = avatarToNode[msg.sender];
         // only the avatar can call to unpause their node.
         require(address(node) != address(0), "Caller must be the registered avatar for a node on this graph.");
         require(!node.stopped(), "A stopped Cirlce node cannot be unpaused.");
@@ -287,8 +292,9 @@ contract Graph is ProxyFactory, IGraph {
     }
 
     function nodeToAvatar(ICircleNode _node) public view returns (address avatar_) {
-        require(address(circleNodesIterable[_node]) != address(0), "Node is not registered on this graph.");
-        return _node.avatar();
+        // explicitly only look up possible avatars, do not return groups
+        require(address(circleNodesIterable[_node]) != address(0), "Node is not registered as avatar on this graph.");
+        return _node.entity();
     }
 
     function checkConcurrentMinting(ICircleNode _node) public view returns (bool conflict_) {
@@ -340,7 +346,7 @@ contract Graph is ProxyFactory, IGraph {
             return circleNode_;
         }
         // we already check this in modifier, by exclusion. Leave this here during development.
-        assert(address(groups[IGroup(_entity)]) != address(0));
+        assert(address(groups[_entity]) != address(0));
         // return the group itself as the circle node
         assert(false); // todo: not yet implemented, think proper about group currencies
         return ICircleNode(_entity);
@@ -412,7 +418,7 @@ contract Graph is ProxyFactory, IGraph {
             address entity = _flowVertices[i];
             require(
                 address(avatarToNode[entity]) != address(0) || address(organizations[entity]) != address(0)
-                    || address(groups[IGroup(entity)]) != address(0),
+                    || address(groups[entity]) != address(0),
                 "Flow vertex is neither a registered organisation, group or avatar."
             );
         }
@@ -420,7 +426,7 @@ contract Graph is ProxyFactory, IGraph {
         address lastEntity = _flowVertices[_flowVertices.length - 1];
         require(
             address(avatarToNode[lastEntity]) != address(0) || address(organizations[lastEntity]) != address(0)
-                || address(groups[IGroup(lastEntity)]) != address(0),
+                || address(groups[lastEntity]) != address(0),
             "Flow vertex is neither a registered organisation, group or avatar."
         );
 
