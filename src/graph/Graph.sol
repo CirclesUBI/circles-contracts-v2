@@ -99,6 +99,8 @@ contract Graph is ProxyFactory, IGraph {
      * however, upon untrusting (or edge removal), we need to synchronize
      * the state of the smart contract with other processes,
      * so we want to introduce a predictable time marker for the expiration of trust.
+     * Trust markers additionally store a linked list to iterate through the trusted
+     * entities.
      */
     mapping(address => mapping(address => TrustMarker)) public trustMarkers;
 
