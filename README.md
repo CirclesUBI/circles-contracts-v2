@@ -1,4 +1,12 @@
-# Time Circles
+# Circles Protocol
+
+## Introducing Circles Protocol v2
+
+We're excited to be working on Circles Protocol v2, where we focus on making things better for everyone who uses and builds on Circles. Learning from our journey since Circles began, we've tackled the challenges we faced in the early days.
+
+In Circles v2, we make it easier and more inviting for users and developers to engage with Circles. Our goal is to foster an ecosystem of products and experiences building on Circles. We've also been busy updating our technology, using the latest in cryptography to enhance performance, scalability, and to bring a new level of privacy to the Circles experience.
+
+## Why build Circles ?
 
 Our standard money system is based on debt, primarily from banks. Repaying this debt requires more than the initial amount due to interest, ensuring a consistent return of funds to these financial institutions. This system indirectly encourages anticipating future economic growth, which can increase our demand on the planet's resources.
 
