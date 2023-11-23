@@ -86,7 +86,7 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
     }
 
     modifier notStopped() {
-        require(!stopped, "Node can not have been stopped.");
+        require(!stopped, "Node must not have been stopped.");
         _;
     }
 
@@ -107,8 +107,7 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
         lastIssuanceTimeSpan = _currentTimeSpan();
 
         // instantiate the linked list
-        // todo: this is not necessary with a prepend-linked list?
-        // migrations[SENTINEL_MIGRATION] = SENTINEL_MIGRATION;
+        migrations[SENTINEL_MIGRATION] = SENTINEL_MIGRATION;
 
         // loop over memory array to insert migration history into linked list
         for (uint256 i = 0; i < _migrations.length; i++) {
@@ -230,13 +229,14 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
     // Private function
 
     function _insertMigration(address _migration) private {
+        assert(_migration != SENTINEL_MIGRATION);
         require(_migration != address(0), "Migration address cannot be zero address.");
         // idempotent under repeated insertion
         if (migrations[_migration] != address(0)) {
             return;
         }
         // prepend new migration address at beginning of linked list
-        migrations[_migration] = SENTINEL_MIGRATION;
+        migrations[_migration] = migrations[SENTINEL_MIGRATION];
         migrations[SENTINEL_MIGRATION] = _migration;
     }
 
