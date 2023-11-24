@@ -253,40 +253,61 @@ contract Graph is ProxyFactory, IGraph {
         return paused_ = true;
     }
 
-    // Public functions
-
-    function isValidCircleNode(ICircleNode _circle) public view returns (bool valid_) {
-        return (
-            address(avatarCircleNodesIterable[_circle]) != address(0)
-                || address(groupCircleNodesIterable[_circle]) != address(0)
-        );
-    }
-
-    function checkAllAreValidCircleNodes(ICircleNode[] calldata _circles, bool _includeGroups)
+    function checkAllAreTrustedCircleNodes(address _group, ICircleNode[] calldata _circles, bool _includeGroups)
         public
         view
-        returns (bool allValid_)
+        returns (bool allTrusted_)
     {
+        require(
+            address(groupCircleNodesIterable[ICircleNode(msg.sender)]) != address(0),
+            "Caller must be a group circle node."
+        );
+
+        // reverse lookup to assert that the group circle contract
+        // must always provide its own group correctly.
+        // (This could be an asert, but depends on deployment with a valid
+        // master contract for group circles.)
+        require(
+            address(groupToNode[_group]) == msg.sender,
+            "Provided group does not match for the calling group circle node."
+        );
+
         if (_includeGroups) {
             // either avatar or group circles are valid
             for (uint256 i = 0; i < _circles.length; i++) {
-                if (isValidCircleNode(_circles[i])) {
+                // entity for circle already reverts upon unregistered circle
+                address entity = entityForCircleNode(_circles[i]);
+                if (!isTrusted(_group, entity)) {
                     // don't require to let the caller decide how to handle query
-                    return allValid_ = false;
+                    return allTrusted_ = false;
                 }
             }
         } else {
             // only avatar circles are valid
             for (uint256 i = 0; i < _circles.length; i++) {
-                if (address(avatarCircleNodesIterable[_circles[i]]) == (address(0))) {
+                require(
+                    address(avatarCircleNodesIterable[_circles[i]]) != address(0),
+                    "Circle node is not known for an avatar on the graph."
+                );
+                address entity = _circles[i].entity();
+                if (!isTrusted(_group, entity)) {
                     // don't require to let the caller decide how to handle query
-                    return allValid_ = false;
+                    return allTrusted_ = false;
                 }
             }
         }
 
-        return allValid_ = true;
+        return allTrusted_ = true;
     }
+
+    // Public functions
+
+    // function isValidCircleNode(ICircleNode _circle) public view returns (bool valid_) {
+    //     return (
+    //         address(avatarCircleNodesIterable[_circle]) != address(0)
+    //             || address(groupCircleNodesIterable[_circle]) != address(0)
+    //     );
+    // }
 
     function singlePathTransfer(
         uint16 _senderCoordinateIndex,
@@ -399,6 +420,18 @@ contract Graph is ProxyFactory, IGraph {
         // return the group itself as the circle node
         assert(false); // todo: not yet implemented, think proper about group currencies
         return ICircleNode(_entity);
+    }
+
+    function entityForCircleNode(ICircleNode _circleNode) public view returns (address entity_) {
+        require(
+            address(avatarCircleNodesIterable[_circleNode]) != address(0)
+                || address(groupCircleNodesIterable[_circleNode]) != address(0),
+            "Circle node is not known on the graph."
+        );
+
+        entity_ = _circleNode.entity();
+        assert(entity_ != address(0));
+        return entity_;
     }
 
     // Internal functions

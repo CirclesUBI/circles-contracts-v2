@@ -7,10 +7,10 @@ interface IGraph {
     // function trust(address _avatar) external;
     // function untrust(address _avatar) external;
 
-    function checkAllAreValidCircleNodes(ICircleNode[] calldata circles, bool includeGroups)
+    function checkAllAreTrustedCircleNodes(address group, ICircleNode[] calldata circles, bool includeGroups)
         external
         view
-        returns (bool allValid_);
+        returns (bool allTrusted_);
 
     // function checkAncestorMigrations(address _avatar)
     //     external

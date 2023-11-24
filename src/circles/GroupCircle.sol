@@ -98,7 +98,7 @@ contract GroupCircle is MasterCopyNonUpgradable, TemporalDiscount, IGroupCircleN
         bool acceptGroupTokensAsCollateral = burnCollateralUponMinting;
 
         require(
-            graph.checkAllAreValidCircleNodes(_collateral, acceptGroupTokensAsCollateral),
+            graph.checkAllAreTrustedCircleNodes(address(group), _collateral, acceptGroupTokensAsCollateral),
             "All collateral must be valid circles on this graph."
         );
 
