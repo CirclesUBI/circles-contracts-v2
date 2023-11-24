@@ -34,7 +34,7 @@ contract TemporalDiscount is IERC20 {
     /**
      * Store the signed 128-bit 64.64 representation of 1 as a constant
      */
-    int128 private constant ONE_64x64 = int128(18446744073709551616);
+    int128 internal constant ONE_64x64 = int128(18446744073709551616);
 
     /**
      * Reduction factor gamma for temporally discounting balances
@@ -313,8 +313,8 @@ contract TemporalDiscount is IERC20 {
         if (totalSupplyTime == _currentSpan) {
             temporalTotalSupply += _amount;
         } else {
-            uint256 discountedTotalSupply = _calculateDiscountedBalance(
-                temporalTotalSupply, _currentSpan - totalSupplyTime);
+            uint256 discountedTotalSupply =
+                _calculateDiscountedBalance(temporalTotalSupply, _currentSpan - totalSupplyTime);
             temporalTotalSupply = discountedTotalSupply + _amount;
             totalSupplyTime = _currentSpan;
         }
@@ -324,8 +324,8 @@ contract TemporalDiscount is IERC20 {
         if (totalSupplyTime == _currentSpan) {
             temporalTotalSupply -= _amount;
         } else {
-            uint256 discountedTotalSupply = _calculateDiscountedBalance(
-                temporalTotalSupply, _currentSpan - totalSupplyTime);
+            uint256 discountedTotalSupply =
+                _calculateDiscountedBalance(temporalTotalSupply, _currentSpan - totalSupplyTime);
             temporalTotalSupply = discountedTotalSupply - _amount;
             totalSupplyTime = _currentSpan;
         }

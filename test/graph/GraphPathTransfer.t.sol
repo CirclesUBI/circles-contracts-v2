@@ -52,8 +52,7 @@ contract GraphPathTransferTest is Test, TimeSetup {
         // all participants should have 48 TIC as signup bonus
         // todo: test this as separate unit test in graph.t.sol
         for (uint256 i = 0; i < N; i++) {
-            assertEq(circleNodes[i].balanceOf(addresses[i]),
-                masterContractTimeCircle.TIME_BONUS() * TIC);
+            assertEq(circleNodes[i].balanceOf(addresses[i]), masterContractTimeCircle.TIME_BONUS() * TIC);
         }
 
         // to build a correct flow matrix, we need to present the vertices
@@ -65,7 +64,6 @@ contract GraphPathTransferTest is Test, TimeSetup {
     }
 
     function testSinglePathTransfer() public {
-
         // Flow matrix for transferring tokens from Alice to David
         //       A    B    C    D
         // A-B  -5    5    -    -
@@ -108,7 +106,7 @@ contract GraphPathTransferTest is Test, TimeSetup {
         graph.singlePathTransfer(
             uint16(permutationMap[0]), // from Alice
             uint16(permutationMap[3]), // to David
-            uint256(5 * TIC),  // send 5 Time Circles
+            uint256(5 * TIC), // send 5 Time Circles
             flowVertices,
             flow,
             packedCoordinates
@@ -122,9 +120,7 @@ contract GraphPathTransferTest is Test, TimeSetup {
      *      and returns the permutation map. This is not meant to be an efficient sort,
      *      rather the simplest implementation for transparancy of the test.
      */
-    function sortAddressesWithPermutationMap() 
-        private 
-    {
+    function sortAddressesWithPermutationMap() private {
         uint256 length = addresses.length;
         sortedAddresses = addresses;
         // permutationMap = new uint[N];
@@ -153,20 +149,16 @@ contract GraphPathTransferTest is Test, TimeSetup {
      * @param _coordinates The array of uint16 coordinates.
      * @return packedData_ The packed coordinates as bytes.
      */
-    function packCoordinates(uint16[] memory _coordinates) 
-        private pure 
-        returns (bytes memory packedData_)
-    {
+    function packCoordinates(uint16[] memory _coordinates) private pure returns (bytes memory packedData_) {
         packedData_ = new bytes(_coordinates.length * 2);
 
-        for (uint i = 0; i < _coordinates.length; i++) {
+        for (uint256 i = 0; i < _coordinates.length; i++) {
             packedData_[2 * i] = bytes1(uint8(_coordinates[i] >> 8)); // High byte
             packedData_[2 * i + 1] = bytes1(uint8(_coordinates[i] & 0xFF)); // Low byte
         }
     }
 
     function makeLinearTrustGraph() private {
-
         // David trust (->) Charlie, C -> B, B -> A
         // so that Alice can send tokens to David over A-B-C-D
         for (uint256 i = N - 1; i > 0; i--) {
