@@ -6,6 +6,19 @@ import "../proxy/MasterCopyNonUpgradable.sol";
 import "../graph/ICircleNode.sol";
 import "../graph/IGraph.sol";
 
+
+/**
+ * Upon minting group tokens, are the underlying circles
+ * to be locked for later redemption, or instead burned.
+ * Redemption only allows you to recover your personal circles,
+ * for however many of your personal circles are available in the group.
+ * (todo: this is one redemption strategy, up for later discussion)
+ */
+enum MintBehaviour {
+    Lock,
+    Burn
+}
+
 contract GroupCircle is MasterCopyNonUpgradable, TemporalDiscount, IGroupCircleNode {
 
     // State variables
@@ -15,7 +28,7 @@ contract GroupCircle is MasterCopyNonUpgradable, TemporalDiscount, IGroupCircleN
     // todo: we probably want group to have an interface so that we can call hooks on it
     address public group;
 
-
+    MintBehaviour public mintBehaviour;
 
     // Modifiers
 
@@ -37,7 +50,7 @@ contract GroupCircle is MasterCopyNonUpgradable, TemporalDiscount, IGroupCircleN
 
     // External functions
 
-    function setup(address _group) external {
+    function setup(address _group, ) external {
         require(
             address(graph) == address(0),
             "Group circle contract has already been setup."
