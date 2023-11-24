@@ -169,6 +169,10 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
         return _calculateIssuance(_currentTimeSpan());
     }
 
+    function burn(uint256 _amount) external {
+        _burn(msg.sender, _amount);
+    }
+
     // Public functions
 
     function isActive() public view returns (bool active_) {

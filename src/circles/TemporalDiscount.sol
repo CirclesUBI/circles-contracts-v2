@@ -212,8 +212,10 @@ contract TemporalDiscount is IERC20 {
 
     function _burn(address _owner, uint256 _amount) internal {
         uint256 currentSpan = _currentTimeSpan();
-        _discountBalanceThenSubtract(msg.sender, _amount, currentSpan);
+        _discountBalanceThenSubtract(_owner, _amount, currentSpan);
         _discountTotalSupplyThenBurn(_amount, currentSpan);
+
+        emit Transfer(_owner, address(0), _amount);
     }
 
     /**
