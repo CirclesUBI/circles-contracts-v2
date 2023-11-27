@@ -6,7 +6,7 @@ import "../proxy/MasterCopyNonUpgradable.sol";
 import "../graph/ICircleNode.sol";
 import "../graph/IGraph.sol";
 
-contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, ICircleNode {
+contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleNode {
     // Constants
 
     address public constant SENTINEL_MIGRATION = address(0x1);
@@ -86,8 +86,13 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, ICircleNode {
     }
 
     modifier notStopped() {
-        require(!stopped, "Node can not have been stopped.");
+        require(!stopped, "Node must not have been stopped.");
         _;
+    }
+
+    constructor() {
+        // block the mastercopy from getting called setup on
+        graph = IGraph(address(1));
     }
 
     // External functions
@@ -107,8 +112,7 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, ICircleNode {
         lastIssuanceTimeSpan = _currentTimeSpan();
 
         // instantiate the linked list
-        // todo: this is not necessary with a prepend-linked list?
-        // migrations[SENTINEL_MIGRATION] = SENTINEL_MIGRATION;
+        migrations[SENTINEL_MIGRATION] = SENTINEL_MIGRATION;
 
         // loop over memory array to insert migration history into linked list
         for (uint256 i = 0; i < _migrations.length; i++) {
@@ -124,6 +128,10 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, ICircleNode {
             // and clearer to understand for new users.
             _mint(avatar, TIME_BONUS * EXA);
         }
+    }
+
+    function entity() external view returns (address entity_) {
+        return entity_ = avatar;
     }
 
     function claimIssuance() external onlyActive {
@@ -164,6 +172,10 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, ICircleNode {
 
     function calculateIssuance() external view onlyActive returns (uint256 outstandingBalance_) {
         return _calculateIssuance(_currentTimeSpan());
+    }
+
+    function burn(uint256 _amount) external {
+        _burn(msg.sender, _amount);
     }
 
     // Public functions
@@ -226,13 +238,14 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, ICircleNode {
     // Private function
 
     function _insertMigration(address _migration) private {
+        assert(_migration != SENTINEL_MIGRATION);
         require(_migration != address(0), "Migration address cannot be zero address.");
         // idempotent under repeated insertion
         if (migrations[_migration] != address(0)) {
             return;
         }
         // prepend new migration address at beginning of linked list
-        migrations[_migration] = SENTINEL_MIGRATION;
+        migrations[_migration] = migrations[SENTINEL_MIGRATION];
         migrations[SENTINEL_MIGRATION] = _migration;
     }
 

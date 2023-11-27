@@ -6,7 +6,11 @@ import "../../src/graph/ICircleNode.sol";
 import "../../src/migration/IHub.sol";
 
 contract MockInternalGraph is Graph {
-    constructor(IHubV1 _ancestor, ICircleNode _masterCopyCircleNode) Graph(_ancestor, _masterCopyCircleNode) {}
+    constructor(
+        IHubV1 _ancestor,
+        IAvatarCircleNode _masterCopyAvatarCircleNode,
+        IGroupCircleNode _masterCopyGroupCircleNode
+    ) Graph(_ancestor, _masterCopyAvatarCircleNode, _masterCopyGroupCircleNode) {}
 
     // function trust(address _avatar) external override {
     //     notMocked();

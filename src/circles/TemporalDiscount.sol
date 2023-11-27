@@ -34,7 +34,7 @@ contract TemporalDiscount is IERC20 {
     /**
      * Store the signed 128-bit 64.64 representation of 1 as a constant
      */
-    int128 private constant ONE_64x64 = int128(18446744073709551616);
+    int128 internal constant ONE_64x64 = int128(2**64);
 
     /**
      * Reduction factor gamma for temporally discounting balances
@@ -199,14 +199,18 @@ contract TemporalDiscount is IERC20 {
         // but the pattern is off if we change the signature to pass currentSpan,
         // todo: evaluate if it is worth splitting the signatures for this...
         uint256 currentSpan = _currentTimeSpan();
-        // note: we don't discount the total supply before adding an amount
-        // because we account for discounts in the individual balances
-        // and already subtract those, so we should not double count.
-        temporalTotalSupply += _amount;
-        totalSupplyTime = currentSpan;
+        _discountTotalSupplyThenMint(_amount, currentSpan);
         _discountBalanceThenAdd(_owner, _amount, currentSpan);
 
         emit Transfer(address(0), _owner, _amount);
+    }
+
+    function _burn(address _owner, uint256 _amount) internal {
+        uint256 currentSpan = _currentTimeSpan();
+        _discountBalanceThenSubtract(_owner, _amount, currentSpan);
+        _discountTotalSupplyThenBurn(_amount, currentSpan);
+
+        emit Transfer(_owner, address(0), _amount);
     }
 
     /**
@@ -245,13 +249,10 @@ contract TemporalDiscount is IERC20 {
             // and update the timespan in which we updated the balance.
             balanceTimeSpans[_owner] = _currentSpan;
 
-            // adjust total supply to reflect discount cost
-            _subtractTotalSupply(discountCost_, _currentSpan);
 
             // emit DiscountCost only when effectively discounted.
             // if the original balance was zero before adding,
             // discount cost can still be zero, even when discounted
-            // todo: possibly optimise? at cost of more if clauses?
             if (discountCost_ != uint256(0)) {
                 emit DiscountCost(_owner, discountCost_);
             }
@@ -283,21 +284,34 @@ contract TemporalDiscount is IERC20 {
             // and update the timespan in which we updated the balance.
             balanceTimeSpans[_owner] = _currentSpan;
 
-            // adjust total supply to reflect discount cost
-            _subtractTotalSupply(discountCost_, _currentSpan);
-
             // emit DiscountCost only when effectively discounted.
+            // note: there must have been some discount cost, because we subtracted
+            //     an amount from the balance successfully.
             emit DiscountCost(_owner, discountCost_);
             return discountCost_;
         }
     }
 
-    function _subtractTotalSupply(uint256 _discountCost, uint256 _currentSpan) private {
-        // note: we don't discount the total supply in write operations,
-        // because we already have accounted for the discounts
-        // in the costs that get subtracted.
-        temporalTotalSupply = temporalTotalSupply - _discountCost;
-        totalSupplyTime = _currentSpan;
+    function _discountTotalSupplyThenMint(uint256 _amount, uint256 _currentSpan) private {
+        if (totalSupplyTime == _currentSpan) {
+            temporalTotalSupply += _amount;
+        } else {
+            uint256 discountedTotalSupply =
+                _calculateDiscountedBalance(temporalTotalSupply, _currentSpan - totalSupplyTime);
+            temporalTotalSupply = discountedTotalSupply + _amount;
+            totalSupplyTime = _currentSpan;
+        }
+    }
+
+    function _discountTotalSupplyThenBurn(uint256 _amount, uint256 _currentSpan) private {
+        if (totalSupplyTime == _currentSpan) {
+            temporalTotalSupply -= _amount;
+        } else {
+            uint256 discountedTotalSupply =
+                _calculateDiscountedBalance(temporalTotalSupply, _currentSpan - totalSupplyTime);
+            temporalTotalSupply = discountedTotalSupply - _amount;
+            totalSupplyTime = _currentSpan;
+        }
     }
 
     function _calculateDiscountedBalance(uint256 _balance, uint256 _numberOfTimeSpans)

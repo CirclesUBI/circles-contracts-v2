@@ -5,7 +5,6 @@ import {Test} from "forge-std/Test.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
 
 contract TimeSetup is Test {
-
     // must match circles/TemporalDiscount.sol/ZERO_TIME
     uint256 internal constant ZERO_TIME = uint256(1639094400);
 
