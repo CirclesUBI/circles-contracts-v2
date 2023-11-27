@@ -199,11 +199,6 @@ contract TemporalDiscount is IERC20 {
         // but the pattern is off if we change the signature to pass currentSpan,
         // todo: evaluate if it is worth splitting the signatures for this...
         uint256 currentSpan = _currentTimeSpan();
-        // [this is wrong!] note: we don't discount the total supply before adding an amount
-        // because we account for discounts in the individual balances
-        // and already subtract those, so we should not double count.
-        // temporalTotalSupply += _amount;
-        // totalSupplyTime = currentSpan;
         _discountTotalSupplyThenMint(_amount, currentSpan);
         _discountBalanceThenAdd(_owner, _amount, currentSpan);
 
