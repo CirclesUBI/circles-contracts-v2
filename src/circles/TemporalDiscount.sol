@@ -249,13 +249,10 @@ contract TemporalDiscount is IERC20 {
             // and update the timespan in which we updated the balance.
             balanceTimeSpans[_owner] = _currentSpan;
 
-            // // adjust total supply to reflect discount cost
-            // _subtractTotalSupply(discountCost_, _currentSpan);
 
             // emit DiscountCost only when effectively discounted.
             // if the original balance was zero before adding,
             // discount cost can still be zero, even when discounted
-            // todo: possibly optimise? at cost of more if clauses?
             if (discountCost_ != uint256(0)) {
                 emit DiscountCost(_owner, discountCost_);
             }
@@ -287,22 +284,13 @@ contract TemporalDiscount is IERC20 {
             // and update the timespan in which we updated the balance.
             balanceTimeSpans[_owner] = _currentSpan;
 
-            // // adjust total supply to reflect discount cost
-            // _subtractTotalSupply(discountCost_, _currentSpan);
-
             // emit DiscountCost only when effectively discounted.
+            // note: there must have been some discount cost, because we subtracted
+            //     an amount from the balance successfully.
             emit DiscountCost(_owner, discountCost_);
             return discountCost_;
         }
     }
-
-    // function _subtractTotalSupply(uint256 _discountCost, uint256 _currentSpan) private {
-    //     // note: we don't discount the total supply in write operations,
-    //     // because we already have accounted for the discounts
-    //     // in the costs that get subtracted.
-    //     temporalTotalSupply = temporalTotalSupply - _discountCost;
-    //     totalSupplyTime = _currentSpan;
-    // }
 
     function _discountTotalSupplyThenMint(uint256 _amount, uint256 _currentSpan) private {
         if (totalSupplyTime == _currentSpan) {
