@@ -6,6 +6,7 @@ import {StdCheats} from "forge-std/StdCheats.sol";
 import "../../src/graph/Graph.sol";
 import "../../src/graph/ICircleNode.sol";
 import "../../src/circles/TimeCircle.sol";
+import "../../src/circles/GroupCircle.sol";
 import "../setup/TimeSetup.sol";
 import "./MockHubV1.sol";
 
@@ -19,7 +20,9 @@ contract GraphPathTransferTest is Test, TimeSetup {
 
     // State variables
 
-    TimeCircle public masterContractTimeCircle;
+    TimeCircle public masterCopyTimeCircle;
+
+    GroupCircle public masterCopyGroupCircle;
 
     MockHubV1 public mockHubV1;
 
@@ -34,11 +37,13 @@ contract GraphPathTransferTest is Test, TimeSetup {
 
     function setUp() public {
         // no need to call setup() on master copy
-        masterContractTimeCircle = new TimeCircle();
+        masterCopyTimeCircle = new TimeCircle();
+
+        masterCopyGroupCircle = new GroupCircle();
 
         mockHubV1 = new MockHubV1();
 
-        graph = new Graph(mockHubV1, masterContractTimeCircle);
+        graph = new Graph(mockHubV1, masterCopyTimeCircle, masterCopyGroupCircle);
 
         startTime();
 
@@ -46,13 +51,13 @@ contract GraphPathTransferTest is Test, TimeSetup {
             addresses[i] = makeAddr(avatars[i]);
             vm.prank(addresses[i]);
             graph.registerAvatar();
-            circleNodes[i] = graph.avatarToNode(addresses[i]);
+            circleNodes[i] = graph.avatarToCircle(addresses[i]);
         }
 
         // all participants should have 48 TIC as signup bonus
         // todo: test this as separate unit test in graph.t.sol
         for (uint256 i = 0; i < N; i++) {
-            assertEq(circleNodes[i].balanceOf(addresses[i]), masterContractTimeCircle.TIME_BONUS() * TIC);
+            assertEq(circleNodes[i].balanceOf(addresses[i]), masterCopyTimeCircle.TIME_BONUS() * TIC);
         }
 
         // to build a correct flow matrix, we need to present the vertices

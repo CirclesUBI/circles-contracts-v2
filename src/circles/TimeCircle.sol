@@ -90,6 +90,11 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
         _;
     }
 
+    constructor() {
+        // block the mastercopy from getting called setup on
+        graph = IGraph(address(1));
+    }
+
     // External functions
 
     function setup(address _avatar, bool _active, address[] calldata _migrations) external {

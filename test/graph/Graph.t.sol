@@ -6,13 +6,16 @@ import {StdCheats} from "forge-std/StdCheats.sol";
 import "../../src/graph/Graph.sol";
 import "../../src/graph/ICircleNode.sol";
 import "../../src/circles/TimeCircle.sol";
+import "../../src/circles/GroupCircle.sol";
 import "./MockHubV1.sol";
 import "./MockInternalGraph.sol";
 
 contract GraphTest is Test {
     // State variables
 
-    TimeCircle public masterContractTimeCircle;
+    TimeCircle public masterCopyTimeCircle;
+
+    GroupCircle public masterCopyGroupCircle;
 
     MockHubV1 public mockHubV1;
 
@@ -25,13 +28,15 @@ contract GraphTest is Test {
 
     function setUp() public {
         // no need to call setup() on master copy
-        masterContractTimeCircle = new TimeCircle();
+        masterCopyTimeCircle = new TimeCircle();
+
+        masterCopyGroupCircle = new GroupCircle();
 
         mockHubV1 = new MockHubV1();
 
-        graph = new Graph(mockHubV1, masterContractTimeCircle);
+        graph = new Graph(mockHubV1, masterCopyTimeCircle, masterCopyGroupCircle);
 
-        mockInternalGraph = new MockInternalGraph(mockHubV1, masterContractTimeCircle);
+        mockInternalGraph = new MockInternalGraph(mockHubV1, masterCopyTimeCircle, masterCopyGroupCircle);
     }
 
     function testUnpackCoordinates() public {

@@ -48,6 +48,11 @@ contract GroupCircle is MasterCopyNonUpgradable, TemporalDiscount, IGroupCircleN
         _;
     }
 
+    constructor() {
+        // block setup on the master copy deployment of the group circle
+        graph = IGraph(address(1));
+    }
+
     // External functions
 
     function setup(address _group, int128 _exitFee_64x64) external {
@@ -56,6 +61,7 @@ contract GroupCircle is MasterCopyNonUpgradable, TemporalDiscount, IGroupCircleN
         require(address(_group) != address(0), "Group address must not be zero address");
 
         require(_exitFee_64x64 <= ONE_64x64, "Exit fee can maximally be 100%.");
+        require(_exitFee_64x64 >= int128(0), "Exit fee can not be negative.");
 
         if (_exitFee_64x64 == ONE_64x64) {
             burnCollateralUponMinting = true;
