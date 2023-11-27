@@ -6,5 +6,7 @@ import "../graph/ICircleNode.sol";
 interface IGroup {
     // todo: these are sketches of a simple interface
     // should be considered again
-    function beforeMintPolicy(address minter, ICircleNode[] calldata collateral, uint256[] calldata amount) external;
+    function beforeMintPolicy(address minter, ICircleNode[] calldata collateral, uint256[] calldata amount)
+        external
+        returns (bool adjust, int128[] calldata adjustmentFactors);
 }

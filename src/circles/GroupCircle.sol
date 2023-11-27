@@ -2,10 +2,11 @@
 pragma solidity >=0.8.13;
 
 import "./TemporalDiscount.sol";
+import "./IGroup.sol";
+import "../lib/Math64x64.sol";
 import "../proxy/MasterCopyNonUpgradable.sol";
 import "../graph/ICircleNode.sol";
 import "../graph/IGraph.sol";
-import "./IGroup.sol";
 
 contract GroupCircle is MasterCopyNonUpgradable, TemporalDiscount, IGroupCircleNode {
     // State variables
@@ -84,7 +85,7 @@ contract GroupCircle is MasterCopyNonUpgradable, TemporalDiscount, IGroupCircleN
         return active_ = true;
     }
 
-    function mint(ICircleNode[] calldata _collateral, uint256[] calldata _amount) external {
+    function mint(ICircleNode[] calldata _collateral, uint256[] memory _amount) external {
         require(_collateral.length == _amount.length, "Collateral and amount arrays must have equal length.");
 
         require(_collateral.length > 0, "At least one collateral must be provided.");
@@ -102,8 +103,26 @@ contract GroupCircle is MasterCopyNonUpgradable, TemporalDiscount, IGroupCircleN
             "All collateral must be valid circles on this graph."
         );
 
-        // rely on group logic to evaluate whether minting should proceed
-        group.beforeMintPolicy(msg.sender, _collateral, _amount);
+        // rely on group logic to evaluate whether minting should proceed:
+        // - the group can either revert to block the mint,
+        // - return `adjust = false` to proceed with the amounts as presented
+        // - or return `adjust = true` and provide an array of equal length
+        // which contains the factors (must be smaller or equal to one)
+        // by which each amount should be multiplied to proceed with the mint.
+        (bool adjust, int128[] memory adjustmentFactors) = group.beforeMintPolicy(msg.sender, _collateral, _amount);
+
+        if (adjust) {
+            require(adjustmentFactors.length == _amount.length, "Incorrect number of adjustment factors provided.");
+            for (uint256 i = 0; i < _amount.length; i++) {
+                // note: Math64x64.mulu will already require the factor is non-negative;
+                //     but for clarity include the check here too (for now, optimise later).
+                require(
+                    adjustmentFactors[i] <= ONE_64x64 && adjustmentFactors[i] >= int128(0),
+                    "AdjustmentFactor must be between zero and one."
+                );
+                _amount[i] = Math64x64.mulu(adjustmentFactors[i], _amount[i]);
+            }
+        }
 
         uint256 totalGroupCirclesToMint = uint256(0);
 
