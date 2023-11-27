@@ -97,11 +97,11 @@ contract GroupCircle is MasterCopyNonUpgradable, TemporalDiscount, IGroupCircleN
         require(_collateral.length > 0, "At least one collateral must be provided.");
 
         // note: this is for code readability, this gets compiled out.
-        // To compose group tokens as deposited collateral must be burnt.
+        // To use group tokens as deposited collateral, they must be burnt.
         // For example, if collateral is preserved one could redeposit
         // (the same) group tokens, and the collateral would accumulate on
         // what should be an idempotent function call.
-        // This prevents games to be played with inflated total collateral held by groups.
+        // Burning the collateral prevents games to be played with inflated total collateral held by groups.
         bool acceptGroupTokensAsCollateral = burnCollateralUponMinting;
 
         require(
