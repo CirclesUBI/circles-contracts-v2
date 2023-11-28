@@ -34,7 +34,7 @@ contract TemporalDiscount is IERC20 {
     /**
      * Store the signed 128-bit 64.64 representation of 1 as a constant
      */
-    int128 internal constant ONE_64x64 = int128(2**64);
+    int128 internal constant ONE_64x64 = int128(2 ** 64);
 
     /**
      * Reduction factor gamma for temporally discounting balances
@@ -248,7 +248,6 @@ contract TemporalDiscount is IERC20 {
             temporalBalances[_owner] = discountedBalance + _amount;
             // and update the timespan in which we updated the balance.
             balanceTimeSpans[_owner] = _currentSpan;
-
 
             // emit DiscountCost only when effectively discounted.
             // if the original balance was zero before adding,
