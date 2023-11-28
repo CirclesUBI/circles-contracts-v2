@@ -89,10 +89,10 @@ contract Graph is ProxyFactory, IGraph {
     mapping(ICircleNode => ICircleNode) public avatarCircleNodesIterable;
 
     /**
-     * Organizations can enter the trust graph
-     * without creating a circle node themselves.
+     * @notice Group to node stores a mapping of which circle node
+     *     has been created for a group.
      */
-    mapping(address => address) public organizations;
+    mapping(address => IGroupCircleNode) public groupToCircle;
 
     /**
      * Groups can enter the trust graph and create a group circles contract.
@@ -105,10 +105,10 @@ contract Graph is ProxyFactory, IGraph {
     mapping(ICircleNode => ICircleNode) public groupCircleNodesIterable;
 
     /**
-     * @notice Group to node stores a mapping of which circle node
-     *     has been created for a group.
+     * Organizations can enter the trust graph
+     * without creating a circle node themselves.
      */
-    mapping(address => IGroupCircleNode) public groupToCircle;
+    mapping(address => address) public organizations;
 
     /**
      * Trust markers map the time marker at which trust of an entity
@@ -136,7 +136,7 @@ contract Graph is ProxyFactory, IGraph {
 
     // Modifiers
 
-    modifier notYetOnTrustGraph(address _entity) {
+    modifier notOnTrustGraph(address _entity) {
         require(
             address(avatarToCircle[_entity]) == address(0) && address(organizations[_entity]) == address(0)
                 && address(groupToCircle[_entity]) == address(0),
@@ -193,11 +193,13 @@ contract Graph is ProxyFactory, IGraph {
         avatarCircleNodesIterable[IAvatarCircleNode(SENTINEL)] = IAvatarCircleNode(SENTINEL);
         // initialize the linked list for group circle nodes in the graph
         groupCircleNodesIterable[IGroupCircleNode(SENTINEL)] = IGroupCircleNode(SENTINEL);
+        // initialize the linked list for organizations in the graph
+        organizations[SENTINEL] = SENTINEL;
     }
 
     // External functions
 
-    function registerAvatar() external notYetOnTrustGraph(msg.sender) {
+    function registerAvatar() external notOnTrustGraph(msg.sender) {
         // there might not (yet) be a token in the ancestor graph
         (bool objectToStartMint, address[] memory migrationTokens) = checkAncestorMigrations(msg.sender);
 
@@ -214,7 +216,7 @@ contract Graph is ProxyFactory, IGraph {
         emit RegisterAvatar(msg.sender, address(avatarCircleNode));
     }
 
-    function registerGroup(int128 _exitFee_64x64) external notYetOnTrustGraph(msg.sender) {
+    function registerGroup(int128 _exitFee_64x64) external notOnTrustGraph(msg.sender) {
         // the correctness of the exit fee (0 <= fee <= 1) is checked in the setup()
         // of the group, so simply pass on the value here.
         bytes memory groupCircleNodeSetupData =
@@ -228,6 +230,12 @@ contract Graph is ProxyFactory, IGraph {
         _trust(msg.sender, msg.sender, INDEFINITELY);
 
         emit RegisterGroup(msg.sender, _exitFee_64x64);
+    }
+
+    function registerOrganization() external notOnTrustGraph(msg.sender) {
+        _insertOrganization(msg.sender);
+
+        emit RegisterOrganization(msg.sender);
     }
 
     function trust(address _entity) external onTrustGraph(msg.sender) canBeTrusted(_entity) {
@@ -245,7 +253,7 @@ contract Graph is ProxyFactory, IGraph {
         _trust(msg.sender, _entity, _expiry);
     }
 
-    function untrust(address _entity) external onTrustGraph(msg.sender) {
+    function untrust(address _entity) external onTrustGraph(msg.sender) canBeTrusted(_entity) {
         require(_entity != msg.sender, "Cannot edit your own trust relation.");
         // wait at least a full trust interval before the edge can expire
         uint256 earliestExpiry = ((block.timestamp / TRUST_INTERVAL) + 2) * TRUST_INTERVAL;
@@ -395,7 +403,7 @@ contract Graph is ProxyFactory, IGraph {
         return expiry_ = uint256(trustMarkers[_truster][_trusted].expiry);
     }
 
-    function nodeToAvatar(IAvatarCircleNode _node) public view returns (address avatar_) {
+    function circleToAvatar(IAvatarCircleNode _node) public view returns (address avatar_) {
         // explicitly only look up possible avatars, do not return groups
         require(
             address(avatarCircleNodesIterable[_node]) != address(0), "Node is not registered as avatar on this graph."
@@ -405,7 +413,7 @@ contract Graph is ProxyFactory, IGraph {
 
     function checkConcurrentMinting(IAvatarCircleNode _node) public view returns (bool conflict_) {
         // get the associated avatar for the token
-        address avatar = nodeToAvatar(_node);
+        address avatar = circleToAvatar(_node);
         require(avatar != address(0), "Unknown Circle node, cannot check for conflicts.");
         require(_node.isActive(), "Search for conflict requires the node to be active.");
 
@@ -697,5 +705,16 @@ contract Graph is ProxyFactory, IGraph {
         // prepend the new GroupCircleNode in the iterable linked list
         groupCircleNodesIterable[_groupCircleNode] = groupCircleNodesIterable[ICircleNode(SENTINEL)];
         groupCircleNodesIterable[ICircleNode(SENTINEL)] = _groupCircleNode;
+    }
+
+    function _insertOrganization(address _organization) private {
+        assert(_organization != address(0));
+        assert(_organization != SENTINEL);
+        assert(organizations[_organization] != address(0));
+
+        // the linked list for organization addresses is initialized in the constructor
+
+        organizations[_organization] = organizations[SENTINEL];
+        organizations[SENTINEL] = _organization;
     }
 }
