@@ -45,8 +45,6 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
 
     address public avatar;
 
-    bool public paused;
-
     bool public stopped;
 
     /**
@@ -62,26 +60,19 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
      */
     uint256 public lastIssuanceTimeSpan;
 
-    mapping(address => address) public migrations;
-
     // Events
 
-    event Paused(address indexed caller);
+    event Stopped();
 
     // Modifiers
-
-    modifier onlyGraphOrAvatar() {
-        require(msg.sender == address(graph) || msg.sender == avatar, "Only graph or avatar can call this function.");
-        _;
-    }
 
     modifier onlyGraph() {
         require(msg.sender == address(graph), "Only graph can call this function.");
         _;
     }
 
-    modifier onlyActive() {
-        require(isActive(), "Node must be active to call this function.");
+    modifier onlyAvatar() {
+        require(msg.sender == avatar, "Only avatar can call this function.");
         _;
     }
 
@@ -97,7 +88,7 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
 
     // External functions
 
-    function setup(address _avatar, bool _active, address[] calldata _migrations) external {
+    function setup(address _avatar) external {
         require(address(graph) == address(0), "Time Circle contract has already been setup.");
 
         require(address(_avatar) != address(0), "Avatar must not be zero address.");
@@ -105,39 +96,20 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
         // graph contract must set up Time Circle node.
         graph = IGraph(msg.sender);
         avatar = _avatar;
-        paused = !_active;
         stopped = false;
         creationTime = block.timestamp;
         lastIssued = block.timestamp;
         lastIssuanceTimeSpan = _currentTimeSpan();
-
-        // instantiate the linked list
-        migrations[SENTINEL_MIGRATION] = SENTINEL_MIGRATION;
-
-        // loop over memory array to insert migration history into linked list
-        for (uint256 i = 0; i < _migrations.length; i++) {
-            _insertMigration(_migrations[i]);
-        }
-
-        // if the token has no known migration history and greenlit to start minting
-        // then also allocate the initial "signup" bonus
-        if (_migrations.length == 0 && _active) {
-            // mint signup TIME_BONUS
-            // for bonus don't discount the tokens per hour,
-            // simply give the full amount as it is a rounded amount,
-            // and clearer to understand for new users.
-            _mint(avatar, TIME_BONUS * EXA);
-        }
     }
 
     function entity() external view returns (address entity_) {
         return entity_ = avatar;
     }
 
-    function claimIssuance() external onlyActive {
+    function claimIssuance() external {
         uint256 currentSpan = _currentTimeSpan();
         uint256 outstandingBalance = _calculateIssuance(currentSpan);
-        require(outstandingBalance == uint256(0), "Minimally wait one hour between claims.");
+        require(outstandingBalance != uint256(0), "Minimally wait one hour between claims.");
 
         // mint the discounted balance for avatar
         _mint(avatar, outstandingBalance);
@@ -149,28 +121,14 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
         _transfer(_from, _to, _amount);
     }
 
-    function pause() external onlyGraphOrAvatar notStopped {
-        // pause can be quitely idempotent
-        if (!paused) {
-            paused = true;
-            emit Paused(msg.sender);
+    function stop() external onlyAvatar {
+        if (!stopped) {
+            emit Stopped();
         }
+        stopped = true;
     }
 
-    function unpause() external onlyGraph notStopped {
-        require(paused, "Node must be explicitly paused, to unpause.");
-        // explicitly reset last issuance time to now to set a fresh clock,
-        // but without issuing tokens for the paused time.
-        lastIssuanceTimeSpan = _currentTimeSpan();
-        lastIssued = block.timestamp;
-        paused = false;
-
-        // todo: emit event
-    }
-
-    // todo: function stop()
-
-    function calculateIssuance() external view onlyActive returns (uint256 outstandingBalance_) {
+    function calculateIssuance() external returns (uint256 outstandingBalance_) {
         return _calculateIssuance(_currentTimeSpan());
     }
 
@@ -178,78 +136,100 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
         _burn(msg.sender, _amount);
     }
 
-    // Public functions
-
-    function isActive() public view returns (bool active_) {
-        return !paused && !stopped;
-    }
-
     // Internal functions
 
-    function _calculateIssuance(uint256 _currentSpan) internal view returns (uint256 outstandingBalance_) {
-        uint256 newIssuanceTime = block.timestamp;
-        // the duration over which tokens can be claimed
-        // is the duration since last claim for a maximum
-        // of two weeks.
-        uint256 durationClaimable = _min(MAX_CLAIM_DURATION, newIssuanceTime - lastIssued);
+    function _calculateIssuance(uint256 _currentSpan) internal returns (uint256 outstandingBalance_) {
+        // ask the graph to fetch the allocation for issuance and what the earliest timestamp is
+        // from which circles can be issued
+        (int128 allocation, uint256 earliestTimestamp) = graph.fetchAllocation(avatar);
 
-        // use integer division to round down towards the number
-        // of completed issuance periods since last issued.
-        uint256 balanceWithoutDiscounting = durationClaimable / ISSUANCE_PERIOD;
+        require(allocation >= int128(0) && allocation <= ONE_64x64, "Allocation must be a between 0 and 1.");
 
-        // don't bother discounting if oustanding balance is zero
-        if (balanceWithoutDiscounting == 0) {
+        uint256 presentTime = block.timestamp;
+
+        if (allocation == int128(0)) {
+            // no allocation distributed towards this graph
             return outstandingBalance_ = uint256(0);
         }
 
+        // mint splitter can put earliest issuance time in the future
+        // after updating the mint distribution
+        if (earliestTimestamp >= presentTime) {
+            // not allowed to issue circles if mint splitter set earliest time
+            // in the future
+            return outstandingBalance_ = uint256(0);
+        }
+
+        // now that the earliest issuance time is in the past,
+        // take the latest time as the start time
+        uint256 issuanceStart = _max(earliestTimestamp, lastIssued);
+
+        // the duration over which tokens can be claimed
+        // is the duration since the start of a claim for a maximum
+        // of two weeks.
+        uint256 durationClaimable = _min(MAX_CLAIM_DURATION, presentTime - issuanceStart);
+
+        // use integer division to round down towards the number
+        // of completed issuance periods since last issued.
+        uint256 fullBalanceWithoutDiscounting = (durationClaimable * EXA) / ISSUANCE_PERIOD;
+
+        // don't bother discounting if oustanding balance is zero
+        if (fullBalanceWithoutDiscounting == 0) {
+            return outstandingBalance_ = uint256(0);
+        }
+
+        uint256 startIssuanceTimeSpan = _calculateTimeSpan(issuanceStart);
+
         // the number of discounting windows that have passed.
-        uint256 discountWindows = _currentSpan - lastIssuanceTimeSpan;
+        uint256 discountWindows = _currentSpan - startIssuanceTimeSpan;
 
         if (discountWindows == uint256(0)) {
             // within the same discount window, no discounts are applied
-            return outstandingBalance_ = balanceWithoutDiscounting;
+            // however, we must only mint the allocation distributed to this graph
+            uint256 allocatedOutstandingBalance = Math64x64.mulu(allocation, fullBalanceWithoutDiscounting);
+            return outstandingBalance_ = allocatedOutstandingBalance;
         }
+
+        // apply the allocation to one circle (10**18 = EXA) per period (1 hour)
+        uint256 circlesPerIssuancePeriod = Math64x64.mulu(allocation, EXA);
 
         // note: because the maximal claim duration is only a few discount windows
         //       the start and end span are the majority of cases and covered better by
         //       a naive loop; for different parameters, this loop could be longer
         //       and an explicit geometric sum for the repetitive windows in the middle
         //       would make more sense.
-        uint256 timeAccountedFor = lastIssued;
+        // todo: the discount window will be updated from 1 week to 1 day (or less),
+        //       so consider whether this is still the most optimal implementation.
+        //       follow-up on https://github.com/CirclesUBI/circles-contracts-v2/issues/25
+        uint256 timeAccountedFor = presentTime - durationClaimable;
         outstandingBalance_ = uint256(0);
-        for (uint256 i = lastIssuanceTimeSpan; i < _currentSpan; i++) {
+        for (uint256 i = startIssuanceTimeSpan; i < _currentSpan; i++) {
             uint256 endOfWindow = ZERO_TIME + (i + 1) * DISCOUNT_WINDOW;
             uint256 timeInWindow = endOfWindow - timeAccountedFor;
-            // note: we want to have accuracy below one token per hour,
+            // note: we want to have accuracy below one circle per hour,
             //       as a window transition is likely to fall within an hour.
-            //       Luckily we can first multiply by 10^18 (as timeInWindow < 10^6),
+            //       Luckily we can first multiply by ~10^18 (as timeInWindow < 10^6),
             //       which should be sufficiently accurate.
             //       (alternative is for using 64.64 fixed point math but consumes more gas)
-            uint256 balanceDueForWindow = (EXA * timeInWindow) / ISSUANCE_PERIOD;
-            outstandingBalance_ += _calculateDiscountedBalance(balanceDueForWindow, uint256(1));
+            uint256 balanceDueForWindow = (circlesPerIssuancePeriod * timeInWindow) / ISSUANCE_PERIOD;
+            outstandingBalance_ += balanceDueForWindow;
+            // transition the outstanding balance over a new discount window
+            outstandingBalance_ = _calculateDiscountedBalance(outstandingBalance_, uint256(1));
             timeAccountedFor = endOfWindow;
         }
         timeAccountedFor = ZERO_TIME + _currentSpan * DISCOUNT_WINDOW;
-        uint256 remainingTime = newIssuanceTime - timeAccountedFor;
+        uint256 remainingTime = presentTime - timeAccountedFor;
         // don't discount in the current discount time window
-        return outstandingBalance_ += (EXA * remainingTime) / ISSUANCE_PERIOD;
+        return outstandingBalance_ += (circlesPerIssuancePeriod * remainingTime) / ISSUANCE_PERIOD;
     }
 
-    // Private function
-
-    function _insertMigration(address _migration) private {
-        assert(_migration != SENTINEL_MIGRATION);
-        require(_migration != address(0), "Migration address cannot be zero address.");
-        // idempotent under repeated insertion
-        if (migrations[_migration] != address(0)) {
-            return;
-        }
-        // prepend new migration address at beginning of linked list
-        migrations[_migration] = migrations[SENTINEL_MIGRATION];
-        migrations[SENTINEL_MIGRATION] = _migration;
-    }
+    // Private functions
 
     function _min(uint256 a, uint256 b) private pure returns (uint256) {
         return a <= b ? a : b;
+    }
+
+    function _max(uint256 a, uint256 b) private pure returns (uint256) {
+        return a >= b ? a : b;
     }
 }

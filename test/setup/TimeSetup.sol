@@ -12,4 +12,11 @@ contract TimeSetup is Test {
         // Earliest sensib;e start time is ZERO_TIME plus one second
         vm.warp(ZERO_TIME + 1);
     }
+
+    // vm.skip was not working, so just do it manually
+    // todo: figure foundry test issues out with vm.skip
+    function skipTime(uint256 _duration) public {
+        uint256 afterSkip = block.timestamp + _duration;
+        vm.warp(afterSkip);
+    }
 }

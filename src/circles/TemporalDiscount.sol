@@ -217,10 +217,14 @@ contract TemporalDiscount is IERC20 {
      * @notice current time span returns the count of time spans (counted in weeks)
      *         that have passed since ZERO_TIME.
      */
-    function _currentTimeSpan() internal view returns (uint256 currentTimeSpan_) {
+    function _currentTimeSpan() internal view returns (uint256) {
+        return _calculateTimeSpan(block.timestamp);
+    }
+
+    function _calculateTimeSpan(uint256 _time) internal pure returns (uint256) {
         // integer division rounds down, a difference less than one week
         // is counted as zero (since ZERO_TIME, or when substracting a difference)
-        return ((block.timestamp - ZERO_TIME) / DISCOUNT_WINDOW);
+        return ((_time - ZERO_TIME) / DISCOUNT_WINDOW);
     }
 
     // Private functions

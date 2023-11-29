@@ -10,21 +10,13 @@ interface ICircleNode is IERC20 {
 
     function pathTransfer(address from, address to, uint256 amount) external;
 
-    function isActive() external view returns (bool active);
-
     function burn(uint256 amount) external;
 }
 
 interface IAvatarCircleNode is ICircleNode {
-    function setup(address avatar, bool active, address[] calldata migrations) external;
+    function setup(address avatar) external;
 
-    // function claimIssuance() external;
-
-    function paused() external view returns (bool paused);
     function stopped() external view returns (bool stopped);
-
-    function pause() external;
-    function unpause() external;
 }
 
 interface IGroupCircleNode is ICircleNode {
