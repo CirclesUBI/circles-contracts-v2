@@ -2,6 +2,7 @@
 pragma solidity >=0.8.13;
 
 import "../migration/IHub.sol";
+import "../migration/IToken.sol";
 import "../lib/Math64x64.sol";
 
 contract MintSplitter {
@@ -11,6 +12,12 @@ contract MintSplitter {
         int128 allocation;
         uint128 sequence; // pack into the first word
         address destinationIterator;
+    }
+
+    enum HubV1Lock {
+        Undetermined,
+        LockedToHubV1,
+        LockReleased
     }
 
     // Constants
@@ -65,7 +72,9 @@ contract MintSplitter {
 
     mapping(address => mapping(address => Distribution)) public distributions;
 
-    mapping(address => uint128) public sourceSequence;
+    mapping(address => uint128) public sourceSequences;
+
+    mapping(address => HubV1Lock) public hubV1Locks;
 
     // Modifiers
 
@@ -73,6 +82,9 @@ contract MintSplitter {
         require(
             lastUpdatedDistribution[_source] < block.timestamp, "Source can not update twice at the same block time."
         );
+        // first update the lock for the source
+        checkSourceLockHubV1(_source);
+        require(hubV1Locks[_source] != HubV1Lock.LockedToHubV1, "Source has the distribution locked to hub v1 minting.");
         _;
     }
 
@@ -122,28 +134,67 @@ contract MintSplitter {
         uint128 newSequence = _deleteDistributionAndInitializeNew(msg.sender);
         // because the construction is involved, track a sanity check independently
         // in the form of a sequence number
-        assert(newSequence == sourceSequence[msg.sender] + 1);
-        sourceSequence[msg.sender] = newSequence;
+        assert(newSequence == sourceSequences[msg.sender] + 1);
+        sourceSequences[msg.sender] = newSequence;
 
         // store the new distribution
         _storeNewDistribution(msg.sender, newSequence, _destinations, _allocations);
     }
 
-    function getAllocation(address _source) external returns (int128 allocation_) {
+    function getAllocation(address _source) external returns (int128 allocation_, uint256 earliestTimestamp_) {
         require(destinations[msg.sender] != address(0), "Destination has not been registered before.");
         require(sources[_source] != address(0), "Source has not registered a distribution.");
+
+        HubV1Lock sourceLockStatus = checkSourceLockHubV1(_source);
+
+        require(sourceLockStatus != HubV1Lock.LockedToHubV1, "Mint is exclusively locked to Hub V1 token.");
 
         Distribution storage distribution = distributions[_source][msg.sender];
         require(
             distribution.destinationIterator != address(0), "No distribution has been allocated for this destination."
         );
-        assert(distribution.sequence == sourceSequence[_source]);
+        assert(distribution.sequence == sourceSequences[_source]);
         assert(distribution.allocation >= int128(0) && distribution.allocation <= ONE_64x64);
 
-        return allocation_ = distribution.allocation;
+        return (allocation_ = distribution.allocation, earliestTimestamp_ = lastUpdatedDistribution[_source]);
     }
 
     // Public functions
+
+    function checkSourceLockHubV1(address _source) public returns (HubV1Lock lockStatus_) {
+        lockStatus_ = hubV1Locks[_source];
+        if (lockStatus_ == HubV1Lock.LockReleased) {
+            // once the lock is released, this is the final state
+            // so immediately continue
+            return lockStatus_;
+        }
+
+        address hubV1Token = hubV1.userToToken(_source);
+        if (hubV1Token != address(0)) {
+            // some address is returned
+            bool stopped = ITokenV1(hubV1Token).stopped();
+            if (stopped) {
+                // the existing v1 token has been stopped, so the lock can be released
+                lockStatus_ = HubV1Lock.LockReleased;
+                // ensure that there are no overlapping mints, so update the timestamp
+                // for new distributions
+                lastUpdatedDistribution[_source] = block.timestamp;
+            } else {
+                assert(lockStatus_ <= HubV1Lock.LockedToHubV1);
+                // the existing v1 token is (still) present and not stopped, so place the lock
+                lockStatus_ = HubV1Lock.LockedToHubV1;
+            }
+        } else {
+            // no address was returned, no v1 token exists
+            assert(lockStatus_ == HubV1Lock.Undetermined);
+            // no-op, lock status remains undetermined, as source can signup
+            // in Hub V1 contract and start a mint there
+            return lockStatus_;
+        }
+        // store the updated lock status
+        hubV1Locks[_source] = lockStatus_;
+        return lockStatus_;
+    }
 
     function addsToOneUnit(int128[] calldata _allocations) public pure returns (bool unitary_) {
         int128 sum = int128(0);
