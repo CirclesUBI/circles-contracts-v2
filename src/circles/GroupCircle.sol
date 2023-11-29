@@ -36,13 +36,6 @@ contract GroupCircle is MasterCopyNonUpgradable, TemporalDiscount, IGroupCircleN
 
     // Modifiers
 
-    modifier onlyGraphOrGroup() {
-        require(
-            msg.sender == address(graph) || msg.sender == address(group), "Only graph or group can call this function."
-        );
-        _;
-    }
-
     modifier onlyGraph() {
         require(msg.sender == address(graph), "Only graph can call this function.");
         _;
@@ -84,11 +77,6 @@ contract GroupCircle is MasterCopyNonUpgradable, TemporalDiscount, IGroupCircleN
         // todo: should there be a hook here to call group?
 
         _transfer(_from, _to, _amount);
-    }
-
-    // todo: does this mean something for group currencies?
-    function isActive() external pure returns (bool active_) {
-        return active_ = true;
     }
 
     function mint(ICircleNode[] calldata _collateral, uint256[] memory _amount) external {

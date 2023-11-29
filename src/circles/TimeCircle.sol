@@ -45,8 +45,6 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
 
     address public avatar;
 
-    bool public paused;
-
     bool public stopped;
 
     /**
@@ -62,26 +60,19 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
      */
     uint256 public lastIssuanceTimeSpan;
 
-    mapping(address => address) public migrations;
-
     // Events
 
-    event Paused(address indexed caller);
+    event Stopped();
 
     // Modifiers
-
-    modifier onlyGraphOrAvatar() {
-        require(msg.sender == address(graph) || msg.sender == avatar, "Only graph or avatar can call this function.");
-        _;
-    }
 
     modifier onlyGraph() {
         require(msg.sender == address(graph), "Only graph can call this function.");
         _;
     }
 
-    modifier onlyActive() {
-        require(isActive(), "Node must be active to call this function.");
+    modifier onlyAvatar() {
+        require(msg.sender == avatar, "Only avatar can call this function.");
         _;
     }
 
@@ -105,39 +96,19 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
         // graph contract must set up Time Circle node.
         graph = IGraph(msg.sender);
         avatar = _avatar;
-        // paused = !_active;
         stopped = false;
         creationTime = block.timestamp;
         lastIssued = block.timestamp;
         lastIssuanceTimeSpan = _currentTimeSpan();
-
-        // instantiate the linked list
-        // migrations[SENTINEL_MIGRATION] = SENTINEL_MIGRATION;
-
-        // // loop over memory array to insert migration history into linked list
-        // for (uint256 i = 0; i < _migrations.length; i++) {
-        //     _insertMigration(_migrations[i]);
-        // }
-
-        // if the token has no known migration history and greenlit to start minting
-        // then also allocate the initial "signup" bonus
-        // if (_migrations.length == 0 && _active) {
-        //     // mint signup TIME_BONUS
-        //     // for bonus don't discount the tokens per hour,
-        //     // simply give the full amount as it is a rounded amount,
-        //     // and clearer to understand for new users.
-        //     _mint(avatar, TIME_BONUS * EXA);
-        // }
     }
 
     function entity() external view returns (address entity_) {
         return entity_ = avatar;
     }
 
-    function claimIssuance() external onlyActive {
+    function claimIssuance() external {
         uint256 currentSpan = _currentTimeSpan();
         uint256 outstandingBalance = _calculateIssuance(currentSpan);
-        assert (outstandingBalance != 0);
         require(outstandingBalance != uint256(0), "Minimally wait one hour between claims.");
 
         // mint the discounted balance for avatar
@@ -150,39 +121,19 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
         _transfer(_from, _to, _amount);
     }
 
-    // function pause() external onlyGraphOrAvatar notStopped {
-    //     // pause can be quitely idempotent
-    //     if (!paused) {
-    //         paused = true;
-    //         emit Paused(msg.sender);
-    //     }
-    // }
+    function stop() external onlyAvatar {
+        if (!stopped) {
+            emit Stopped();
+        }
+        stopped = true;
+    }
 
-    // function unpause() external onlyGraph notStopped {
-    //     require(paused, "Node must be explicitly paused, to unpause.");
-    //     // explicitly reset last issuance time to now to set a fresh clock,
-    //     // but without issuing tokens for the paused time.
-    //     lastIssuanceTimeSpan = _currentTimeSpan();
-    //     lastIssued = block.timestamp;
-    //     paused = false;
-
-    //     // todo: emit event
-    // }
-
-    // todo: function stop()
-
-    function calculateIssuance() external onlyActive returns (uint256 outstandingBalance_) {
+    function calculateIssuance() external returns (uint256 outstandingBalance_) {
         return _calculateIssuance(_currentTimeSpan());
     }
 
     function burn(uint256 _amount) external {
         _burn(msg.sender, _amount);
-    }
-
-    // Public functions
-
-    function isActive() public view returns (bool active_) {
-        return !paused && !stopped;
     }
 
     // Internal functions
@@ -272,19 +223,7 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
         return outstandingBalance_ += (circlesPerIssuancePeriod * remainingTime) / ISSUANCE_PERIOD;
     }
 
-    // Private function
-
-    // function _insertMigration(address _migration) private {
-    //     assert(_migration != SENTINEL_MIGRATION);
-    //     require(_migration != address(0), "Migration address cannot be zero address.");
-    //     // idempotent under repeated insertion
-    //     if (migrations[_migration] != address(0)) {
-    //         return;
-    //     }
-    //     // prepend new migration address at beginning of linked list
-    //     migrations[_migration] = migrations[SENTINEL_MIGRATION];
-    //     migrations[SENTINEL_MIGRATION] = _migration;
-    // }
+    // Private functions
 
     function _min(uint256 a, uint256 b) private pure returns (uint256) {
         return a <= b ? a : b;

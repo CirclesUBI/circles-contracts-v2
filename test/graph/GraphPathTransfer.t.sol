@@ -4,7 +4,6 @@ pragma solidity >=0.8.13;
 import {Test} from "forge-std/Test.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
 import "../../src/graph/Graph.sol";
-// import "../../src/graph/ICircleNode.sol";
 import "../../src/circles/TimeCircle.sol";
 import "../../src/circles/GroupCircle.sol";
 import "../../src/mint/MintSplitter.sol";
@@ -56,7 +55,7 @@ contract GraphPathTransferTest is Test, TimeSetup {
         address[] memory destinations = new address[](1);
         destinations[0] = address(graph);
         int128[] memory allocations = new int128[](1);
-        allocations[0] = int128(2**64); // 100% in 64.64 signed fixed point representation is 2^64 
+        allocations[0] = int128(2 ** 64); // 100% in 64.64 signed fixed point representation is 2^64
 
         for (uint256 i = 0; i < N; i++) {
             addresses[i] = makeAddr(avatars[i]);
@@ -76,7 +75,6 @@ contract GraphPathTransferTest is Test, TimeSetup {
             circleNodes[i].claimIssuance();
             assertEq(circleNodes[i].balanceOf(addresses[i]), 48 * TIC);
         }
-
 
         // to build a correct flow matrix, we need to present the vertices
         // in ascending order, so sort the addresses and store the permutation map
