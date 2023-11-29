@@ -12,6 +12,8 @@ interface IGraph {
         view
         returns (bool allTrusted_);
 
+    function fetchAllocation() external returns (int128 allocation_, uint256 earliestTimestamp_);
+
     // function checkAncestorMigrations(address _avatar)
     //     external
     //     returns (bool objectToStartMint_, address[] memory migrationTokens_);

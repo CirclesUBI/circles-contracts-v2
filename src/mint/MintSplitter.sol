@@ -141,7 +141,10 @@ contract MintSplitter {
         _storeNewDistribution(msg.sender, newSequence, _destinations, _allocations);
     }
 
-    function getAllocation(address _source) external returns (int128 allocation_, uint256 earliestTimestamp_) {
+    function allocationTowardsCaller(address _source)
+        external
+        returns (int128 allocation_, uint256 earliestTimestamp_)
+    {
         require(destinations[msg.sender] != address(0), "Destination has not been registered before.");
         require(sources[_source] != address(0), "Source has not registered a distribution.");
 

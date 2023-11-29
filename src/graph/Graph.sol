@@ -4,6 +4,7 @@ pragma solidity >=0.8.13;
 // import "./IGraph.sol";
 import "./ICircleNode.sol";
 import "./IGraph.sol";
+import "../mint/IMintSplitter.sol";
 import "../migration/IHub.sol";
 import "../migration/IToken.sol";
 import "../proxy/ProxyFactory.sol";
@@ -34,7 +35,7 @@ contract Graph is ProxyFactory, IGraph {
     /**
      * Callprefix for IAvatarCircleNode::setup function
      */
-    bytes4 public constant AVATAR_CIRCLE_SETUP_CALLPREFIX = bytes4(keccak256("setup(address,bool,address[])"));
+    bytes4 public constant AVATAR_CIRCLE_SETUP_CALLPREFIX = bytes4(keccak256("setup(address)"));
 
     /**
      * Callprefix for IGroupCircleNode::setup function
@@ -60,9 +61,13 @@ contract Graph is ProxyFactory, IGraph {
     // State variables
 
     /**
-     * Hub v1 contract reference to ensure correct migration of avatars
+     * Mint splitter ensures that across composite graphs (including legacy Hub V1 graph)
+     * the central invariant of one circle per human per hour is respected.
+     * Upon issuing circles, the graph MUST always call upon the mint splitter to know what
+     * the current allocation - if any - is for this graph, and what the earliest time is
+     * from which an issuance can be calculcated.
      */
-    IHubV1 public immutable ancestor;
+    IMintSplitter public immutable mintSplitter;
 
     /**
      * Master copy of the avatar circle node contract to deploy proxy's for
@@ -175,17 +180,17 @@ contract Graph is ProxyFactory, IGraph {
     // Constructor
 
     constructor(
-        IHubV1 _ancestor,
+        IMintSplitter _mintSplitter,
         IAvatarCircleNode _masterCopyAvatarCircleNode,
         IGroupCircleNode _masterCopyGroupCircleNode
     ) {
-        require(address(_ancestor) != address(0), "Hub v1 contract must be provided.");
+        require(address(_mintSplitter) != address(0), "Mint Splitter contract must be provided.");
         require(
             address(_masterCopyAvatarCircleNode) != address(0), "Mastercopy for Avatar Circle Node must not be zero."
         );
         require(address(_masterCopyGroupCircleNode) != address(0), "Mastercopy for Group Circle Node must not be zero.");
 
-        ancestor = _ancestor;
+        mintSplitter = _mintSplitter;
         masterCopyAvatarCircleNode = _masterCopyAvatarCircleNode;
         masterCopyGroupCircleNode = _masterCopyGroupCircleNode;
 
@@ -200,11 +205,7 @@ contract Graph is ProxyFactory, IGraph {
     // External functions
 
     function registerAvatar() external notOnTrustGraph(msg.sender) {
-        // there might not (yet) be a token in the ancestor graph
-        (bool objectToStartMint, address[] memory migrationTokens) = checkAncestorMigrations(msg.sender);
-
-        bytes memory avatarCircleNodeSetupData =
-            abi.encodeWithSelector(AVATAR_CIRCLE_SETUP_CALLPREFIX, msg.sender, !objectToStartMint, migrationTokens);
+        bytes memory avatarCircleNodeSetupData = abi.encodeWithSelector(AVATAR_CIRCLE_SETUP_CALLPREFIX, msg.sender);
         IAvatarCircleNode avatarCircleNode =
             IAvatarCircleNode(address(createProxy(address(masterCopyAvatarCircleNode), avatarCircleNodeSetupData)));
 
@@ -264,41 +265,51 @@ contract Graph is ProxyFactory, IGraph {
         emit Trust(msg.sender, _entity, earliestExpiry);
     }
 
-    // Note: a user can signup in v2 first, when no associated token in v1 exists
-    //       as such we would start minting in v2. We cover for the edge case
-    //       where a user signs up in v1, after signing up in v2, and would mint
-    //       double, by introducing 'pause()', in addition to 'stop()'.
-    //       With pause, an avatar can have a token in multiple graphs, but we
-    //       can ensure that all-but-one token can always be paused/unpaused.
-    function claimNodeMustPause(IAvatarCircleNode _node) external activeCircleNode(_node) returns (bool paused_) {
-        // pause is idempotent, but emitting the event, or possible slashing is not
-        // but in the modifier we already check is `activeCircleNode`,
-        // which additionally prevents false claims if v2 node would have been stopped.
-
-        bool conflict = checkConcurrentMinting(_node);
-
-        if (conflict) {
-            _node.pause();
-            // todo: the hub can enforce slashing of circles and reward for claimer here
-            emit PauseClaim(msg.sender, address(_node));
-            return paused_ = true;
-        }
-        return paused_ = false;
+    function fetchAllocation() external returns (int128 allocation_, uint256 earliestTimestamp_) {
+        require(
+            address(avatarCircleNodesIterable[ICircleNode(msg.sender)]) != address(0),
+            "Only registered avatar circle nodes can request to fetch issuance allocation."
+        );
+        // call on the mint splitter whether there is an allocation, and what the earliest timestamp is
+        (allocation_, earliestTimestamp_) = mintSplitter.allocationTowardsCaller(msg.sender);
+        return (allocation_, earliestTimestamp_);
     }
 
-    function claimToUnpauseNode() external returns (bool paused_) {
-        IAvatarCircleNode node = avatarToCircle[msg.sender];
-        // only the avatar can call to unpause their node.
-        require(address(node) != address(0), "Caller must be the registered avatar for a node on this graph.");
-        require(!node.stopped(), "A stopped Cirlce node cannot be unpaused.");
+    // // Note: a user can signup in v2 first, when no associated token in v1 exists
+    // //       as such we would start minting in v2. We cover for the edge case
+    // //       where a user signs up in v1, after signing up in v2, and would mint
+    // //       double, by introducing 'pause()', in addition to 'stop()'.
+    // //       With pause, an avatar can have a token in multiple graphs, but we
+    // //       can ensure that all-but-one token can always be paused/unpaused.
+    // function claimNodeMustPause(IAvatarCircleNode _node) external activeCircleNode(_node) returns (bool paused_) {
+    //     // pause is idempotent, but emitting the event, or possible slashing is not
+    //     // but in the modifier we already check is `activeCircleNode`,
+    //     // which additionally prevents false claims if v2 node would have been stopped.
 
-        bool conflict = checkConcurrentMinting(node);
-        if (!conflict) {
-            node.unpause();
-            return paused_ = false;
-        }
-        return paused_ = true;
-    }
+    //     bool conflict = checkConcurrentMinting(_node);
+
+    //     if (conflict) {
+    //         _node.pause();
+    //         // todo: the hub can enforce slashing of circles and reward for claimer here
+    //         emit PauseClaim(msg.sender, address(_node));
+    //         return paused_ = true;
+    //     }
+    //     return paused_ = false;
+    // }
+
+    // function claimToUnpauseNode() external returns (bool paused_) {
+    //     IAvatarCircleNode node = avatarToCircle[msg.sender];
+    //     // only the avatar can call to unpause their node.
+    //     require(address(node) != address(0), "Caller must be the registered avatar for a node on this graph.");
+    //     require(!node.stopped(), "A stopped Cirlce node cannot be unpaused.");
+
+    //     bool conflict = checkConcurrentMinting(node);
+    //     if (!conflict) {
+    //         node.unpause();
+    //         return paused_ = false;
+    //     }
+    //     return paused_ = true;
+    // }
 
     function checkAllAreTrustedCircleNodes(address _group, ICircleNode[] calldata _circles, bool _includeGroups)
         external
@@ -411,43 +422,43 @@ contract Graph is ProxyFactory, IGraph {
         return _node.entity();
     }
 
-    function checkConcurrentMinting(IAvatarCircleNode _node) public view returns (bool conflict_) {
-        // get the associated avatar for the token
-        address avatar = circleToAvatar(_node);
-        require(avatar != address(0), "Unknown Circle node, cannot check for conflicts.");
-        require(_node.isActive(), "Search for conflict requires the node to be active.");
+    // function checkConcurrentMinting(IAvatarCircleNode _node) public view returns (bool conflict_) {
+    //     // get the associated avatar for the token
+    //     address avatar = circleToAvatar(_node);
+    //     require(avatar != address(0), "Unknown Circle node, cannot check for conflicts.");
+    //     require(_node.isActive(), "Search for conflict requires the node to be active.");
 
-        // check recursively all paths to other graphs
-        // (for now only v1 ancestor graph)
-        ITokenV1 ancestorToken = ITokenV1(ancestor.userToToken(avatar));
-        require(
-            ancestorToken != ITokenV1(address(0)),
-            "Ancestor token must exist for a conflict to exist with this Circle node."
-        );
-        // if an ancestor token exists, but is not stopped (v1 only has stopped)
-        // then we do have a conflict.
-        return conflict_ = !ancestorToken.stopped();
-    }
+    //     // check recursively all paths to other graphs
+    //     // (for now only v1 ancestor graph)
+    //     ITokenV1 ancestorToken = ITokenV1(ancestor.userToToken(avatar));
+    //     require(
+    //         ancestorToken != ITokenV1(address(0)),
+    //         "Ancestor token must exist for a conflict to exist with this Circle node."
+    //     );
+    //     // if an ancestor token exists, but is not stopped (v1 only has stopped)
+    //     // then we do have a conflict.
+    //     return conflict_ = !ancestorToken.stopped();
+    // }
 
-    function checkAncestorMigrations(address _avatar)
-        public
-        view
-        returns (bool objectToStartMint_, address[] memory migrationTokens_)
-    {
-        objectToStartMint_ = false;
-        address ancestorToken = ancestor.userToToken(_avatar);
-        if (ancestorToken != address(0)) {
-            migrationTokens_ = new address[](1);
-            // append ancestorToken to migrationTokens_
-            migrationTokens_[0] = ancestorToken;
-            // Avatar has been registered in the ancestor graph,
-            // so check if the old token has been stopped.
-            // If it has not been stopped, object to start the mint of v2.
-            objectToStartMint_ = !ITokenV1(ancestorToken).stopped();
-        } else {
-            migrationTokens_ = new address[](0);
-        }
-    }
+    // function checkAncestorMigrations(address _avatar)
+    //     public
+    //     view
+    //     returns (bool objectToStartMint_, address[] memory migrationTokens_)
+    // {
+    //     objectToStartMint_ = false;
+    //     address ancestorToken = ancestor.userToToken(_avatar);
+    //     if (ancestorToken != address(0)) {
+    //         migrationTokens_ = new address[](1);
+    //         // append ancestorToken to migrationTokens_
+    //         migrationTokens_[0] = ancestorToken;
+    //         // Avatar has been registered in the ancestor graph,
+    //         // so check if the old token has been stopped.
+    //         // If it has not been stopped, object to start the mint of v2.
+    //         objectToStartMint_ = !ITokenV1(ancestorToken).stopped();
+    //     } else {
+    //         migrationTokens_ = new address[](0);
+    //     }
+    // }
 
     function circleNodeForEntity(address _entity) public view canBeTrusted(_entity) returns (ICircleNode circleNode_) {
         // first see if the entity is a registered avatar
