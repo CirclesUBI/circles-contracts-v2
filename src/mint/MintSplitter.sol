@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity >=0.8.13;
 
+import "./IMintSplitter.sol";
 import "../migration/IHub.sol";
 import "../migration/IToken.sol";
 import "../lib/Math64x64.sol";
 
-contract MintSplitter {
+contract MintSplitter is IMintSplitter {
     // Type declarations
 
     struct Distribution {

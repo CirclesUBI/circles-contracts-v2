@@ -7,6 +7,7 @@ import "../../src/graph/Graph.sol";
 import "../../src/graph/ICircleNode.sol";
 import "../../src/circles/TimeCircle.sol";
 import "../../src/circles/GroupCircle.sol";
+import "../../src/mint/MintSplitter.sol";
 import "./MockHub.sol";
 import "./MockInternalGraph.sol";
 
@@ -18,6 +19,8 @@ contract GraphTest is Test {
     GroupCircle public masterCopyGroupCircle;
 
     MockHubV1 public mockHubV1;
+
+    MintSplitter public mintSplitter;
 
     Graph public graph;
 
@@ -34,9 +37,11 @@ contract GraphTest is Test {
 
         mockHubV1 = new MockHubV1();
 
-        graph = new Graph(mockHubV1, masterCopyTimeCircle, masterCopyGroupCircle);
+        mintSplitter = new MintSplitter(mockHubV1);
 
-        mockInternalGraph = new MockInternalGraph(mockHubV1, masterCopyTimeCircle, masterCopyGroupCircle);
+        graph = new Graph(mintSplitter, masterCopyTimeCircle, masterCopyGroupCircle);
+
+        mockInternalGraph = new MockInternalGraph(mintSplitter, masterCopyTimeCircle, masterCopyGroupCircle);
     }
 
     function testUnpackCoordinates() public {

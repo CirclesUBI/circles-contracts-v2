@@ -137,7 +137,8 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
     function claimIssuance() external onlyActive {
         uint256 currentSpan = _currentTimeSpan();
         uint256 outstandingBalance = _calculateIssuance(currentSpan);
-        require(outstandingBalance == uint256(0), "Minimally wait one hour between claims.");
+        assert (outstandingBalance != 0);
+        require(outstandingBalance != uint256(0), "Minimally wait one hour between claims.");
 
         // mint the discounted balance for avatar
         _mint(avatar, outstandingBalance);
@@ -189,7 +190,7 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
     function _calculateIssuance(uint256 _currentSpan) internal returns (uint256 outstandingBalance_) {
         // ask the graph to fetch the allocation for issuance and what the earliest timestamp is
         // from which circles can be issued
-        (int128 allocation, uint256 earliestTimestamp) = graph.fetchAllocation();
+        (int128 allocation, uint256 earliestTimestamp) = graph.fetchAllocation(avatar);
 
         require(allocation >= int128(0) && allocation <= ONE_64x64, "Allocation must be a between 0 and 1.");
 
@@ -219,15 +220,17 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
 
         // use integer division to round down towards the number
         // of completed issuance periods since last issued.
-        uint256 fullBalanceWithoutDiscounting = durationClaimable / ISSUANCE_PERIOD;
+        uint256 fullBalanceWithoutDiscounting = (durationClaimable * EXA) / ISSUANCE_PERIOD;
 
         // don't bother discounting if oustanding balance is zero
         if (fullBalanceWithoutDiscounting == 0) {
             return outstandingBalance_ = uint256(0);
         }
 
+        uint256 startIssuanceTimeSpan = _calculateTimeSpan(issuanceStart);
+
         // the number of discounting windows that have passed.
-        uint256 discountWindows = _currentSpan - lastIssuanceTimeSpan;
+        uint256 discountWindows = _currentSpan - startIssuanceTimeSpan;
 
         if (discountWindows == uint256(0)) {
             // within the same discount window, no discounts are applied
@@ -249,7 +252,7 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
         //       follow-up on https://github.com/CirclesUBI/circles-contracts-v2/issues/25
         uint256 timeAccountedFor = presentTime - durationClaimable;
         outstandingBalance_ = uint256(0);
-        for (uint256 i = lastIssuanceTimeSpan; i < _currentSpan; i++) {
+        for (uint256 i = startIssuanceTimeSpan; i < _currentSpan; i++) {
             uint256 endOfWindow = ZERO_TIME + (i + 1) * DISCOUNT_WINDOW;
             uint256 timeInWindow = endOfWindow - timeAccountedFor;
             // note: we want to have accuracy below one circle per hour,

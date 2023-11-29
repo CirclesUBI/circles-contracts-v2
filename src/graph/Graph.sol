@@ -265,13 +265,23 @@ contract Graph is ProxyFactory, IGraph {
         emit Trust(msg.sender, _entity, earliestExpiry);
     }
 
-    function fetchAllocation() external returns (int128 allocation_, uint256 earliestTimestamp_) {
+    function fetchAllocation(address _avatar) external returns (int128 allocation_, uint256 earliestTimestamp_) {
         require(
             address(avatarCircleNodesIterable[ICircleNode(msg.sender)]) != address(0),
             "Only registered avatar circle nodes can request to fetch issuance allocation."
         );
+        
+        // reverse lookup to assert that the avatar circle contract
+        // must always provide its own avatar address correctly.
+        // (This could be an asert, but depends on deployment with a valid
+        // master contract for avatar circles.)
+        require(
+            address(avatarToCircle[_avatar]) == msg.sender,
+            "Provided avatar does not match for the calling avatar circle node."
+        );
+
         // call on the mint splitter whether there is an allocation, and what the earliest timestamp is
-        (allocation_, earliestTimestamp_) = mintSplitter.allocationTowardsCaller(msg.sender);
+        (allocation_, earliestTimestamp_) = mintSplitter.allocationTowardsCaller(_avatar);
         return (allocation_, earliestTimestamp_);
     }
 

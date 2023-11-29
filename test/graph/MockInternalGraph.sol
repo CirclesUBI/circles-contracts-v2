@@ -4,13 +4,14 @@ pragma solidity >=0.8.13;
 import "../../src/graph/Graph.sol";
 import "../../src/graph/ICircleNode.sol";
 import "../../src/migration/IHub.sol";
+import "../../src/mint/IMintSplitter.sol";
 
 contract MockInternalGraph is Graph {
     constructor(
-        IHubV1 _ancestor,
+        IMintSplitter _mintSplitter,
         IAvatarCircleNode _masterCopyAvatarCircleNode,
         IGroupCircleNode _masterCopyGroupCircleNode
-    ) Graph(_ancestor, _masterCopyAvatarCircleNode, _masterCopyGroupCircleNode) {}
+    ) Graph(_mintSplitter, _masterCopyAvatarCircleNode, _masterCopyGroupCircleNode) {}
 
     // function trust(address _avatar) external override {
     //     notMocked();
