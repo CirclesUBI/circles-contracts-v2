@@ -33,8 +33,8 @@ This Solidity project uses Foundry as a toolkit. If you don't have Foundry insta
 ### Using Foundry to build the contracts
 1. First, you'll need to clone the repository to your local machine:
     ```bash
-    git clone https://github.com/CirclesUBI/time-circles-contracts
-    cd time-circles-contracts
+    git clone https://github.com/CirclesUBI/circles-contracts-v2
+    cd circles-contracts-v2
     ```
 
 ### Compiling the contracts

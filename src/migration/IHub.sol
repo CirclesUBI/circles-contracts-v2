@@ -15,4 +15,11 @@ interface IHubV1 {
     function limits(address truster, address trustee) external returns (uint256);
 
     function trust(address trustee, uint256 limit) external;
+
+    function deployedAt() external returns (uint256);
+    function initialIssuance() external returns (uint256);
+    function inflation() external returns (uint256);
+    function divisor() external returns (uint256);
+    function period() external returns (uint256);
+    function periods() external returns (uint256);
 }

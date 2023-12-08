@@ -29,7 +29,7 @@ contract TemporalDiscount is IERC20 {
     /**
      * EXA factor as 10^18
      */
-    uint256 internal constant EXA = uint256(1000000000000000000);
+    uint256 internal constant EXA = uint256(10 ** 18);
 
     /**
      * Store the signed 128-bit 64.64 representation of 1 as a constant
