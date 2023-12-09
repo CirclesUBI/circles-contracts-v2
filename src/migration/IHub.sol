@@ -18,6 +18,8 @@ interface IHubV1 {
 
     function deployedAt() external returns (uint256);
     function initialIssuance() external returns (uint256);
+    function issuance() external returns (uint256);
+    function issuanceByStep(uint256 _periods) external returns (uint256);
     function inflation() external returns (uint256);
     function divisor() external returns (uint256);
     function period() external returns (uint256);
