@@ -6,6 +6,10 @@ import "./IToken.sol";
 import "../graph/IGraph.sol";
 
 contract CirclesMigration {
+    // Constant
+
+    uint256 private constant ACCURACY = uint256(10**8);
+
     // State variables
 
     IHubV1 public immutable hubV1;
@@ -78,17 +82,39 @@ contract CirclesMigration {
         return stopped_ = _originCircle.stopped();
     }
 
-    // Private functions
-
-    function convertFromV1ToTimeCircles(uint256 _amount) private returns (uint256 timeCircleAmount_) {
+    function convertFromV1ToTimeCircles(uint256 _amount) public returns (uint256 timeCircleAmount_) {
         uint256 currentPeriod = hubV1.periods();
         uint256 nextPeriod = currentPeriod + 1;
 
-        uint256 startOfPeriod = hubV1.deployedAt() + currentPeriod * hubV1.period();
+        uint256 startOfPeriod = deployedAt + currentPeriod * period;
 
         // number of seconds into the new period
         uint256 secondsIntoCurrentPeriod = block.timestamp - startOfPeriod;
 
+        // rather than using initial issuance; use a clean order of magnitude
+        // to calculate the conversion factor.
+        // This is because initial issuance (originally ~ 8 CRC / day;
+        // then corrected to 24 CRC / day) is ever so slightly less than 1 CRC / hour
+        // ( 0.9999999999999936 CRC / hour to be precise )
+        // but if we later divide by this, then the error is ever so slightly
+        // in favor of converting - note there are many more errors,
+        // but we try to have each error always be in disadvantage of v1 so that
+        // there is no adverse incentive to mint and convert from v1
+        uint256 factorCurrentPeriod = hubV1.inflate(ACCURACY, currentPeriod);
+        uint256 factorNextPeriod = hubV1.inflate(ACCURACY, nextPeriod);
+
+        // linear interpolation of inflation rate
+        // r = x * (1 - a) + y * a
+        // if a = secondsIntoCurrentPeriod / Period = s / P
+        // => P * r = x * (P - s) + y * s
+        uint256 rP = factorCurrentPeriod * (period - secondsIntoCurrentPeriod)
+            + factorNextPeriod * secondsIntoCurrentPeriod;
         
+        // account for the adjustment of the accepted gauge of 24 CRC / day,
+        // rather than 8 CRC / day, so multiply by 3
+        // and divide by the inflation rate to convert to temporally discounted units
+        // (as if inflation would have been continuously adjusted. This is not the case,
+        // it is only annually compounded, but the disadvantage is for v1 vs v2).
+        return timeCircleAmount_ = (_amount * 3 * ACCURACY * period) / rP;
     }
 }
