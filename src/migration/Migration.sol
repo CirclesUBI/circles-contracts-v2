@@ -8,13 +8,13 @@ import "../graph/IGraph.sol";
 contract CirclesMigration {
     // Constant
 
-    uint256 private constant ACCURACY = uint256(10**8);
+    uint256 private constant ACCURACY = uint256(10 ** 8);
 
     // State variables
 
     IHubV1 public immutable hubV1;
 
-    IGraph public immutable graphV2;
+    // IGraph public immutable graphV2;
 
     uint256 public immutable inflation;
     uint256 public immutable divisor;
@@ -29,12 +29,12 @@ contract CirclesMigration {
     // https://aboutcircles.com/t/conversion-from-crc-to-time-circles-and-back/463
     // the UI conversion used is found here:
     // https://github.com/circlesland/timecircle/blob/master/src/index.ts
-    constructor(IHubV1 _hubV1, IGraph _graphV2) {
+    constructor(IHubV1 _hubV1) {
         require(address(_hubV1) != address(0), "Hub v1 address can not be zero.");
-        require(address(_graphV2) != address(0), "Graph v2 address can not be zero.");
+        // require(address(_graphV2) != address(0), "Graph v2 address can not be zero.");
 
         hubV1 = _hubV1;
-        graphV2 = _graphV2;
+        // graphV2 = _graphV2;
 
         // from deployed v1 contract SHOULD return inflation = 107
         inflation = hubV1.inflation();
@@ -107,9 +107,9 @@ contract CirclesMigration {
         // r = x * (1 - a) + y * a
         // if a = secondsIntoCurrentPeriod / Period = s / P
         // => P * r = x * (P - s) + y * s
-        uint256 rP = factorCurrentPeriod * (period - secondsIntoCurrentPeriod)
-            + factorNextPeriod * secondsIntoCurrentPeriod;
-        
+        uint256 rP =
+            factorCurrentPeriod * (period - secondsIntoCurrentPeriod) + factorNextPeriod * secondsIntoCurrentPeriod;
+
         // account for the adjustment of the accepted gauge of 24 CRC / day,
         // rather than 8 CRC / day, so multiply by 3
         // and divide by the inflation rate to convert to temporally discounted units

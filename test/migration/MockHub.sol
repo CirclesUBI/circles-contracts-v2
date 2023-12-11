@@ -88,8 +88,8 @@ contract MockHubV1 is IHubV1 {
             return base;
         }
         uint256 y = 1;
-        while(exponent > 1) {
-            if(exponent % 2 == 0) {
+        while (exponent > 1) {
+            if (exponent % 2 == 0) {
                 base = base * base;
                 exponent = exponent / 2;
             } else {
