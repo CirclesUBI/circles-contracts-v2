@@ -34,15 +34,15 @@ contract MockHubV1 is IHubV1 {
 
     // parameters taken from:
     // https://gnosisscan.io/address/0x29b9a7fbb8995b2423a71cc17cf9810798f6c543/advanced#readContract
-    function deployedAt() public returns (uint256) {
+    function deployedAt() public pure returns (uint256) {
         return uint256(1602786330);
     }
 
-    function initialIssuance() public returns (uint256) {
+    function initialIssuance() public pure returns (uint256) {
         return uint256(92592592592592);
     }
 
-    function inflate(uint256 _initial, uint256 _periods) external returns (uint256) {
+    function inflate(uint256 _initial, uint256 _periods) public pure returns (uint256) {
         // copy of the implementation from circles contracts v1
         // to mirror the same numerical errors as hub v1 has.
         // https://github.com/CirclesUBI/circles-contracts/blob/master/contracts/Hub.sol#L96-L103
@@ -51,19 +51,19 @@ contract MockHubV1 is IHubV1 {
         return (_initial * q) / d;
     }
 
-    function inflation() public returns (uint256) {
+    function inflation() public pure returns (uint256) {
         return uint256(107);
     }
 
-    function divisor() public returns (uint256) {
+    function divisor() public pure returns (uint256) {
         return uint256(100);
     }
 
-    function period() public returns (uint256) {
+    function period() public pure returns (uint256) {
         return uint256(31556952);
     }
 
-    function periods() public returns (uint256) {
+    function periods() public view returns (uint256) {
         return (block.timestamp - deployedAt()) / period();
     }
 

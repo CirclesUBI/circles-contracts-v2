@@ -31,29 +31,30 @@ contract CirclesMigration {
     // https://github.com/circlesland/timecircle/blob/master/src/index.ts
     constructor(IHubV1 _hubV1) {
         require(address(_hubV1) != address(0), "Hub v1 address can not be zero.");
-        // require(address(_graphV2) != address(0), "Graph v2 address can not be zero.");
 
         hubV1 = _hubV1;
-        // graphV2 = _graphV2;
+
+        // from deployed v1 contract SHOULD return deployedAt = 1602786330
+        // (for reference 6:25:30 pm UTC  |  Thursday, October 15, 2020)
+        deployedAt = hubV1.deployedAt();
+        // from deployed v1 contract SHOULD return period = 31556952
+        // (equivalent to 365 days 5 hours 49 minutes 12 seconds)
+        // because the period is not a whole number of hours,
+        // the interval of hub v1 will not match the periodicity of any hour-based period in v2.
+        period = hubV1.period();
+
+        // note: currently these parameters are not used, remove them if they remain so
 
         // from deployed v1 contract SHOULD return inflation = 107
         inflation = hubV1.inflation();
         // from deployed v1 contract SHOULD return divisor = 100
         divisor = hubV1.divisor();
-        // from deployed v1 contract SHOULD return deployedAt = 1602786330
-        // (for reference 6:25:30 pm UTC  |  Thursday, October 15, 2020)
-        deployedAt = hubV1.deployedAt();
         // from deployed v1 contract SHOULD return initialIssuance = 92592592592592
         // (equivalent to 1/3 CRC per hour; original at launch 8 CRC per day)
         // later it was decided that 24 CRC per day, or 1 CRC per hour should be the standard gauge
         // and the correction was done at the interface level, so everyone sees their balance
         // corrected for 24 CRC/day; we should hence adopt this correction in the token migration step.
         initialIssuance = hubV1.initialIssuance();
-        // from deployed v1 contract SHOULD return period = 31556952
-        // (equivalent to 365 days 5 hours 49 minutes 12 seconds)
-        // because the period is not a whole number of hours,
-        // the interval of hub v1 will not match the periodicity of any hour-based period in v2.
-        period = hubV1.period();
     }
 
     // External functions
@@ -82,7 +83,7 @@ contract CirclesMigration {
         return stopped_ = _originCircle.stopped();
     }
 
-    function convertFromV1ToTimeCircles(uint256 _amount) public returns (uint256 timeCircleAmount_) {
+    function convertFromV1ToTimeCircles(uint256 _amount) public view returns (uint256 timeCircleAmount_) {
         uint256 currentPeriod = hubV1.periods();
         uint256 nextPeriod = currentPeriod + 1;
 
