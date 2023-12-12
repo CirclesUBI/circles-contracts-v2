@@ -65,23 +65,39 @@ contract CirclesMigration {
      *     One can only convert personal v1 Circles, if that person has stopped their v1
      *     circles contract, and has created a v2 demurraged Circles contract by registering in v2.
      */
-    function convertAndMigrateCircles(ITokenV1 _originCircle, uint256 _depositAmount)
+    function convertAndMigrateCircles(ITokenV1 _originCircle, uint256 _depositAmount, IGraph _destinationGraph)
         external
         returns (uint256 mintedAmount_)
     {
-        // first check the existance of the origin Circle and whether it is stopped
-        require(checkOriginCircleStopped(_originCircle), "Origin Circle must have been stopped before conversion.");
+        // First check the existance of the origin Circle, and associated avatar
+        address avatar = hubV1.tokenToUser(address(_originCircle));
+        require(avatar != address(0), "Origin Circle is unknown to hub v1.");
 
-        // calculate inflationary correction
+        // and whether the origin Circle has been stopped.
+        require(_originCircle.stopped(), "Origin Circle must have been stopped before conversion.");
+
+        // Retrieve the destination Circle where to migrate the tokens to
+        IAvatarCircleNode destinationCircle = _destinationGraph.avatarToCircle(avatar);
+        // and check it in fact exists.
+        require(
+            address(destinationCircle) != address(0),
+            "Associated avatar has not been registered in the destination graph."
+        );
+
+        // Calculate inflationary correction towards time circles.
+        uint256 convertedAmount = convertFromV1ToTimeCircles(_depositAmount);
+
+        // transfer the tokens into a permanent lock in this contract
+        // v1 Circle does not have a burn function exposed, so we can only lock them here
+        _originCircle.transferFrom(msg.sender, address(this), _depositAmount);
+
+        require(
+            _destinationGraph.migrateCircles(msg.sender, convertedAmount, destinationCircle),
+            "Destination graph must succeed at migrating the tokens."
+        );
     }
 
     // Public functions
-
-    function checkOriginCircleStopped(ITokenV1 _originCircle) public returns (bool stopped_) {
-        require(hubV1.tokenToUser(address(_originCircle)) != address(0), "Origin Circle is not registered in hub V1.");
-
-        return stopped_ = _originCircle.stopped();
-    }
 
     function convertFromV1ToTimeCircles(uint256 _amount) public view returns (uint256 timeCircleAmount_) {
         uint256 currentPeriod = hubV1.periods();
