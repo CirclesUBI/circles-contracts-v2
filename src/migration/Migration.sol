@@ -14,8 +14,6 @@ contract CirclesMigration {
 
     IHubV1 public immutable hubV1;
 
-    // IGraph public immutable graphV2;
-
     uint256 public immutable inflation;
     uint256 public immutable divisor;
     uint256 public immutable deployedAt;

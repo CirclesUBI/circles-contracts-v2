@@ -144,8 +144,6 @@ contract Graph is ProxyFactory, IGraph {
 
     event Trust(address indexed truster, address indexed trustee, uint256 expiryTime);
 
-    event PauseClaim(address indexed claimer, address indexed node);
-
     // Modifiers
 
     modifier onlyAncestorMigrator() {
