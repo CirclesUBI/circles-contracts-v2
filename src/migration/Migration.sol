@@ -59,6 +59,16 @@ contract CirclesMigration {
 
     // External functions
 
+    function convertAndMigrateFullBalanceOfCircles(ITokenV1 _originCircle, IGraph _destinationGraph)
+        external
+        returns (uint256 mintedAmount_)
+    {
+        uint256 balance = _originCircle.balanceOf(msg.sender);
+        return mintedAmount_ = convertAndMigrateCircles(_originCircle, balance, _destinationGraph);
+    }
+
+    // Public functions
+
     /**
      * @param _depositAmount Deposit amount specifies the amount of inflationary
      *     hub v1 circles the caller wants to convert and migrate to demurraged Circles.
@@ -66,7 +76,7 @@ contract CirclesMigration {
      *     circles contract, and has created a v2 demurraged Circles contract by registering in v2.
      */
     function convertAndMigrateCircles(ITokenV1 _originCircle, uint256 _depositAmount, IGraph _destinationGraph)
-        external
+        public
         returns (uint256 mintedAmount_)
     {
         // First check the existance of the origin Circle, and associated avatar
@@ -95,9 +105,9 @@ contract CirclesMigration {
             _destinationGraph.migrateCircles(msg.sender, convertedAmount, destinationCircle),
             "Destination graph must succeed at migrating the tokens."
         );
-    }
 
-    // Public functions
+        return mintedAmount_ = convertedAmount;
+    }
 
     function convertFromV1ToTimeCircles(uint256 _amount) public view returns (uint256 timeCircleAmount_) {
         uint256 currentPeriod = hubV1.periods();
