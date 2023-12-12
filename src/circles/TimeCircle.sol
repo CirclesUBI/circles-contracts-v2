@@ -77,7 +77,7 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
     }
 
     modifier notStopped() {
-        require(!stopped, "Node must not have been stopped.");
+        require(!stopped, "Circle must not have been stopped.");
         _;
     }
 
@@ -130,6 +130,12 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
 
     function calculateIssuance() external returns (uint256 outstandingBalance_) {
         return _calculateIssuance(_currentTimeSpan());
+    }
+
+    function migrate(address _owner, uint256 _amount) external onlyGraph notStopped returns (bool success_) {
+        // simply mint the migration amount if the Circle is not stopped
+        _mint(_owner, _amount);
+        return true;
     }
 
     function burn(uint256 _amount) external {

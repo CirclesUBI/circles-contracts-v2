@@ -39,7 +39,8 @@ contract GraphTest is Test {
 
         mintSplitter = new MintSplitter(mockHubV1);
 
-        graph = new Graph(mintSplitter, masterCopyTimeCircle, masterCopyGroupCircle);
+        // create a new graph without ancestor circle migration
+        graph = new Graph(mintSplitter, address(0), masterCopyTimeCircle, masterCopyGroupCircle);
 
         mockInternalGraph = new MockInternalGraph(mintSplitter, masterCopyTimeCircle, masterCopyGroupCircle);
     }
