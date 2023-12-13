@@ -100,7 +100,7 @@ contract CirclesMigration {
         _originCircle.transferFrom(msg.sender, address(this), _depositAmount);
 
         require(
-            _destinationGraph.migrateCircles(msg.sender, convertedAmount, destinationCircle),
+            convertedAmount == _destinationGraph.migrateCircles(msg.sender, convertedAmount, destinationCircle),
             "Destination graph must succeed at migrating the tokens."
         );
 

@@ -132,10 +132,10 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
         return _calculateIssuance(_currentTimeSpan());
     }
 
-    function migrate(address _owner, uint256 _amount) external onlyGraph notStopped returns (bool success_) {
+    function migrate(address _owner, uint256 _amount) external onlyGraph notStopped returns (uint256 migratedAmount_) {
         // simply mint the migration amount if the Circle is not stopped
         _mint(_owner, _amount);
-        return true;
+        return migratedAmount_ = _amount;
     }
 
     function burn(uint256 _amount) external {

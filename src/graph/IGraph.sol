@@ -11,7 +11,9 @@ interface IGraph {
         view
         returns (bool allTrusted);
 
-    function migrateCircles(address owner, uint256 amount, IAvatarCircleNode circle) external returns (bool success);
+    function migrateCircles(address owner, uint256 amount, IAvatarCircleNode circle)
+        external
+        returns (uint256 migratedAmount);
 
     function fetchAllocation(address avatar) external returns (int128 allocation, uint256 earliestTimestamp);
 }

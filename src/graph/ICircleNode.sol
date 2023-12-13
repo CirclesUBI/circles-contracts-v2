@@ -19,7 +19,7 @@ interface IAvatarCircleNode is ICircleNode {
     function stopped() external view returns (bool stopped);
 
     // only personal Circles from v1 can be migrated, as group circles were not native in v1
-    function migrate(address owner, uint256 amount) external returns (bool success);
+    function migrate(address owner, uint256 amount) external returns (uint256 migratedAmount);
 }
 
 interface IGroupCircleNode is ICircleNode {

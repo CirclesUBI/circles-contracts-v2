@@ -271,10 +271,10 @@ contract Graph is ProxyFactory, IGraph {
     function migrateCircles(address _owner, uint256 _amount, IAvatarCircleNode _circle)
         external
         onlyAncestorMigrator
-        returns (bool success_)
+        returns (uint256 migratedAmount_)
     {
         require(address(avatarCircleNodesIterable[_circle]) != address(0), "Circle is not registered in this graph.");
-        return success_ = _circle.migrate(_owner, _amount);
+        return migratedAmount_ = _circle.migrate(_owner, _amount);
     }
 
     function fetchAllocation(address _avatar) external returns (int128 allocation_, uint256 earliestTimestamp_) {
