@@ -8,7 +8,7 @@ import "../../src/circles/TimeCircle.sol";
 import "../../src/circles/GroupCircle.sol";
 import "../../src/mint/MintSplitter.sol";
 import "../setup/TimeSetup.sol";
-import "./MockHub.sol";
+import "../migration/MockHub.sol";
 
 contract GraphPathTransferTest is Test, TimeSetup {
     // Constant
@@ -47,7 +47,8 @@ contract GraphPathTransferTest is Test, TimeSetup {
 
         mintSplitter = new MintSplitter(mockHubV1);
 
-        graph = new Graph(mintSplitter, masterCopyTimeCircle, masterCopyGroupCircle);
+        // create a new graph without ancestor circle migration
+        graph = new Graph(mintSplitter, address(0), masterCopyTimeCircle, masterCopyGroupCircle);
 
         startTime();
 

@@ -70,6 +70,13 @@ contract Graph is ProxyFactory, IGraph {
     IMintSplitter public immutable mintSplitter;
 
     /**
+     * @notice Ancestor Circle Migrator contract can call on this graph to migrate
+     *     Circles balance from an account on a Circle contract in Hub v1
+     *     into the Circle contract of the same associated avatar.
+     */
+    address public immutable ancestorCircleMigrator;
+
+    /**
      * Master copy of the avatar circle node contract to deploy proxy's for
      * when an avatar signs up.
      */
@@ -137,9 +144,12 @@ contract Graph is ProxyFactory, IGraph {
 
     event Trust(address indexed truster, address indexed trustee, uint256 expiryTime);
 
-    event PauseClaim(address indexed claimer, address indexed node);
-
     // Modifiers
+
+    modifier onlyAncestorMigrator() {
+        require(msg.sender == ancestorCircleMigrator, "Only ancestor circle migrator contract can call this function.");
+        _;
+    }
 
     modifier notOnTrustGraph(address _entity) {
         require(
@@ -171,16 +181,19 @@ contract Graph is ProxyFactory, IGraph {
 
     constructor(
         IMintSplitter _mintSplitter,
+        address _ancestorCircleMigrator,
         IAvatarCircleNode _masterCopyAvatarCircleNode,
         IGroupCircleNode _masterCopyGroupCircleNode
     ) {
         require(address(_mintSplitter) != address(0), "Mint Splitter contract must be provided.");
+        // ancestorCircleMigrator can be zero and left unspecified. It simply disables migration.
         require(
             address(_masterCopyAvatarCircleNode) != address(0), "Mastercopy for Avatar Circle Node must not be zero."
         );
         require(address(_masterCopyGroupCircleNode) != address(0), "Mastercopy for Group Circle Node must not be zero.");
 
         mintSplitter = _mintSplitter;
+        ancestorCircleMigrator = _ancestorCircleMigrator;
         masterCopyAvatarCircleNode = _masterCopyAvatarCircleNode;
         masterCopyGroupCircleNode = _masterCopyGroupCircleNode;
 
@@ -253,6 +266,15 @@ contract Graph is ProxyFactory, IGraph {
         _upsertTrustMarker(msg.sender, _entity, uint96(earliestExpiry));
 
         emit Trust(msg.sender, _entity, earliestExpiry);
+    }
+
+    function migrateCircles(address _owner, uint256 _amount, IAvatarCircleNode _circle)
+        external
+        onlyAncestorMigrator
+        returns (uint256 migratedAmount_)
+    {
+        require(address(avatarCircleNodesIterable[_circle]) != address(0), "Circle is not registered in this graph.");
+        return migratedAmount_ = _circle.migrate(_owner, _amount);
     }
 
     function fetchAllocation(address _avatar) external returns (int128 allocation_, uint256 earliestTimestamp_) {

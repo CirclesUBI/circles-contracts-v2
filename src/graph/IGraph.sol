@@ -4,17 +4,16 @@ pragma solidity >=0.8.13;
 import "./ICircleNode.sol";
 
 interface IGraph {
-    // function trust(address _avatar) external;
-    // function untrust(address _avatar) external;
+    function avatarToCircle(address avatar) external view returns (IAvatarCircleNode);
 
     function checkAllAreTrustedCircleNodes(address group, ICircleNode[] calldata circles, bool includeGroups)
         external
         view
-        returns (bool allTrusted_);
+        returns (bool allTrusted);
 
-    function fetchAllocation(address _avatar) external returns (int128 allocation_, uint256 earliestTimestamp_);
+    function migrateCircles(address owner, uint256 amount, IAvatarCircleNode circle)
+        external
+        returns (uint256 migratedAmount);
 
-    // function checkAncestorMigrations(address _avatar)
-    //     external
-    //     returns (bool objectToStartMint_, address[] memory migrationTokens_);
+    function fetchAllocation(address avatar) external returns (int128 allocation, uint256 earliestTimestamp);
 }

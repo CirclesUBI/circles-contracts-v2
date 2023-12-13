@@ -11,7 +11,7 @@ contract MockInternalGraph is Graph {
         IMintSplitter _mintSplitter,
         IAvatarCircleNode _masterCopyAvatarCircleNode,
         IGroupCircleNode _masterCopyGroupCircleNode
-    ) Graph(_mintSplitter, _masterCopyAvatarCircleNode, _masterCopyGroupCircleNode) {}
+    ) Graph(_mintSplitter, address(0), _masterCopyAvatarCircleNode, _masterCopyGroupCircleNode) {}
 
     // function trust(address _avatar) external override {
     //     notMocked();
