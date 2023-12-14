@@ -15,10 +15,10 @@ contract TemporalDiscount is IERC20 {
     /**
      * Discount window reduces the resolution for calculating
      * the discount of balances from once per second (block.timestamp)
-     * to once per week.
-     *   1 week = 7 * 24 * 3600 seconds = 604800 seconds = 1 weeks
+     * to once per day.
+     *   1 day = 24 * 3600 seconds = 86400 seconds = 1 days
      */
-    uint256 public constant DISCOUNT_WINDOW = 1 weeks;
+    uint256 public constant DISCOUNT_WINDOW = 1 days;
 
     /**
      * Arbitrary origin for counting time since 10 December 2021
@@ -50,12 +50,12 @@ contract TemporalDiscount is IERC20 {
      *            = 0.99999999769879842873...
      *   => gamma_64x64 = gamma * 2**64
      *                  = 18446744031260000000
-     * If however, we express per unit of 1 week, 7% p.a.:
-     *   => gamma = (0.93)^(1/52)
-     *            = 0.998605383136377398...
-     *   => gamma_64x64 = 18421018000000000000
+     * If however, we express per unit of 1 day, 7% p.a.:
+     *   => gamma = (0.93)^(1/365)
+     *            = 0.999801195948159168..
+     *   => gamma_64x64 = 18443076800000000000
      */
-    int128 public constant GAMMA_64x64 = int128(18421018000000000000);
+    int128 public constant GAMMA_64x64 = int128(18443076800000000000);
 
     // State variables
 

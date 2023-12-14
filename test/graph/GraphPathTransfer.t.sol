@@ -74,7 +74,7 @@ contract GraphPathTransferTest is Test, TimeSetup {
         for (uint256 i = 0; i < N; i++) {
             // vm.prank(addresses[i]);
             circleNodes[i].claimIssuance();
-            assertEq(circleNodes[i].balanceOf(addresses[i]), 48 * TIC);
+            assertEq(circleNodes[i].balanceOf(addresses[i]), 47985693847056789184);
         }
 
         // to build a correct flow matrix, we need to present the vertices
