@@ -52,7 +52,7 @@ contract TemporalDiscount is IERC20 {
      *                  = 18446744031260000000
      * If however, we express per unit of 1 day, 7% p.a.:
      *   => gamma = (0.93)^(1/365)
-     *            = 0.999801195948159168..
+     *            = 0.999801195948159168...
      *   => gamma_64x64 = 18443076800000000000
      */
     int128 public constant GAMMA_64x64 = int128(18443076800000000000);
