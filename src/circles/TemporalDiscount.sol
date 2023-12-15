@@ -194,10 +194,6 @@ contract TemporalDiscount is IERC20 {
     }
 
     function _mint(address _owner, uint256 _amount) internal {
-        // note: we only call mint once from TimeCircles,
-        // which already needs to calculate current time span,
-        // but the pattern is off if we change the signature to pass currentSpan,
-        // todo: evaluate if it is worth splitting the signatures for this...
         uint256 currentSpan = _currentTimeSpan();
         _discountTotalSupplyThenMint(_amount, currentSpan);
         _discountBalanceThenAdd(_owner, _amount, currentSpan);
