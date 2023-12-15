@@ -238,7 +238,7 @@ contract TemporalDiscount is IERC20 {
             // opt to not emit DiscountCost event within same timespan
             return discountCost_ = uint256(0);
         } else {
-            // if the balanceTimeSpan is small than currentSpan (only ever smaller)
+            // if the balanceTimeSpan is smaller than currentSpan (only ever smaller)
             // calculate the discounted balance
             uint256 discountedBalance =
                 _calculateDiscountedBalance(temporalBalances[_owner], _currentSpan - balanceTimeSpans[_owner]);
@@ -272,7 +272,7 @@ contract TemporalDiscount is IERC20 {
             // opt to not emit DiscountCost event within same timespan
             return discountCost_ = uint256(0);
         } else {
-            // if the balanceTimeSpan is small than currentSpan (only ever smaller)
+            // if the balanceTimeSpan is smaller than currentSpan (only ever smaller)
             // calculate the discounted balance
             uint256 discountedBalance =
                 _calculateDiscountedBalance(temporalBalances[_owner], _currentSpan - balanceTimeSpans[_owner]);
@@ -318,11 +318,12 @@ contract TemporalDiscount is IERC20 {
         pure
         returns (uint256 discountedBalance_)
     {
-        // don't call this function in the implementation
+        // note: don't call this function in the implementation
         // if there is no discount; let's not waste gas
+        // todo: remove this assert later
         assert(_numberOfTimeSpans > 0);
         if (_numberOfTimeSpans == uint256(0)) return discountedBalance_ = _balance;
-        // exponentiate the reduction factor by the number of time spans (of one week)
+        // exponentiate the reduction factor by the number of time spans (of one day)
         // todo: as most often the number of time spans would be a low integer
         //       we can cache a table of the initial reduction factors.
         //       evaluate how much gas this would save;

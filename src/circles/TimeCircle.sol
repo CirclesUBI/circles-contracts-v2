@@ -12,16 +12,10 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
     address public constant SENTINEL_MIGRATION = address(0x1);
 
     /**
-     * Issue one token per time period (ie. one token per hour)
+     * Issue one token per time period (ie. one Circle per hour)
      * for a total of 24 tokens per 24 hours (~ per day).
      */
     uint256 public constant ISSUANCE_PERIOD = 1 hours;
-
-    /**
-     * Signup bonus to allocate for new circle to node
-     * if (to best efforts of estimation) this is a new signup.
-     */
-    uint256 public constant TIME_BONUS = 2 days / ISSUANCE_PERIOD;
 
     /**
      * Per call to claim issuance, the maximum amount of tokens
@@ -49,7 +43,8 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
 
     /**
      * last issued stores the timestamp in seconds of when the last
-     * tokens were issued to avatar.
+     * tokens were issued to avatar. This must be combined with
+     * the earliest timestamp received from the mint splitter upon minting.
      */
     uint256 public lastIssued;
 
@@ -80,6 +75,8 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
         require(!stopped, "Circle must not have been stopped.");
         _;
     }
+
+    // Constructor
 
     constructor() {
         // block the mastercopy from getting called setup on
@@ -144,26 +141,26 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
 
     // Internal functions
 
-    function _calculateIssuance(uint256 _currentSpan) internal returns (uint256 outstandingBalance_) {
-        // ask the graph to fetch the allocation for issuance and what the earliest timestamp is
-        // from which circles can be issued
+    function _calculateIssuance(uint256 _currentSpan) internal returns (uint256 availableIssuance_) {
+        // ask the graph to fetch the allocation for issuance
+        // and what the earliest timestamp is from which circles can be issued
         (int128 allocation, uint256 earliestTimestamp) = graph.fetchAllocation(avatar);
 
         require(allocation >= int128(0) && allocation <= ONE_64x64, "Allocation must be a between 0 and 1.");
 
-        uint256 presentTime = block.timestamp;
-
         if (allocation == int128(0)) {
             // no allocation distributed towards this graph
-            return outstandingBalance_ = uint256(0);
+            return availableIssuance_ = uint256(0);
         }
+
+        uint256 presentTime = block.timestamp;
 
         // mint splitter can put earliest issuance time in the future
         // after updating the mint distribution
         if (earliestTimestamp >= presentTime) {
             // not allowed to issue circles if mint splitter set earliest time
             // in the future
-            return outstandingBalance_ = uint256(0);
+            return availableIssuance_ = uint256(0);
         }
 
         // now that the earliest issuance time is in the past,
@@ -175,13 +172,16 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
         // of two weeks.
         uint256 durationClaimable = _min(MAX_CLAIM_DURATION, presentTime - issuanceStart);
 
+        // update the issuanceStart to account for maximum claim of two weeks.
+        issuanceStart = presentTime - durationClaimable;
+
         // use integer division to round down towards the number
         // of completed issuance periods since last issued.
         uint256 fullBalanceWithoutDiscounting = (durationClaimable * EXA) / ISSUANCE_PERIOD;
 
         // don't bother discounting if oustanding balance is zero
         if (fullBalanceWithoutDiscounting == 0) {
-            return outstandingBalance_ = uint256(0);
+            return availableIssuance_ = uint256(0);
         }
 
         uint256 startIssuanceTimeSpan = _calculateTimeSpan(issuanceStart);
@@ -193,7 +193,7 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
             // within the same discount window, no discounts are applied
             // however, we must only mint the allocation distributed to this graph
             uint256 allocatedOutstandingBalance = Math64x64.mulu(allocation, fullBalanceWithoutDiscounting);
-            return outstandingBalance_ = allocatedOutstandingBalance;
+            return availableIssuance_ = allocatedOutstandingBalance;
         }
 
         // apply the allocation to one circle (10**18 = EXA) per period (1 hour)
@@ -207,26 +207,26 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
         // todo: the discount window will be updated from 1 week to 1 day (or less),
         //       so consider whether this is still the most optimal implementation.
         //       follow-up on https://github.com/CirclesUBI/circles-contracts-v2/issues/25
-        uint256 timeAccountedFor = presentTime - durationClaimable;
-        outstandingBalance_ = uint256(0);
+        uint256 timeAccountedFor = issuanceStart;
+        availableIssuance_ = uint256(0);
         for (uint256 i = startIssuanceTimeSpan; i < _currentSpan; i++) {
-            uint256 endOfWindow = ZERO_TIME + (i + 1) * DISCOUNT_WINDOW;
-            uint256 timeInWindow = endOfWindow - timeAccountedFor;
+            uint256 endOfSpan = ZERO_TIME + (i + 1) * DISCOUNT_WINDOW;
+            uint256 timeInSpan = endOfSpan - timeAccountedFor;
             // note: we want to have accuracy below one circle per hour,
             //       as a window transition is likely to fall within an hour.
-            //       Luckily we can first multiply by ~10^18 (as timeInWindow < 10^6),
+            //       Luckily we can first multiply by ~10^18 (as timeInSpan < 10^6),
             //       which should be sufficiently accurate.
             //       (alternative is for using 64.64 fixed point math but consumes more gas)
-            uint256 balanceDueForWindow = (circlesPerIssuancePeriod * timeInWindow) / ISSUANCE_PERIOD;
-            outstandingBalance_ += balanceDueForWindow;
+            uint256 balanceDueForSpan = (circlesPerIssuancePeriod * timeInSpan) / ISSUANCE_PERIOD;
+            availableIssuance_ += balanceDueForSpan;
             // transition the outstanding balance over a new discount window
-            outstandingBalance_ = _calculateDiscountedBalance(outstandingBalance_, uint256(1));
-            timeAccountedFor = endOfWindow;
+            availableIssuance_ = _calculateDiscountedBalance(availableIssuance_, uint256(1));
+            timeAccountedFor = endOfSpan;
         }
         timeAccountedFor = ZERO_TIME + _currentSpan * DISCOUNT_WINDOW;
         uint256 remainingTime = presentTime - timeAccountedFor;
         // don't discount in the current discount time window
-        return outstandingBalance_ += (circlesPerIssuancePeriod * remainingTime) / ISSUANCE_PERIOD;
+        return availableIssuance_ += (circlesPerIssuancePeriod * remainingTime) / ISSUANCE_PERIOD;
     }
 
     // Private functions
