@@ -13,22 +13,6 @@ contract MockInternalGraph is Graph {
         IGroupCircleNode _masterCopyGroupCircleNode
     ) Graph(_mintSplitter, address(0), _masterCopyAvatarCircleNode, _masterCopyGroupCircleNode) {}
 
-    // function trust(address _avatar) external override {
-    //     notMocked();
-    // }
-
-    // function untrust(address _avatar) external override {
-    //     notMocked();
-    // }
-
-    // function checkAncestorMigrations(address _avatar)
-    //     public view override
-    //     returns (bool objectToStartMint_, address[] memory migrationTokens_) {
-    //         notMocked();
-    //         address[] memory nothing = new address[](0);
-    //         return (false, nothing);
-    //     }
-
     function accessUnpackCoordinates(bytes calldata _packedData, uint256 _numberOfTriplets)
         public
         pure

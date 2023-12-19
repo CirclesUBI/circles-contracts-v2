@@ -103,7 +103,7 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
         return entity_ = avatar;
     }
 
-    function claimIssuance() external {
+    function claimIssuance() external notStopped {
         uint256 currentSpan = _currentTimeSpan();
         uint256 outstandingBalance = _calculateIssuance(currentSpan);
         require(outstandingBalance != uint256(0), "Minimally wait one hour between claims.");
@@ -126,6 +126,9 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
     }
 
     function calculateIssuance() external returns (uint256 outstandingBalance_) {
+        if (stopped) {
+            return uint256(0);
+        }
         return _calculateIssuance(_currentTimeSpan());
     }
 
@@ -141,6 +144,29 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
 
     // Internal functions
 
+    /**
+     * @dev Calculates the available issuance of tokens based on various factors such as allocation,
+     *     timestamps, and discount windows.
+     * @param _currentSpan The current time span for which the issuance is being calculated.
+     * @return availableIssuance_ The amount of tokens that can be issued.
+     *
+     * The function starts by fetching the allocation and earliest timestamp from the graph contract.
+     * It checks if the allocation is within the valid range and returns 0 if it's zero.
+     * Next, it checks if the earliest timestamp is in the future, which would prevent the issuance of tokens.
+     * If it is, it returns 0. Then, it determines the start time for issuance by taking the maximum value
+     * between the earliest timestamp and the last issued timestamp.
+     * The duration over which tokens can be claimed is calculated based on the maximum claim duration
+     * and the time elapsed since the issuance start.
+     * The function then calculates the full balance without discounting based on the duration claimable.
+     * If the full balance without discounting is zero, it returns 0.
+     * Next, it calculates the number of discount windows that have passed since the start of issuance.
+     * If no discount windows have passed, it calculates the allocated outstanding balance
+     * without applying any discounts.
+     * If discount windows have passed, it applies the allocation to one circle per issuance period and
+     * calculates the balance due for each discount window. It accumulates the available issuance by adding
+     * the balance due for each window and applies the discount for each window transition.
+     * Finally, it calculates the remaining time in the current discount window and adds the corresponding issuance amount.
+     */
     function _calculateIssuance(uint256 _currentSpan) internal returns (uint256 availableIssuance_) {
         // ask the graph to fetch the allocation for issuance
         // and what the earliest timestamp is from which circles can be issued
