@@ -26,8 +26,6 @@ contract TimeCircleSetup is TimeSetup {
 
     string[N] public avatars = ["alice", "bob", "charlie", "david"];
     address[N] public addresses;
-    address[N] public sortedAddresses;
-    uint256[N] public permutationMap;
 
     TimeCircle[N] public circleNodes;
 
