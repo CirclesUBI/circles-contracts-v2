@@ -12,6 +12,8 @@ import "./TimeSetup.sol";
 
 contract TimeCircleSetup is TimeSetup {
     // Constants
+    // number of avatars in the graph
+    uint256 public constant N = 4;
     uint256 public constant TIC = uint256(10 ** 18);
 
     // State variables
@@ -22,8 +24,13 @@ contract TimeCircleSetup is TimeSetup {
     MintSplitter public mintSplitter;
     Graph public graph;
 
-    // address alice = makeAddr("alice");
-    // address bob = makeAddr("bob");
+    string[N] public avatars = ["alice", "bob", "charlie", "david"];
+    address[N] public addresses;
+
+    TimeCircle[N] public circleNodes;
+
+    address[] public destinations;
+    int128[] public allocations; // 100% in 64.64 signed fixed point representation is 2^64
 
     // Setup function
     function setUp() public {
@@ -35,5 +42,26 @@ contract TimeCircleSetup is TimeSetup {
         // create a new graph without ancestor circle migration
         graph = new Graph(mintSplitter, address(0), masterCopyTimeCircle, masterCopyGroupCircle);
         startTime();
+
+        setupMintSplitter();
+    }
+
+    function setupMintSplitter() public {
+        // all participants need to register their distribution to be destined for the graph
+        // setup default destination and distribution
+        destinations = new address[](1);
+        destinations[0] = address(graph);
+        allocations = new int128[](1);
+        allocations[0] = int128(2 ** 64); // 100% in 64.64 signed fixed point representation is 2^64
+
+        for (uint256 i = 0; i < N; i++) {
+            addresses[i] = makeAddr(avatars[i]);
+            vm.prank(addresses[i]);
+            graph.registerAvatar();
+            circleNodes[i] = TimeCircle(address(graph.avatarToCircle(addresses[i])));
+
+            vm.prank(addresses[i]);
+            mintSplitter.registerDistribution(destinations, allocations);
+        }
     }
 }
