@@ -29,6 +29,9 @@ contract TimeCircleSetup is TimeSetup {
 
     TimeCircle[N] public circleNodes;
 
+    address[] public destinations;
+    int128[] public allocations; // 100% in 64.64 signed fixed point representation is 2^64
+
     // Setup function
     function setUp() public {
         // no need to call setup() on master copy
@@ -45,9 +48,10 @@ contract TimeCircleSetup is TimeSetup {
 
     function setupMintSplitter() public {
         // all participants need to register their distribution to be destined for the graph
-        address[] memory destinations = new address[](1);
+        // setup default destination and distribution
+        destinations = new address[](1);
         destinations[0] = address(graph);
-        int128[] memory allocations = new int128[](1);
+        allocations = new int128[](1);
         allocations[0] = int128(2 ** 64); // 100% in 64.64 signed fixed point representation is 2^64
 
         for (uint256 i = 0; i < N; i++) {

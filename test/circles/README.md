@@ -6,9 +6,9 @@
 
 The graph contract should be able to:
 
-- [ ] Set up the Time Circle contract with a valid avatar address and verify that the `graph` and `avatar` state variables are set correctly.
-- [ ] Ensure that attempting to set up the Time Circle contract with a zero address for the avatar fails.
-- [ ] Verify that the `setup` function cannot be called more than once (i.e., the contract can only be set up once).
+- [x] Set up the Time Circle contract with a valid avatar address and verify that the `graph` and `avatar` state variables are set correctly.
+- [x] ~~Ensure that attempting to set up the Time Circle contract with a zero address for the avatar fails.~~
+- [x] Verify that the `setup` function cannot be called more than once (i.e., the contract can only be set up once).
 - [ ] Perform a `pathTransfer` and verify that tokens are correctly transferred between addresses when initiated by the graph.
 - [ ] Verify that `pathTransfer` fails when called by an address other than the graph.
 
