@@ -1,4 +1,4 @@
-# Global Allowance
+# (Reflections on) Global Allowance -- MUST BE REWRITTEN
 
 Every Circle node implements the ERC20 interface. As part of the ERC20 interface
 allowance enables external contracts to interact with the token balance of owners.
