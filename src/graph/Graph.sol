@@ -136,6 +136,21 @@ contract Graph is ProxyFactory, IGraph {
      */
     mapping(address => mapping(address => TrustMarker)) public trustMarkers;
 
+    /**
+     * Authorized graph operators stores a mapping from (address avatar, address operator)
+     * to uint256 expiry timestamp. As the default value is zero, all operator addresses
+     * are disabled, but by setting the expiry time to a future timestamp, the operator
+     * can be enabled for that avatar.
+     */
+    mapping(address => mapping(address => uint256)) public authorizedGraphOperators;
+
+    /**
+     * Global allowances allow an avatar to set a spender and a global allowance across
+     * all their balances in this graph. If a non-zero allowance is set, it overrides
+     * the local allowance of all the ERC20 allowances for that owner(avatar).
+     */
+    mapping(address => mapping(address => uint256)) public globalAllowances;
+
     // Events
 
     event RegisterAvatar(address indexed avatar, address circleNode);
@@ -143,6 +158,11 @@ contract Graph is ProxyFactory, IGraph {
     event RegisterGroup(address indexed group, int128 exitFee);
 
     event Trust(address indexed truster, address indexed trustee, uint256 expiryTime);
+
+    event AuthorizedGraphOperator(address indexed avatar, address indexed operator);
+    event RevokedGraphOperator(address indexed avatar, address indexed operator, uint256 expiry);
+
+    event GlobalApproval(address indexed avatar, address indexed spender, uint256 amount);
 
     // Modifiers
 
@@ -268,6 +288,8 @@ contract Graph is ProxyFactory, IGraph {
         emit Trust(msg.sender, _entity, earliestExpiry);
     }
 
+    // function authorizeGraphOperator()
+
     function migrateCircles(address _owner, uint256 _amount, IAvatarCircleNode _circle)
         external
         onlyAncestorMigrator
@@ -384,6 +406,43 @@ contract Graph is ProxyFactory, IGraph {
         _effectPathTranfers(_flowVertices, _flow, coordinates);
     }
 
+    function operateFlowMatrix(
+        int256[] calldata _intendedNettedFlow,
+        address[] calldata _flowVertices,
+        uint256[] calldata _flow,
+        bytes calldata _packedCoordinates
+    ) public {
+        // first unpack the coordinates to array of uint16
+        uint16[] memory coordinates = _unpackCoordinates(_packedCoordinates, _flow.length);
+
+        require(
+            _flowVertices.length == _intendedNettedFlow.length,
+            "Length of intended flow must equal the number of vertices provided."
+        );
+
+        // check that all flow vertices have the calling operator enabled.
+        require(
+            graphOperatorEnabled(msg.sender, _flowVertices),
+            "Graph operator must be enabled for all vertices."
+        );
+
+        // if each vertex in the intended netted flow is zero, then it is a closed path
+        bool closedPath = _checkClosedPath(_intendedNettedFlow);
+
+        // verify the correctness of the flow matrix describing the path itself,
+        // ie. well-definedness of the flow matrix itself,
+        // check all entities are registered, and the trust relations are respected.
+        int256[] memory verifiedNettedFlow = _verifyFlowMatrix(_flowVertices, _flow, coordinates, closedPath);
+
+        // match the equality of the intended flow with the verified path flow
+        _matchNettedFlows(_intendedNettedFlow, verifiedNettedFlow);
+
+        // effectuate the actual path transfers
+        // rely on revert upon underflow of balances to roll back
+        // if any balance is insufficient
+        _effectPathTranfers(_flowVertices, _flow, coordinates);
+    }
+
     function isTrusted(address _truster, address _trusted)
         public
         view
@@ -432,6 +491,15 @@ contract Graph is ProxyFactory, IGraph {
         assert(entity_ != address(0));
         return entity_;
     }
+
+    function isGraphOperatorFor(address _operator, address[] calldata _CircleNodes) public returns (bool enabled_) {
+        for (uint256 i = 0; i < _CircleNodes.length; i++) {
+            if (!) {
+
+            }
+        }
+    }
+
 
     // Internal functions
 
