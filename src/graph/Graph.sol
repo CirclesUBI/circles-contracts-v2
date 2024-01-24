@@ -151,6 +151,16 @@ contract Graph is ProxyFactory, IGraph {
      */
     mapping(address => mapping(address => uint256)) public globalAllowances;
 
+    /**
+     * Global allowance timestamps tracks the timestamp when the global allowance was set.
+     * If the global allowance timestamp is more recent than a local (at an ERC20 CircleNode)
+     * timestamp of when the local allowance was last set, then the global allowance overrides
+     * the local allowance value.
+     * When the timestamps of local and global allowance would be equal (eg. set in the same block)
+     * then the local allowance overrides the global allowance value.
+     */
+    mapping(address => mapping(address => uint256)) public globalAllowanceTimestamps;
+
     // Events
 
     event RegisterAvatar(address indexed avatar, address circleNode);
@@ -312,6 +322,39 @@ contract Graph is ProxyFactory, IGraph {
         authorizedGraphOperators[msg.sender][_operator] = earliestExpiry;
 
         emit RevokedGraphOperator(msg.sender, _operator, earliestExpiry);
+    }
+
+    /**
+     * Approve sets the global allowance for all Circle balances held by the caller.
+     * The global allowance overrides any local allowances set (in the individual ERC20 contracts)
+     * if it is called after an allowance for the same spender was set locally.
+     * Conversely, if after setting a global allowance a local allowance value is set
+     * in the ERC20 Circle contract, then that allowance overrides this global allowance.
+     * If both local and global allowances are set in the same block, then the local allowance
+     * overrides this global allowance.
+     */
+    function approve(address _spender, uint256 _amount) external returns (bool) {
+        require(_spender != address(0), "Spender for global approval must not be zero address.");
+        
+        globalAllowances[msg.sender][_spender] = _amount;
+        // update the timestamp to know whether global or local allowance takes priority
+        globalAllowanceTimestamps[msg.sender][_spender] = block.timestamp;
+
+        emit GlobalApproval(msg.sender, _spender, _amount);
+
+        return true;
+    }
+
+    function spendGlobalAllowance(address _entity, address _spender, uint256 _amount) external {
+        require(
+            address(avatarCircleNodesIterable[ICircleNode(msg.sender)]) != address(0) || 
+            address(groupCircleNodesIterable[ICircleNode(msg.sender)]) != address(0),
+            "Only a registered Circle node can call to spend global allowance."
+        );
+
+        // note that any registered Circle node can spend from the global allowance
+        // of the _entity, so msg.sender is not used for the state update
+        uint256 spentGlobalAllowance = globalAllowances[_entity][_spender] - _amount;
     }
 
     function migrateCircles(address _owner, uint256 _amount, IAvatarCircleNode _circle)

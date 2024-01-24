@@ -115,7 +115,8 @@ contract TemporalDiscount is IERC20 {
 
     function transferFrom(address _from, address _to, uint256 _amount) external returns (bool) {
         uint256 spentAllowance = allowances[_from][msg.sender] - _amount;
-        _approve(_from, msg.sender, spentAllowance);
+
+        allowances[_from][msg.sender] = spentAllowance;
         _transfer(_from, _to, _amount);
         return true;
     }
@@ -187,7 +188,7 @@ contract TemporalDiscount is IERC20 {
     }
 
     function _approve(address _owner, address _spender, uint256 _amount) internal {
-        require(address(_spender) != address(0), "Spender for approval must not be zero address.");
+        require(_spender != address(0), "Spender for approval must not be zero address.");
 
         allowances[_owner][_spender] = _amount;
         emit Approval(_owner, _spender, _amount);
