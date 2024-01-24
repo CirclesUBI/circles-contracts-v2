@@ -555,7 +555,7 @@ contract Graph is ProxyFactory, IGraph {
      *      and passed; it will simply execute the transfers, so any caller MUST ensure
      *      instructions passed in are valid to execute.
      */
-    function _effectPathTranfers(
+    function _effectPathTransfers(
         address[] calldata _flowVertices,
         uint256[] calldata _flow,
         uint16[] memory _coordinates
