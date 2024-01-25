@@ -35,8 +35,6 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
 
     // State variables
 
-    IGraph public graph;
-
     address public avatar;
 
     bool public stopped;
@@ -78,10 +76,7 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
 
     // Constructor
 
-    constructor() {
-        // block the mastercopy from getting called setup on
-        graph = IGraph(address(1));
-    }
+    constructor() TemporalDiscount() {}
 
     // External functions
 
@@ -114,8 +109,19 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
         lastIssued = block.timestamp;
     }
 
+    /**
+     * Path transfer is only accessible by the graph contract
+     * to move circles along the flow graph induced from the balances
+     * and trust relations.
+     * Graph operators can also act as a core extension 
+     * over the authorized flow subgraph to access pathTransfer.
+     */
     function pathTransfer(address _from, address _to, uint256 _amount) external onlyGraph {
         _transfer(_from, _to, _amount);
+    }
+
+    function transferFrom(address _from, address _to, uint256 _amount) external override returns (bool) {
+        if (graph.globalAllowanceTimestamps())
     }
 
     function stop() external onlyAvatar {

@@ -2,6 +2,7 @@
 pragma solidity >=0.8.13;
 
 import "../lib/Math64x64.sol";
+import "../graph/IGraph.sol";
 import "./IERC20.sol";
 
 contract TemporalDiscount is IERC20 {
@@ -59,6 +60,8 @@ contract TemporalDiscount is IERC20 {
 
     // State variables
 
+    IGraph public graph;
+
     /**
      * Creation time stores the time this time circle node was created
      */
@@ -106,18 +109,17 @@ contract TemporalDiscount is IERC20 {
 
     event Approval(address indexed owner, address indexed spender, uint256 amount);
 
+    // Constructor
+
+    constructor() {
+        // block the mastercopy from getting called setup on
+        graph = IGraph(address(1));
+    }
+
     // External functions
 
     function transfer(address _to, uint256 _amount) external returns (bool) {
         _transfer(msg.sender, _to, _amount);
-        return true;
-    }
-
-    function transferFrom(address _from, address _to, uint256 _amount) external returns (bool) {
-        uint256 spentAllowance = allowances[_from][msg.sender] - _amount;
-
-        allowances[_from][msg.sender] = spentAllowance;
-        _transfer(_from, _to, _amount);
         return true;
     }
 
@@ -175,6 +177,16 @@ contract TemporalDiscount is IERC20 {
             totalSupply_ = Math64x64.mulu(reduction64x64, temporalTotalSupply);
             return totalSupply_;
         }
+    }
+
+    // Public functions
+
+    function transferFrom(address _from, address _to, uint256 _amount) public virtual returns (bool) {
+        uint256 remainingAllowance = allowances[_from][msg.sender] - _amount;
+
+        allowances[_from][msg.sender] = remainingAllowance;
+        _transfer(_from, _to, _amount);
+        return true;
     }
 
     // Internal functions
@@ -339,4 +351,8 @@ contract TemporalDiscount is IERC20 {
         // return the discounted balance
         discountedBalance_ = Math64x64.mulu(reduction64x64, _balance);
     }
+
+    // Private functions
+
+    function localOverGlobalAllowance() private returns (bool) {}
 }

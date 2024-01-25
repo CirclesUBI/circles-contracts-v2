@@ -4,6 +4,8 @@ pragma solidity >=0.8.13;
 import "./ICircleNode.sol";
 
 interface IGraph {
+    function globalAllowanceTimestamps(address entity, address spender) external view returns (uint256 timestamp);
+
     function avatarToCircle(address avatar) external view returns (IAvatarCircleNode);
 
     function checkAllAreTrustedCircleNodes(address group, ICircleNode[] calldata circles, bool includeGroups)

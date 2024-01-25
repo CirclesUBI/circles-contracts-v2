@@ -335,7 +335,7 @@ contract Graph is ProxyFactory, IGraph {
      */
     function approve(address _spender, uint256 _amount) external returns (bool) {
         require(_spender != address(0), "Spender for global approval must not be zero address.");
-        
+
         globalAllowances[msg.sender][_spender] = _amount;
         // update the timestamp to know whether global or local allowance takes priority
         globalAllowanceTimestamps[msg.sender][_spender] = block.timestamp;
@@ -346,15 +346,20 @@ contract Graph is ProxyFactory, IGraph {
     }
 
     function spendGlobalAllowance(address _entity, address _spender, uint256 _amount) external {
+        // only a registered personal or group Circle contract can call this function
+        // to spend from the global allowance
         require(
-            address(avatarCircleNodesIterable[ICircleNode(msg.sender)]) != address(0) || 
-            address(groupCircleNodesIterable[ICircleNode(msg.sender)]) != address(0),
+            address(avatarCircleNodesIterable[ICircleNode(msg.sender)]) != address(0)
+                || address(groupCircleNodesIterable[ICircleNode(msg.sender)]) != address(0),
             "Only a registered Circle node can call to spend global allowance."
         );
 
         // note that any registered Circle node can spend from the global allowance
         // of the _entity, so msg.sender is not used for the state update
-        uint256 spentGlobalAllowance = globalAllowances[_entity][_spender] - _amount;
+        uint256 remainingGlobalAllowance = globalAllowances[_entity][_spender] - _amount;
+        globalAllowances[_entity][_spender] = remainingGlobalAllowance;
+
+        // note to not update the timestamp from the global allowance as it gets spent.
     }
 
     function migrateCircles(address _owner, uint256 _amount, IAvatarCircleNode _circle)
