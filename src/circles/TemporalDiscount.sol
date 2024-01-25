@@ -92,7 +92,14 @@ contract TemporalDiscount is IERC20 {
      */
     uint256 private totalSupplyTime;
 
-    mapping(address => mapping(address => uint256)) private allowances;
+    mapping(address => mapping(address => uint256)) public allowances;
+
+    /**
+     * Allowance timestamps track when local allowances are set, as to compare
+     * with the timestamp of the global allowance, so that the most recent setting
+     * takes precedence.
+     */
+    mapping(address => mapping(address => uint256)) public allowanceTimestamps;
 
     // Events
 
@@ -123,13 +130,33 @@ contract TemporalDiscount is IERC20 {
         return true;
     }
 
+    function transferFrom(address _from, address _to, uint256 _amount) external returns (bool) {
+        if (localOverGlobalAllowance(_from, msg.sender)) {
+            // spend the local allowance for spender
+            uint256 remainingAllowance = allowances[_from][msg.sender] - _amount;
+            allowances[_from][msg.sender] = remainingAllowance;
+        } else {
+            // or spend from the global allowance instead
+            graph.spendGlobalAllowance(_from, msg.sender, _amount);
+        }
+
+        _transfer(_from, _to, _amount);
+        return true;
+    }
+
     function approve(address _spender, uint256 _amount) external returns (bool) {
         _approve(msg.sender, _spender, _amount);
         return true;
     }
 
     function allowance(address _owner, address _spender) external view returns (uint256 remaining) {
-        return allowances[_owner][_spender];
+        if (localOverGlobalAllowance(_owner, _spender)) {
+            remaining = allowances[_owner][_spender];
+        } else {
+            remaining = graph.globalAllowances(_owner, _spender);
+        }
+
+        return remaining;
     }
 
     function increaseAllowance(address _spender, uint256 _incrementAmount) external returns (bool) {
@@ -179,16 +206,6 @@ contract TemporalDiscount is IERC20 {
         }
     }
 
-    // Public functions
-
-    function transferFrom(address _from, address _to, uint256 _amount) public virtual returns (bool) {
-        uint256 remainingAllowance = allowances[_from][msg.sender] - _amount;
-
-        allowances[_from][msg.sender] = remainingAllowance;
-        _transfer(_from, _to, _amount);
-        return true;
-    }
-
     // Internal functions
 
     function _transfer(address _from, address _to, uint256 _amount) internal {
@@ -203,6 +220,8 @@ contract TemporalDiscount is IERC20 {
         require(_spender != address(0), "Spender for approval must not be zero address.");
 
         allowances[_owner][_spender] = _amount;
+        allowanceTimestamps[_owner][_spender] = block.timestamp;
+
         emit Approval(_owner, _spender, _amount);
     }
 
@@ -354,5 +373,16 @@ contract TemporalDiscount is IERC20 {
 
     // Private functions
 
-    function localOverGlobalAllowance() private returns (bool) {}
+    function localOverGlobalAllowance(address _from, address _spender) private view returns (bool) {
+        uint256 globalAllowanceTimestamp = graph.globalAllowanceTimestamps(_from, _spender);
+        uint256 localAllowanceRTimestamp = allowanceTimestamps[_from][_spender];
+
+        if (globalAllowanceTimestamp > localAllowanceRTimestamp) {
+            // global allowance takes precedence if it strictly set more recently
+            return false;
+        } else {
+            // default to local allowance
+            return true;
+        }
+    }
 }

@@ -4,6 +4,8 @@ pragma solidity >=0.8.13;
 import "./ICircleNode.sol";
 
 interface IGraph {
+    function spendGlobalAllowance(address entity, address spender, uint256 amount) external;
+    function globalAllowances(address entity, address spender) external view returns (uint256);
     function globalAllowanceTimestamps(address entity, address spender) external view returns (uint256 timestamp);
 
     function avatarToCircle(address avatar) external view returns (IAvatarCircleNode);

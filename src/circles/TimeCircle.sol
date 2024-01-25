@@ -113,15 +113,11 @@ contract TimeCircle is MasterCopyNonUpgradable, TemporalDiscount, IAvatarCircleN
      * Path transfer is only accessible by the graph contract
      * to move circles along the flow graph induced from the balances
      * and trust relations.
-     * Graph operators can also act as a core extension 
+     * Graph operators can also act as a core extension
      * over the authorized flow subgraph to access pathTransfer.
      */
     function pathTransfer(address _from, address _to, uint256 _amount) external onlyGraph {
         _transfer(_from, _to, _amount);
-    }
-
-    function transferFrom(address _from, address _to, uint256 _amount) external override returns (bool) {
-        if (graph.globalAllowanceTimestamps())
     }
 
     function stop() external onlyAvatar {
