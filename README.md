@@ -68,6 +68,12 @@ This Solidity project uses Foundry as a toolkit. If you don't have Foundry insta
     ```
 
 ### Deploying the contracts
+#### Chiado
+To deploy the contracts to the Chiado testnet, run `./deploy.sh` and supply a private key that has enough funds to pay for the gas:
+```shell
+./deploy.sh <private_key>
+```
+#### Local
 1. [todo] To run a local development node, use the `anvil` command in a separate terminal:
     ```bash
     anvil
