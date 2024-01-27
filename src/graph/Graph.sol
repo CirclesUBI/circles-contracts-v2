@@ -56,7 +56,7 @@ contract Graph is ProxyFactory, IGraph {
      * concurrency problems - but the removal of edges is enacted with a
      * calculable delay: enacted after current interval + 1 interval.
      */
-    uint256 public constant TRUST_INTERVAL = 1 minutes;
+    uint256 public constant OPERATOR_INTERVAL = 1 minutes;
 
     // State variables
 
@@ -136,6 +136,21 @@ contract Graph is ProxyFactory, IGraph {
      */
     mapping(address => mapping(address => TrustMarker)) public trustMarkers;
 
+    /**
+     * Authorized graph operators stores a mapping from (address entity, address operator)
+     * to uint256 expiry timestamp. As the default value is zero, all operator addresses
+     * are disabled, but by setting the expiry time to a future timestamp, the operator
+     * can be enabled for that entity.
+     */
+    mapping(address => mapping(address => uint256)) public authorizedGraphOperators;
+
+    /**
+     * Global allowances allow an entity to set a spender and a global allowance across
+     * all their balances in this graph. If a non-zero allowance is set, it overrides
+     * the local allowance of all the ERC20 allowances for that owner(entity).
+     */
+    mapping(address => mapping(address => uint256)) public globalAllowances;
+
     // Events
 
     event RegisterAvatar(address indexed avatar, address circleNode);
@@ -143,6 +158,11 @@ contract Graph is ProxyFactory, IGraph {
     event RegisterGroup(address indexed group, int128 exitFee);
 
     event Trust(address indexed truster, address indexed trustee, uint256 expiryTime);
+
+    event AuthorizedGraphOperator(address indexed entity, address indexed operator, uint256 expiryTime);
+    event RevokedGraphOperator(address indexed entity, address indexed operator, uint256 expiryTime);
+
+    event GlobalApproval(address indexed entity, address indexed spender, uint256 amount);
 
     // Modifiers
 
@@ -155,7 +175,7 @@ contract Graph is ProxyFactory, IGraph {
         require(
             address(avatarToCircle[_entity]) == address(0) && address(organizations[_entity]) == address(0)
                 && address(groupToCircle[_entity]) == address(0),
-            "Entity is already registered as an avatar, an organisation or as a group."
+            "Address is already registered as an avatar, an organisation or as a group."
         );
         _;
     }
@@ -260,12 +280,38 @@ contract Graph is ProxyFactory, IGraph {
     function untrust(address _entity) external onTrustGraph(msg.sender) canBeTrusted(_entity) {
         require(_entity != msg.sender, "Cannot edit your own trust relation.");
         // wait at least a full trust interval before the edge can expire
-        uint256 earliestExpiry = ((block.timestamp / TRUST_INTERVAL) + 2) * TRUST_INTERVAL;
+        uint256 earliestExpiry = ((block.timestamp / OPERATOR_INTERVAL) + 2) * OPERATOR_INTERVAL;
 
         require(getTrustExpiry(msg.sender, _entity) > earliestExpiry, "Trust is already set to (have) expire(d).");
         _upsertTrustMarker(msg.sender, _entity, uint96(earliestExpiry));
 
         emit Trust(msg.sender, _entity, earliestExpiry);
+    }
+
+    function authorizeGraphOperator(address _operator, uint256 _expiryAuthorization)
+        external
+        notOnTrustGraph(_operator)
+    {
+        uint256 currentOperatorInterval = block.timestamp / OPERATOR_INTERVAL;
+        require(
+            _expiryAuthorization >= (currentOperatorInterval + 1) * OPERATOR_INTERVAL,
+            "Future expiry must be earliest in the next trust interval."
+        );
+        authorizedGraphOperators[msg.sender][_operator] = _expiryAuthorization;
+
+        emit AuthorizedGraphOperator(msg.sender, _operator, _expiryAuthorization);
+    }
+
+    function revokeGraphOperator(address _operator) external onTrustGraph(msg.sender) notOnTrustGraph(_operator) {
+        uint256 earliestExpiry = ((block.timestamp / OPERATOR_INTERVAL) + 2) * OPERATOR_INTERVAL;
+
+        require(
+            getGraphOperatorExpiry(msg.sender, _operator) > earliestExpiry, "Operator is already (set to be) revoked."
+        );
+
+        authorizedGraphOperators[msg.sender][_operator] = earliestExpiry;
+
+        emit RevokedGraphOperator(msg.sender, _operator, earliestExpiry);
     }
 
     function migrateCircles(address _owner, uint256 _amount, IAvatarCircleNode _circle)
@@ -384,6 +430,40 @@ contract Graph is ProxyFactory, IGraph {
         _effectPathTranfers(_flowVertices, _flow, coordinates);
     }
 
+    function operateFlowMatrix(
+        int256[] calldata _intendedNettedFlow,
+        address[] calldata _flowVertices,
+        uint256[] calldata _flow,
+        bytes calldata _packedCoordinates
+    ) public {
+        // first unpack the coordinates to array of uint16
+        uint16[] memory coordinates = _unpackCoordinates(_packedCoordinates, _flow.length);
+
+        require(
+            _flowVertices.length == _intendedNettedFlow.length,
+            "Length of intended flow must equal the number of vertices provided."
+        );
+
+        // check that all flow vertices have the calling operator enabled.
+        require(isGraphOperatorForSet(msg.sender, _flowVertices), "Graph operator must be enabled for all vertices.");
+
+        // if each vertex in the intended netted flow is zero, then it is a closed path
+        bool closedPath = _checkClosedPath(_intendedNettedFlow);
+
+        // verify the correctness of the flow matrix describing the path itself,
+        // ie. well-definedness of the flow matrix itself,
+        // check all entities are registered, and the trust relations are respected.
+        int256[] memory verifiedNettedFlow = _verifyFlowMatrix(_flowVertices, _flow, coordinates, closedPath);
+
+        // match the equality of the intended flow with the verified path flow
+        _matchNettedFlows(_intendedNettedFlow, verifiedNettedFlow);
+
+        // effectuate the actual path transfers
+        // rely on revert upon underflow of balances to roll back
+        // if any balance is insufficient
+        _effectPathTranfers(_flowVertices, _flow, coordinates);
+    }
+
     function isTrusted(address _truster, address _trusted)
         public
         view
@@ -391,13 +471,48 @@ contract Graph is ProxyFactory, IGraph {
         canBeTrusted(_trusted)
         returns (bool isTrusted_)
     {
-        uint256 endOfCurrentTrustInterval = ((block.timestamp / TRUST_INTERVAL) + 1) * TRUST_INTERVAL;
+        uint256 endOfCurrentTrustInterval = ((block.timestamp / OPERATOR_INTERVAL) + 1) * OPERATOR_INTERVAL;
 
         return isTrusted_ = getTrustExpiry(_truster, _trusted) >= endOfCurrentTrustInterval;
     }
 
     function getTrustExpiry(address _truster, address _trusted) public view returns (uint256 expiry_) {
         return expiry_ = uint256(trustMarkers[_truster][_trusted].expiry);
+    }
+
+    function isGraphOperator(address _entity, address _operator)
+        public
+        view
+        onTrustGraph(_entity)
+        notOnTrustGraph(_operator)
+        returns (bool isGraphOperator_)
+    {
+        uint256 endOfCurrentOperatorInterval = ((block.timestamp / OPERATOR_INTERVAL) + 1) * OPERATOR_INTERVAL;
+
+        return isGraphOperator_ = getGraphOperatorExpiry(_entity, _operator) >= endOfCurrentOperatorInterval;
+    }
+
+    function isGraphOperatorForSet(address _operator, address[] calldata _CircleNodes)
+        public
+        view
+        returns (bool enabled_)
+    {
+        uint256 endOfCurrentOperatorInterval = ((block.timestamp / OPERATOR_INTERVAL) + 1) * OPERATOR_INTERVAL;
+
+        for (uint256 i = 0; i < _CircleNodes.length; i++) {
+            // if any Circle node has not currently enabled the operator it is disabled for thw whole set.
+            // we don't check whether CircleNode is on the trust graph, because only valid address
+            // can have enabled an operator.
+            if (getGraphOperatorExpiry(_CircleNodes[i], _operator) < endOfCurrentOperatorInterval) {
+                return enabled_ = false;
+            }
+        }
+
+        return enabled_ = true;
+    }
+
+    function getGraphOperatorExpiry(address _entity, address _operator) public view returns (uint256 expiry_) {
+        return expiry_ = authorizedGraphOperators[_entity][_operator];
     }
 
     function circleToAvatar(IAvatarCircleNode _node) public view returns (address avatar_) {
@@ -578,6 +693,18 @@ contract Graph is ProxyFactory, IGraph {
         }
     }
 
+    function _checkClosedPath(int256[] calldata _intendedFlow) internal pure returns (bool closedPath_) {
+        // start by assuming it is a closed path
+        closedPath_ = true;
+
+        for (uint256 i = 0; i < _intendedFlow.length; i++) {
+            // then any non-zero intentedFlow value, breaks the closed path open
+            closedPath_ = closedPath_ && (_intendedFlow[i] == int256(0));
+        }
+
+        return closedPath_;
+    }
+
     /**
      * @dev abi.encodePacked of an array uint16[] would still pad each uint16 - I think;
      *      if abi packing does not add padding this function is redundant and should be thrown out
@@ -607,10 +734,10 @@ contract Graph is ProxyFactory, IGraph {
 
     function _trust(address _truster, address _trusted, uint256 _expiryTrustMarker) internal {
         // take the floor of current timestamp to get current interval
-        uint256 currentTrustInterval = block.timestamp / TRUST_INTERVAL;
+        uint256 currentTrustInterval = block.timestamp / OPERATOR_INTERVAL;
         require(
-            _expiryTrustMarker >= (currentTrustInterval + 1) * TRUST_INTERVAL,
-            "Future expiry must be at least a full trust interval into the future."
+            _expiryTrustMarker >= (currentTrustInterval + 1) * OPERATOR_INTERVAL,
+            "Future expiry must be earliest in the next trust interval."
         );
         // trust can instantly be registered
         _upsertTrustMarker(_truster, _trusted, uint96(_expiryTrustMarker));
