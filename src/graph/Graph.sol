@@ -400,6 +400,7 @@ contract Graph is ProxyFactory, IGraph {
         uint256[] calldata _flow,
         bytes calldata _packedCoordinates
     ) public {
+        // todo: sender does not have to be registered; can be anyone
         // first unpack the coordinates to array of uint16
         uint16[] memory coordinates = _unpackCoordinates(_packedCoordinates, _flow.length);
 
@@ -431,9 +432,9 @@ contract Graph is ProxyFactory, IGraph {
     }
 
     function operateFlowMatrix(
-        int256[] calldata _intendedNettedFlow,
+        int256[] calldata _transferIntents,
         address[] calldata _flowVertices,
-        uint256[] calldata _flow,
+        uint256[] calldata _flow, // consider adding a group mint targets array
         bytes calldata _packedCoordinates
     ) public {
         // first unpack the coordinates to array of uint16
@@ -445,6 +446,7 @@ contract Graph is ProxyFactory, IGraph {
         );
 
         // check that all flow vertices have the calling operator enabled.
+        // todo: only check for net-senders
         require(isGraphOperatorForSet(msg.sender, _flowVertices), "Graph operator must be enabled for all vertices.");
 
         // if each vertex in the intended netted flow is zero, then it is a closed path

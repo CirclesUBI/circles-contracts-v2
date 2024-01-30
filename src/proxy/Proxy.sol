@@ -26,6 +26,7 @@ contract Proxy {
         masterCopy = _masterCopy;
     }
 
+    // todo: consider removing payable
     fallback() external payable {
         _fallback();
     }
