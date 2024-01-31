@@ -432,7 +432,7 @@ contract Graph is ProxyFactory, IGraph {
     }
 
     function operateFlowMatrix(
-        int256[] calldata _transferIntents,
+        int256[] calldata _intendedNettedFlow,
         address[] calldata _flowVertices,
         uint256[] calldata _flow, // consider adding a group mint targets array
         bytes calldata _packedCoordinates
