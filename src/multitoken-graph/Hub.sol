@@ -77,7 +77,7 @@ contract Hub is ERC1155 {
 
     function registerHuman(bytes32 _optionalIpfsCid) external {
         // only available for v1 users with stopped mint, for initial bootstrap period
-        // 
+        //
         //require(trusts(_inviter, msg.sender), "");
         // todo: v1 stopped & enable migration
         //require(...);
@@ -92,12 +92,12 @@ contract Hub is ERC1155 {
 
     function inviteHuman(address _human, bytes32 _optionalIpfsCid) external {
         // works from the start (ie. also during bootstrap period)
-        // inviter burns 2x welcome bonus 
+        // inviter burns 2x welcome bonus
         // invited receives welcome bonus
         // inviter trusts invited
         // invited can still setup migration from v1; simply not initiate registerHuman anymore
         // require(
-            
+
         // )
     }
 
