@@ -11,8 +11,6 @@ import "../graph/IGraph.sol";
 contract GroupCircle is MasterCopyNonUpgradable, TemporalDiscount, IGroupCircleNode {
     // State variables
 
-    IGraph public graph;
-
     // todo: we probably want group to have an interface so that we can call hooks on it
     IGroup public group;
 
@@ -41,10 +39,7 @@ contract GroupCircle is MasterCopyNonUpgradable, TemporalDiscount, IGroupCircleN
         _;
     }
 
-    constructor() {
-        // block setup on the master copy deployment of the group circle
-        graph = IGraph(address(1));
-    }
+    constructor() TemporalDiscount() {}
 
     // External functions
 

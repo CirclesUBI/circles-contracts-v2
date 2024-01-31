@@ -1,80 +1,15 @@
-# (Reflections on) Global Allowance -- MUST BE REWRITTEN
+# Global Allowance
 
-Every Circle node implements the ERC20 interface. As part of the ERC20 interface
-allowance enables external contracts to interact with the token balance of owners.
+## Simple specification
 
-In Circles under normal behaviour of the protocol an avatar accumulates balances
-in the Circle nodes of avatars they have trusted. It therefore becomes cumbersome
-to manually set an allowance for each Circle node that one might have a balance on.
+Global Allowance solves for the "ancillary extension" of the Circles protocol.
 
-A critical part of the Circles protocol pertains to the path transfer of Circles
-over the flow graph induced by the trust graph.
-The conservative implementation requires the avatar to initiate the path transfer,
-but this limits how the protocol can interact with new methods that have been developed, in particular with an intent-based architecture.
+Circles should allow other contracts and protocols to easily operate on the Circle balances (personal and group) a person has. For many use-cases the known {ERC20-transferFrom} suffices by setting the allowance through approval.
 
-In an intent-based architecture the owner can sign final constraints they request
-to hold after the execution of a transaction, while leaving open the details of what transaction might achieve the requested end-state for them.
+However a person may have many balances across the graph, so rather than setting the approval for every node of the graph, we can extend the concept from the local ERC20 contracts to a global allowance that is valid for all ERC20 contracts across the graph.
 
-With the proposal of a global allowance we want to enable the Circles protocol
-to be compatible with such extensions, whether an intent-based path solver network
-for Circles directly, or compatibility with other external protocols.
+Upon extending the concept, we must choose how to integrate the two values (local and global) of the allowance variable (per ERC20 Circles contract). There are two obvious paths: additive or overriding.
 
-## Specification
+Overriding most respects the callers intent, but still leaves open the question: what is the variable that decides the override. A first proposal would be that a non-zero local allowance overrides any global allowance. However, this also has a sharp edge: once the local allowance is spent, the global allowance could take effect, which would violate most developer expectations.
 
-With `global allowance` the `Graph` contract holds an additional allowance
-value for each (`owner`, `spender`) pair which then apply to all Circle node ERC20
-contracts registered in this graph for the balance of said `owner`.
-
-When trying to generalize the allowance across all Circle node contracts we need
-to resolve the duplicated state, as there is an allowance kept globally and locally for each Circle node.
-
-We propose that upon spending the allowance with `transferFrom` in a Circle node
-the global an local allowance are additive. The spending should be continuous so a call will succeed if a sufficient combined allowance is present.
-Thirdly the global allowance is depleted first, afterwards the local allowance is spent.
-
-The global allowance should leave the local ERC20 behaviour of allowances intact.
-Because we want to the spending to be continuous, the `allowance(owner, spender)`
-call should return the summed global and local allowance for that contract.
-However, we inevitably have slight breakages by introducing a dual state:
-upon calling `approve(spender, value)` on the Circle node, the contract should
-set the local allowance value. By calling `approve(spender, value)` on the graph
-contract, it should set the global value of the allowance.
-
-Allowance is often extended with `decreaseAllowance` and `increaseAllowance`
-which should simply still act on the local allowance value. We do not recommend to
-implement a global `decreaseAllowance` and `increaseAllowance` on the graph contract, but this self-evidently be opted for.
-
-## Expected usage
-
-We expect the global allowance to be used for people to opt-in to novel protocol
-extensions such as the intent-architecture as explained. We therefore expect the default global allowance to be set to the maximum value of `uint256`, effectively infinity.
-
-As desribed above, the obvious extension of the allowance to a global scope is
-by duplicating the state value of a global and local allowance. However, upon
-examining the possible implementations it is apparent the required logic requires
-a higher branching complexity to spend across global and local allowance values.
-
-We can therefore consider the global allowance to be a boolean value, rather than
-an integer allowance amount. By separating the types, there is no longer
-a duplication of state across the local and global contract state; the global
-allowance now means an unlimited spending ability for the allowed protocol,
-while enabled.
-
-This reduces complexity of understanding the global allowance for consumers
-of the interface. It resolves questions on the ambiguous behaviour of
-`allowance()`.
-
-Most importantly it actually matches the intended behaviour when setting the
-(global) allowance to `max_uint256` for a trusted protocol contract.
-
-We therefore propose instead this binary implementation for global allowance.
-
-## Time scales for disabling a global allowance
-
-Opting for the binary implementation of the global allowance, additionally
-opens the opportunity to delay the disallowance of a protocol contract at the global level, with the same time delay as untrusting an avatar has.
-
-We implemented such a time-delay to allow synchronization between the execution
-of protocol contracts (in particular a solver network), and the state changes in
-the contract state. For an integer global allowance such a time delay would be
-difficult to sensibly construct.
+To resolve this we propose to track the timestamp when an allowance, local or global is set, and the most recent value overrides the allowance. If both local and global allowance is set in the same block (resulting in the same timestamp), then the local allowance overrides the global allowance.
