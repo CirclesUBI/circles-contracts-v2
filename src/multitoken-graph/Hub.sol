@@ -75,7 +75,9 @@ contract Hub is ERC1155 {
 
     // External functions
 
-    function registerHuman() external {
+    function registerHuman(bytes32 _optionalIpfsCid) external {
+        // only available for v1 users with stopped mint, for initial bootstrap period
+        // 
         //require(trusts(_inviter, msg.sender), "");
         // todo: v1 stopped & enable migration
         //require(...);
@@ -84,7 +86,19 @@ contract Hub is ERC1155 {
         lastMintTimes[msg.sender] = block.timestamp;
         // treasuries[msg.sender] = address(0);
 
+        // don't receive welcome mint as v1 user
         // todo: let's welcome mint re-introduced; 3 days not demurraged
+    }
+
+    function inviteHuman(address _human, bytes32 _optionalIpfsCid) external {
+        // works from the start (ie. also during bootstrap period)
+        // inviter burns 2x welcome bonus 
+        // invited receives welcome bonus
+        // inviter trusts invited
+        // invited can still setup migration from v1; simply not initiate registerHuman anymore
+        // require(
+            
+        // )
     }
 
     function insertAvatar(address avatar) internal {
@@ -207,6 +221,7 @@ contract Hub is ERC1155 {
     // register with a salt for avoiding malicious blockage
 
     function uri(uint256 _id) public view override returns (string memory uri_) {
+        // charge 1 CRC for setting uri
         if (avatarIpfsUris[_id] != bytes32(0)) {
             //return uri_ = string(abi.encodedPacked("ipfs://f0", bytes32ToHex(avatarIpfsUris[_id])));
         } else {
@@ -215,6 +230,7 @@ contract Hub is ERC1155 {
     }
 
     function setUri(bytes32 _ipfsCid) external {
+        // charge 1 CRC to update
         // msg.sender -> tokenId
         avatarIpfsUris[uint256(uint160(msg.sender))] = _ipfsCid;
     }
