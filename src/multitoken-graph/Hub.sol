@@ -2,8 +2,11 @@
 pragma solidity >=0.8.13;
 
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/utils/Create2.sol";
+import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
-contract Graph is ERC1155 {
+contract Hub is ERC1155 {
     // Constants
     // TODO find hub deployment time
     uint256 public constant hubV1START = 1604136263;
@@ -29,6 +32,8 @@ contract Graph is ERC1155 {
     mapping(address => uint256) public lastMintTimes;
 
     mapping(address => bool) public stopped;
+
+    mapping(uint256 => WrappedERC20) public tokenIDToInfERC20;
 
     // Mint policy registered by avatar.
     mapping(address => address) public mintPolicies;
@@ -123,7 +128,11 @@ contract Graph is ERC1155 {
     // todo: happy with this name? 
     function personalMint() external isHuman(msg.sender) {
         // do daily demurrage over claimable period; max 2week
-  
+        uint256 secondsElapsed = (block.timestamp - lastMintTimes[msg.sender]);
+        require(secondsElapsed > 0, "No tokens available to mint yet");
+
+        _mint(msg.sender, uint256(uint160(address(msg.sender))), secondsElapsed * 277777777777777, "");
+        lastMintTimes[msg.sender] = block.timestamp; // Reset the registration time after minting
     }
 
     // graph transfers SHOULD allow personal -> group conversion en route
@@ -165,13 +174,39 @@ contract Graph is ERC1155 {
         //require("nett sources have approved operator");
     }
 
-    function wrapInflationaryERC20() external {
-        // pass on name() but not modified
+    function getDeterministicAddress(uint256 _tokenId, bytes32 _bytecodeHash) public view returns (address) {
+        return Create2.computeAddress(keccak256(abi.encodePacked(_tokenId)), _bytecodeHash);
     }
 
-    function unwrapInflationaryERC20() external {
+
+    function createERC20InflationWrapper(uint256 _tokenId, string memory _name, string memory _symbol) public {
+        require(address(tokenIDToInfERC20[_tokenId]) == address(0), "Wrapper already exists");
+
+        bytes memory bytecode = abi.encodePacked(
+            type(WrappedERC20).creationCode,
+            abi.encode(_name, _symbol, address(this), _tokenId)
+        );
+
+        //bytes32 bytecodeHash = keccak256(bytecode);
+        address wrappedToken = Create2.deploy(0, keccak256(abi.encodePacked(_tokenId)), bytecode);
+
+        tokenIDToInfERC20[_tokenId] = WrappedERC20(wrappedToken);
+    }
+
+    function wrapInflationaryERC20(uint256 _tokenId, uint256 _amount) public {
+        require(address(tokenIDToInfERC20[_tokenId]) != address(0), "Wrapper does not exist");
+        safeTransferFrom(msg.sender, address(tokenIDToInfERC20[_tokenId]), _tokenId, _amount, "");
+        tokenIDToInfERC20[_tokenId].mint(msg.sender, _amount);
 
     }
+
+
+    function unwrapInflationaryERC20(uint256 _tokenId, uint256 _amount) public {
+        require(address(tokenIDToInfERC20[_tokenId]) != address(0), "Wrapper does not exist");
+        tokenIDToInfERC20[_tokenId].burn(msg.sender, _amount);
+        safeTransferFrom(address(tokenIDToInfERC20[_tokenId]), msg.sender, _tokenId, _amount, "");
+    }
+
 
     function wrapDemurrageERC20() external {
         // call on Hub for demurrage calculation in ERC20 contract
@@ -218,5 +253,26 @@ contract Graph is ERC1155 {
 
     function _registerGroup(address _avatar, address _mint, address _treasury, string calldata _name, string calldata _symbol) internal {
         // do 
+    }
+}
+
+contract WrappedERC20 is ERC20, ERC1155Holder {
+    address public parentContract;
+    uint256 public parentTokenId;
+
+    constructor(string memory _name, string memory _symbol, address _parentContract, uint256 _parentTokenId) ERC20(_name, _symbol) {
+        parentContract = _parentContract;
+        parentTokenId = _parentTokenId;
+    }
+
+    //TODO - seems to not update total supply
+    function mint(address _to, uint256 _amount) public {
+        require(msg.sender == parentContract, "Only parent contract can mint");
+        _mint(_to, _amount);
+    }
+
+    function burn(address _from, uint256 _amount) public {
+        require(msg.sender == parentContract, "Only parent contract can burn");
+        _burn(_from, _amount);
     }
 }
