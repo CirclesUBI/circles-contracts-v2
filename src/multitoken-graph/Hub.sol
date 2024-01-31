@@ -13,7 +13,7 @@ contract Hub is ERC1155 {
 
     // People registering can mint up to one Circle per hour.
     // todo: should this be implemented without branching, ie. all be contracts
-    address public constant PERSONAL_MINT = address(0x1); 
+    address public constant PERSONAL_MINT = address(0x1);
 
     // Organizations can register with a no-mint policy.
     address public constant NO_MINT = address(0x2);
@@ -22,7 +22,7 @@ contract Hub is ERC1155 {
 
     // State variables
 
-    // Standard mint for Circle groups. 
+    // Standard mint for Circle groups.
     address public immutable standardGroupMint;
 
     // linked list for registered avatars, used by all people,
@@ -49,31 +49,23 @@ contract Hub is ERC1155 {
     // Modifiers
 
     modifier isHuman(address _human) {
-        require(
-            lastMintTimes[_human] > 0,
-            ""
-        );
+        require(lastMintTimes[_human] > 0, "");
         _;
     }
 
     modifier isGroup(address _group) {
-        require(
-            mintPolicies[_group] != address(0),
-            ""
-        );
+        require(mintPolicies[_group] != address(0), "");
         _;
     }
 
     modifier isOrganization(address _organization) {
         require(
-            avatars[_organization] != address(0) &&
-            mintPolicies[_organization] == address(0) &&
-            lastMintTimes[_organization] == uint256(0),
+            avatars[_organization] != address(0) && mintPolicies[_organization] == address(0)
+                && lastMintTimes[_organization] == uint256(0),
             ""
         );
         _;
     }
-
 
     // Constructor
 
@@ -84,7 +76,6 @@ contract Hub is ERC1155 {
     // External functions
 
     function registerHuman() external {
-        
         //require(trusts(_inviter, msg.sender), "");
         // todo: v1 stopped & enable migration
         //require(...);
@@ -101,11 +92,13 @@ contract Hub is ERC1155 {
         avatars[avatar] = SENTINEL;
     }
 
-    function registerGroup (address _treasury, string calldata _name, string calldata _symbol) external{
+    function registerGroup(address _treasury, string calldata _name, string calldata _symbol) external {
         _registerGroup(msg.sender, standardGroupMint, _treasury, _name, _symbol);
     }
 
-    function registerCustomGroup (address _mint, address _treasury, string calldata _name, string calldata _symbol) external{
+    function registerCustomGroup(address _mint, address _treasury, string calldata _name, string calldata _symbol)
+        external
+    {
         // msg.sender controls membership
         // minting: policy only
         // redemption: treasury contract (ideally generated from a factory - outside protocol)
@@ -113,11 +106,10 @@ contract Hub is ERC1155 {
         _registerGroup(msg.sender, _mint, _treasury, _name, _symbol);
     }
 
-    function registerOrganization (string calldata _name) external{
+    function registerOrganization(string calldata _name) external {
         insertAvatar(msg.sender);
         lastMintTimes[msg.sender] = 0;
     }
-
 
     function trust(address _trustReceiver, uint256 _expiry) external {
         // todo: make iterable; don't require expiry > block.timestamp
@@ -125,7 +117,7 @@ contract Hub is ERC1155 {
         trustMarkers[msg.sender][_trustReceiver] = _expiry;
     }
 
-    // todo: happy with this name? 
+    // todo: happy with this name?
     function personalMint() external isHuman(msg.sender) {
         // do daily demurrage over claimable period; max 2week
         uint256 secondsElapsed = (block.timestamp - lastMintTimes[msg.sender]);
@@ -138,15 +130,15 @@ contract Hub is ERC1155 {
     // graph transfers SHOULD allow personal -> group conversion en route
 
     // msg.sender holds collateral, and MUST be accepted by group
-    // maybe less 
-    function groupMint(address _group, uint256[] calldata _collateral, uint256[] calldata _amounts) external{
+    // maybe less
+    function groupMint(address _group, uint256[] calldata _collateral, uint256[] calldata _amounts) external {
         // check group and collateral exist
         // de-demurrage amounts
         // loop over collateral
 
         //require(
-            //mintPolicies[_group].beforeMintPolicy(msg.sender, _group, _collateral, _amounts), "");
-        
+        //mintPolicies[_group].beforeMintPolicy(msg.sender, _group, _collateral, _amounts), "");
+
         safeBatchTransferFrom(msg.sender, treasuries[_group], _collateral, _amounts, ""); // treasury.on1155Received should only implement but nothing protocol related
 
         uint256 sumAmounts;
@@ -158,7 +150,7 @@ contract Hub is ERC1155 {
     // check if path transfer can be fully ERC1155 compatible
     // note: matrix math needs to consider mints, otherwise it won't add up
 
-    function singleSourcePathTransfer() external{
+    function singleSourcePathTransfer() external {
         //require(msg.sender == _source);
         // todo: sender does not have to be registered; can be anyone
         // can have multiple receivers
@@ -169,8 +161,8 @@ contract Hub is ERC1155 {
         // emit Transfer intent events
     }
 
-    function operatorPathTransfer() external{
-        // msg.sender = oeprator 
+    function operatorPathTransfer() external {
+        // msg.sender = oeprator
         //require("nett sources have approved operator");
     }
 
@@ -178,14 +170,11 @@ contract Hub is ERC1155 {
         return Create2.computeAddress(keccak256(abi.encodePacked(_tokenId)), _bytecodeHash);
     }
 
-
     function createERC20InflationWrapper(uint256 _tokenId, string memory _name, string memory _symbol) public {
         require(address(tokenIDToInfERC20[_tokenId]) == address(0), "Wrapper already exists");
 
-        bytes memory bytecode = abi.encodePacked(
-            type(WrappedERC20).creationCode,
-            abi.encode(_name, _symbol, address(this), _tokenId)
-        );
+        bytes memory bytecode =
+            abi.encodePacked(type(WrappedERC20).creationCode, abi.encode(_name, _symbol, address(this), _tokenId));
 
         //bytes32 bytecodeHash = keccak256(bytecode);
         address wrappedToken = Create2.deploy(0, keccak256(abi.encodePacked(_tokenId)), bytecode);
@@ -197,16 +186,13 @@ contract Hub is ERC1155 {
         require(address(tokenIDToInfERC20[_tokenId]) != address(0), "Wrapper does not exist");
         safeTransferFrom(msg.sender, address(tokenIDToInfERC20[_tokenId]), _tokenId, _amount, "");
         tokenIDToInfERC20[_tokenId].mint(msg.sender, _amount);
-
     }
-
 
     function unwrapInflationaryERC20(uint256 _tokenId, uint256 _amount) public {
         require(address(tokenIDToInfERC20[_tokenId]) != address(0), "Wrapper does not exist");
         tokenIDToInfERC20[_tokenId].burn(msg.sender, _amount);
         safeTransferFrom(address(tokenIDToInfERC20[_tokenId]), msg.sender, _tokenId, _amount, "");
     }
-
 
     function wrapDemurrageERC20() external {
         // call on Hub for demurrage calculation in ERC20 contract
@@ -219,7 +205,6 @@ contract Hub is ERC1155 {
 
     // do some unique name hash finding for personal circles
     // register with a salt for avoiding malicious blockage
-
 
     function uri(uint256 _id) public view override returns (string memory uri_) {
         if (avatarIpfsUris[_id] != bytes32(0)) {
@@ -234,25 +219,28 @@ contract Hub is ERC1155 {
         avatarIpfsUris[uint256(uint160(msg.sender))] = _ipfsCid;
     }
 
-
     // Internal functions
 
     function toDemurrageAmount(uint256 _amount, uint256 _timestamp) external {
         // timestamp should be "stepfunction" the timestamp
         // todo: ask where the best time step is
 
-        if (_timestamp<hubV1START) {_timestamp = block.timestamp;}
+        if (_timestamp < hubV1START) _timestamp = block.timestamp;
 
         // uint256 durationSinceStart = _time - hubV1start;
         // do conversion
     }
-    
-    function ToInflationAmount(uint256 _amount, uint256 _timestamp) external {
 
-    }
+    function ToInflationAmount(uint256 _amount, uint256 _timestamp) external {}
 
-    function _registerGroup(address _avatar, address _mint, address _treasury, string calldata _name, string calldata _symbol) internal {
-        // do 
+    function _registerGroup(
+        address _avatar,
+        address _mint,
+        address _treasury,
+        string calldata _name,
+        string calldata _symbol
+    ) internal {
+        // do
     }
 }
 
@@ -260,7 +248,9 @@ contract WrappedERC20 is ERC20, ERC1155Holder {
     address public parentContract;
     uint256 public parentTokenId;
 
-    constructor(string memory _name, string memory _symbol, address _parentContract, uint256 _parentTokenId) ERC20(_name, _symbol) {
+    constructor(string memory _name, string memory _symbol, address _parentContract, uint256 _parentTokenId)
+        ERC20(_name, _symbol)
+    {
         parentContract = _parentContract;
         parentTokenId = _parentTokenId;
     }
