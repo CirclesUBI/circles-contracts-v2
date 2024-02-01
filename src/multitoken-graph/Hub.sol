@@ -5,11 +5,21 @@ import "openzeppelin-contracts/contracts/token/ERC1155/ERC1155.sol";
 import "openzeppelin-contracts/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import "openzeppelin-contracts/contracts/utils/Create2.sol";
+import "../migration/IHub.sol";
 
+/**
+ * @title Hub v2 contract for Circles
+ * @notice The Hub contract is the main contract for the Circles protocol.
+ * It adopts the ERC1155 standard for multi-token contracts and governs
+ * the personal and group Circles of people, organizations and groups.
+ * Circle balances are demurraged in the Hub contract.
+ * It registers the trust relations between people and groups and allows
+ * to transfer Circles to be path fungible along trust relations.
+ * It further allows to wrap any token into an inflationary or demurraged
+ * ERC20 Circles contract.
+ */
 contract Hub is ERC1155 {
     // Constants
-    // TODO find hub deployment time
-    uint256 public constant hubV1START = 1604136263;
 
     // People registering can mint up to one Circle per hour.
     // todo: should this be implemented without branching, ie. all be contracts
@@ -22,8 +32,23 @@ contract Hub is ERC1155 {
 
     // State variables
 
-    // Standard mint for Circle groups.
-    address public immutable standardGroupMint;
+    /**
+     * @notice The Hub v1 contract address.
+     */
+    address public immutable hubV1;
+
+    /**
+     * @notice The timestamp of the start of the Circles v1 contract.
+     * @dev This is used as the global offset to calculate the demurrage,
+     * or equivalently the inflationary mint of Circles.
+     */
+    uint256 public immutable circlesStartTime;
+
+    /**
+     * @notice The standard treasury contract address used when
+     * registering a (non-custom) group.
+     */
+    address public immutable standardTreasury;
 
     // linked list for registered avatars, used by all people,
     // groups and organizations.
@@ -69,8 +94,17 @@ contract Hub is ERC1155 {
 
     // Constructor
 
-    constructor(address _standardGroupMint) ERC1155("https://fallback.aboutcircles.com/v1/profile/{id}.json") {
-        standardGroupMint = _standardGroupMint;
+    /**
+     * Constructor for the Hub contract.
+     * @param _hubV1 address of the Hub v1 contract
+     * @param _standardTreasury address of the standard treasury contract
+     * @param _fallbackUri fallback URI string for the ERC1155 metadata
+     */
+    constructor(IHubV1 _hubV1, address _standardTreasury, string memory _fallbackUri) ERC1155(_fallbackUri) {
+        require(address(_hubV1) != address(0), "Hub v1 address can not be zero.");
+        require(_standardTreasury != address(0), "Standard treasury address can not be zero.");
+        circlesStartTime = _hubV1.deployedAt();
+        standardTreasury = _standardTreasury;
     }
 
     // External functions
@@ -106,9 +140,9 @@ contract Hub is ERC1155 {
         avatars[SENTINEL] = avatar;
     }
 
-    function registerGroup(address _treasury, string calldata _name, string calldata _symbol) external {
+    function registerGroup(address _mint, string calldata _name, string calldata _symbol) external {
         require(avatars[msg.sender] == address(0));
-        _registerGroup(msg.sender, standardGroupMint, _treasury, _name, _symbol);
+        _registerGroup(msg.sender, _mint, standardTreasury, _name, _symbol);
     }
 
     function registerCustomGroup(address _mint, address _treasury, string calldata _name, string calldata _symbol)
@@ -242,7 +276,7 @@ contract Hub is ERC1155 {
         // timestamp should be "stepfunction" the timestamp
         // todo: ask where the best time step is
 
-        if (_timestamp < hubV1START) _timestamp = block.timestamp;
+        if (_timestamp < circlesStartTime) _timestamp = block.timestamp;
 
         // uint256 durationSinceStart = _time - hubV1start;
         // do conversion

@@ -3,7 +3,7 @@ pragma solidity >=0.8.13;
 
 /**
  * @title IHub v1
- * @author Circles UBI
+ * @author Circles
  * @notice legacy interface of Hub contract in Circles v1
  */
 interface IHubV1 {
