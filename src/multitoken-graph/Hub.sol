@@ -136,11 +136,12 @@ contract Hub is ERC1155 {
     }
 
     function insertAvatar(address avatar) internal {
+        avatars[avatar] = avatars[SENTINEL];
         avatars[SENTINEL] = avatar;
-        avatars[avatar] = SENTINEL;
     }
 
     function registerGroup(address _mint, string calldata _name, string calldata _symbol) external {
+        require(avatars[msg.sender] == address(0));
         _registerGroup(msg.sender, _mint, standardTreasury, _name, _symbol);
     }
 
@@ -155,8 +156,8 @@ contract Hub is ERC1155 {
     }
 
     function registerOrganization(string calldata _name) external {
+        require(avatars[msg.sender] == address(0));
         insertAvatar(msg.sender);
-        lastMintTimes[msg.sender] = 0;
     }
 
     function trust(address _trustReceiver, uint256 _expiry) external {
