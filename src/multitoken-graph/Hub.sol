@@ -21,13 +21,7 @@ import "../migration/IHub.sol";
 contract Hub is ERC1155 {
     // Constants
 
-    // People registering can mint up to one Circle per hour.
-    // todo: should this be implemented without branching, ie. all be contracts
-    address public constant PERSONAL_MINT = address(0x1);
-
-    // Organizations can register with a no-mint policy.
-    address public constant NO_MINT = address(0x2);
-
+    // The address used as the first element of the linked list of avatars.
     address public constant SENTINEL = address(0x1);
 
     // State variables
@@ -98,25 +92,35 @@ contract Hub is ERC1155 {
      * Constructor for the Hub contract.
      * @param _hubV1 address of the Hub v1 contract
      * @param _standardTreasury address of the standard treasury contract
-     * @param _fallbackUri fallback URI string for the ERC1155 metadata
+     * @param _ipfsUri fallback URI string for the ERC1155 metadata, (todo: eg. "ipfs://f0")
      */
-    constructor(IHubV1 _hubV1, address _standardTreasury, string memory _fallbackUri) ERC1155(_fallbackUri) {
+    constructor(IHubV1 _hubV1, address _standardTreasury, string memory _ipfsUri) ERC1155(_ipfsUri) {
         require(address(_hubV1) != address(0), "Hub v1 address can not be zero.");
         require(_standardTreasury != address(0), "Standard treasury address can not be zero.");
+
+        // initialize linked list for avatars
+        avatars[SENTINEL] = SENTINEL;
+
+        // retrieve the start time of the Circles Hub v1 contract
         circlesStartTime = _hubV1.deployedAt();
+        // store the standard treasury contract address for registerGrouo()
         standardTreasury = _standardTreasury;
     }
 
     // External functions
 
+    /**
+     * Register human allows the human to call
+     * @param _optionalIpfsCid optional IPFS CID for the avatar metadata
+     */
     function registerHuman(bytes32 _optionalIpfsCid) external {
+        _insertAvatar(msg.sender);
         // only available for v1 users with stopped mint, for initial bootstrap period
         //
         //require(trusts(_inviter, msg.sender), "");
         // todo: v1 stopped & enable migration
         //require(...);
-        insertAvatar(msg.sender);
-        // mintPolicies[msg.sender] = PERSONAL_MINT;
+
         lastMintTimes[msg.sender] = block.timestamp;
         // treasuries[msg.sender] = address(0);
 
@@ -133,11 +137,6 @@ contract Hub is ERC1155 {
         // require(
 
         // )
-    }
-
-    function insertAvatar(address avatar) internal {
-        avatars[avatar] = avatars[SENTINEL];
-        avatars[SENTINEL] = avatar;
     }
 
     function registerGroup(address _mint, string calldata _name, string calldata _symbol) external {
@@ -157,7 +156,7 @@ contract Hub is ERC1155 {
 
     function registerOrganization(string calldata _name) external {
         require(avatars[msg.sender] == address(0));
-        insertAvatar(msg.sender);
+        _insertAvatar(msg.sender);
     }
 
     function trust(address _trustReceiver, uint256 _expiry) external {
@@ -258,8 +257,10 @@ contract Hub is ERC1155 {
     function uri(uint256 _id) public view override returns (string memory uri_) {
         // charge 1 CRC for setting uri
         if (avatarIpfsUris[_id] != bytes32(0)) {
-            //return uri_ = string(abi.encodedPacked("ipfs://f0", bytes32ToHex(avatarIpfsUris[_id])));
+            //return uri_ = string(abi.encodedPacked(super.uri(id), bytes32ToHex(avatarIpfsUris[_id])));
         } else {
+            // todo: fallback should move into SDK rather than contract
+            // "https://fallback.aboutcircles.com/v1/profile/{id}.json"
             return super.uri(_id);
         }
     }
@@ -271,6 +272,12 @@ contract Hub is ERC1155 {
     }
 
     // Internal functions
+
+    function _insertAvatar(address _avatar) internal {
+        require(avatars[_avatar] == address(0), "Avatar already exists");
+        avatars[_avatar] = avatars[SENTINEL];
+        avatars[SENTINEL] = _avatar;
+    }
 
     function toDemurrageAmount(uint256 _amount, uint256 _timestamp) external {
         // timestamp should be "stepfunction" the timestamp
