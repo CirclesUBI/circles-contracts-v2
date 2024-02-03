@@ -2,7 +2,7 @@
 pragma solidity >=0.8.13;
 
 import "../lib/Math64x64.sol";
-import "./IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract TemporalDiscount is IERC20 {
     // Constants
@@ -93,8 +93,6 @@ contract TemporalDiscount is IERC20 {
 
     // Events
 
-    event Transfer(address indexed from, address indexed to, uint256 amount);
-
     /**
      * @notice DiscountCost is emitted when the owner sends or receives tokens
      *         in a new time span and emits the discounted amount
@@ -103,8 +101,6 @@ contract TemporalDiscount is IERC20 {
      * @param cost the amount that has been deducted from the balance for temporal discounting.
      */
     event DiscountCost(address indexed owner, uint256 cost);
-
-    event Approval(address indexed owner, address indexed spender, uint256 amount);
 
     // External functions
 

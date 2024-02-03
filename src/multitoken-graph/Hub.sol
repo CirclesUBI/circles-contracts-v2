@@ -6,6 +6,8 @@ import "openzeppelin-contracts/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import "openzeppelin-contracts/contracts/utils/Create2.sol";
 import "../migration/IHub.sol";
+import "../migration/IToken.sol";
+import "../circles/Circles.sol";
 
 /**
  * @title Hub v2 contract for Circles
@@ -18,7 +20,7 @@ import "../migration/IHub.sol";
  * It further allows to wrap any token into an inflationary or demurraged
  * ERC20 Circles contract.
  */
-contract Hub is ERC1155 {
+contract Hub is Circles {
     // Constants
 
     // The address used as the first element of the linked list of avatars.
@@ -29,7 +31,7 @@ contract Hub is ERC1155 {
     /**
      * @notice The Hub v1 contract address.
      */
-    address public immutable hubV1;
+    IHubV1 public immutable hubV1;
 
     /**
      * @notice The timestamp of the start of the Circles v1 contract.
@@ -39,13 +41,24 @@ contract Hub is ERC1155 {
     uint256 public immutable circlesStartTime;
 
     /**
+     * @notice The timestamp of the start of the invitation-only period.
+     * @dev This is used to determine the start of the invitation-only period.
+     * Prior to this time v1 avatars can register without an invitation, and
+     * new avatars can be invited by registered avatars. After this time
+     * only registered avatars can invite new avatars.
+     */
+    uint256 public immutable invitationOnlyTime;
+
+    /**
      * @notice The standard treasury contract address used when
      * registering a (non-custom) group.
      */
     address public immutable standardTreasury;
 
-    // linked list for registered avatars, used by all people,
-    // groups and organizations.
+    /**
+     * @notice The mapping of avatar addresses to the next avatar address.
+     * @dev This is used to store the linked list of registered avatars.
+     */
     mapping(address => address) public avatars;
 
     mapping(address => uint256) public lastMintTimes;
@@ -66,6 +79,11 @@ contract Hub is ERC1155 {
     mapping(uint256 => bytes32) public avatarIpfsUris;
 
     // Modifiers
+
+    modifier duringBootstrap() {
+        require(block.timestamp < invitationOnlyTime, "Bootstrap period has ended");
+        _;
+    }
 
     modifier isHuman(address _human) {
         require(lastMintTimes[_human] > 0, "");
@@ -92,28 +110,37 @@ contract Hub is ERC1155 {
      * Constructor for the Hub contract.
      * @param _hubV1 address of the Hub v1 contract
      * @param _standardTreasury address of the standard treasury contract
+     * @param _bootstrapTime duration of the bootstrap period (v1 registration & invitation) in seconds
      * @param _ipfsUri fallback URI string for the ERC1155 metadata, (todo: eg. "ipfs://f0")
      */
-    constructor(IHubV1 _hubV1, address _standardTreasury, string memory _ipfsUri) ERC1155(_ipfsUri) {
+    constructor(IHubV1 _hubV1, address _standardTreasury, uint256 _bootstrapTime, string memory _ipfsUri)
+        ERC1155(_ipfsUri)
+    {
         require(address(_hubV1) != address(0), "Hub v1 address can not be zero.");
         require(_standardTreasury != address(0), "Standard treasury address can not be zero.");
 
         // initialize linked list for avatars
         avatars[SENTINEL] = SENTINEL;
 
+        // store the Hub v1 contract address
+        hubV1 = _hubV1;
         // retrieve the start time of the Circles Hub v1 contract
         circlesStartTime = _hubV1.deployedAt();
         // store the standard treasury contract address for registerGrouo()
         standardTreasury = _standardTreasury;
+
+        // invitation-only period starts after the bootstrap time has passed since deployment
+        invitationOnlyTime = block.timestamp + _bootstrapTime;
     }
 
     // External functions
 
     /**
-     * Register human allows the human to call
-     * @param _optionalIpfsCid optional IPFS CID for the avatar metadata
+     * Register human allows to register an avatar for a human,
+     * if they have a stopped v1 Circles contract, during the bootstrap period.
+     * @param _ipfsCid (optional) IPFS CID for the avatar metadata should follow ERC1155 metadata standard
      */
-    function registerHuman(bytes32 _optionalIpfsCid) external {
+    function registerHuman(bytes32 _ipfsCid) external duringBootstrap {
         _insertAvatar(msg.sender);
         // only available for v1 users with stopped mint, for initial bootstrap period
         //
@@ -128,7 +155,7 @@ contract Hub is ERC1155 {
         // todo: let's welcome mint re-introduced; 3 days not demurraged
     }
 
-    function inviteHuman(address _human, bytes32 _optionalIpfsCid) external {
+    function inviteHuman(address _human) external {
         // works from the start (ie. also during bootstrap period)
         // inviter burns 2x welcome bonus
         // invited receives welcome bonus
@@ -273,8 +300,40 @@ contract Hub is ERC1155 {
 
     // Internal functions
 
+    /**
+     * Check if an avatar exists in the Hub v1 contract.
+     * @param _avatar avatar address to check
+     */
+    function _avatarV1Exists(address _avatar) internal returns (bool) {
+        // check if the avatar exists in the Hub v1 contract,
+        // by retrieving the associated token address
+        address tokenV1 = hubV1.userToToken(_avatar);
+
+        // return true if the token address is not zero
+        return (tokenV1 != address(0));
+    }
+
+    /**
+     * Check if an avatar's token is stopped in the Hub v1 contract.
+     * @param _avatar avatar address to check
+     */
+    function _avatarV1TokenStopped(address _avatar) internal returns (bool) {
+        // token must exist in V1 to answer whether it is stopped,
+        // or not stopped.
+        address tokenV1 = hubV1.userToToken(_avatar);
+        require(tokenV1 != address(0), "Avatar does not exist in v1");
+
+        // return the stopped status of the token
+        return ITokenV1(tokenV1).stopped();
+    }
+
+    /**
+     * Insert an avatar into the linked list of avatars.
+     * Reverts on inserting duplicates.
+     * @param _avatar avatar address to insert
+     */
     function _insertAvatar(address _avatar) internal {
-        require(avatars[_avatar] == address(0), "Avatar already exists");
+        require(avatars[_avatar] == address(0), "Avatar already inserted");
         avatars[_avatar] = avatars[SENTINEL];
         avatars[SENTINEL] = _avatar;
     }

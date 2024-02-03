@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity >=0.8.13;
 
-import "../circles/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @author CirclesUBI
 /// @title Circle Node interface
