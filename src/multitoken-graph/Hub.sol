@@ -43,10 +43,19 @@ contract Hub is Circles {
 
     // Constants
 
-    // The address used as the first element of the linked list of avatars.
+    /**
+     * @dev Welcome bonus for new avatars invited to Circles. Set to three days of non-demurraged Circles.
+     */
+    uint256 public constant WELCOME_BONUS = 3 * 24 * 10 ** 18;
+
+    /**
+     * @dev The address used as the first element of the linked list of avatars.
+     */
     address public constant SENTINEL = address(0x1);
 
-    // Address used to indicate that the associated v1 Circles contract has been stopped.
+    /**
+     * @dev Address used to indicate that the associated v1 Circles contract has been stopped.
+     */
     address public constant CIRCLES_STOPPED_V1 = address(0x1);
 
     // State variables
@@ -174,7 +183,18 @@ contract Hub is Circles {
     }
 
     function inviteHuman(address _human) external {
-        // works from the start (ie. also during bootstrap period)
+        // todo: if groups invite, we need to handle the burn of collateral properly.
+        require(isHuman(msg.sender), "Only humans can invite");
+
+        // insert avatar into linked list; reverts if it already exists
+        _insertAvatar(_human);
+
+        // inviter must burn twice the welcome bonus of their own Circles
+        _burn(msg.sender, _toTokenId(msg.sender), 2 * WELCOME_BONUS);
+
+        // invited receives the welcome bonus in their personal Circles
+        _mint(_human, _toTokenId(_human), WELCOME_BONUS, "");
+
         // inviter burns 2x welcome bonus
         // invited receives welcome bonus
         // todo: let's welcome mint re-introduced; 3 days not demurraged
@@ -220,7 +240,7 @@ contract Hub is Circles {
         uint256 secondsElapsed = (block.timestamp - mintTimes[msg.sender].lastMintTime);
         require(secondsElapsed > 0, "No tokens available to mint yet");
 
-        _mint(msg.sender, uint256(uint160(address(msg.sender))), secondsElapsed * 277777777777777, "");
+        _mint(msg.sender, _toTokenId(msg.sender), secondsElapsed * 277777777777777, "");
         mintTimes[msg.sender].lastMintTime = uint96(block.timestamp); // Reset the registration time after minting
     }
 
@@ -241,7 +261,7 @@ contract Hub is Circles {
         uint256 sumAmounts;
         // TODO sum up amounts
         sumAmounts = _amounts[0];
-        _mint(msg.sender, uint256(uint160(_group)), sumAmounts, "");
+        _mint(msg.sender, _toTokenId(_group), sumAmounts, "");
     }
 
     // check if path transfer can be fully ERC1155 compatible
@@ -336,6 +356,14 @@ contract Hub is Circles {
     }
 
     // Internal functions
+
+    /**
+     * Casts an avatar address to a tokenId uint256.
+     * @param _avatar avatar address to convert to tokenId
+     */
+    function _toTokenId(address _avatar) internal pure returns (uint256) {
+        return uint256(uint160(_avatar));
+    }
 
     /**
      * Check if an avatar exists in the Hub v1 contract.
