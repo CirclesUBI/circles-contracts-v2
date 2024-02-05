@@ -8,7 +8,7 @@ import "../../src/graph/ICircleNode.sol";
 import "../../src/circles/TimeCircle.sol";
 import "../../src/circles/GroupCircle.sol";
 import "../../src/mint/MintSplitter.sol";
-import "../migration/MockHub.sol";
+import "../migration/MockHubV1.sol";
 import "./MockInternalGraph.sol";
 
 contract GraphTest is Test {

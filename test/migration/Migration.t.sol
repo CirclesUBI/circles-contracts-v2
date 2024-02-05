@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
 import "../../src/migration/Migration.sol";
 import "../setup/TimeSetup.sol";
-import "./MockHub.sol";
+import "./MockHubV1.sol";
 
 contract GraphTest is Test {
     // Constants

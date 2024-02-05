@@ -1,50 +1,29 @@
 RPC_URL=https://rpc.chiado.gnosis.gateway.fm
 PRIVATE_KEY=$1
 
-V1_HUB_ADDRESS='0xdbF22D4e8962Db3b2F1d9Ff55be728A887e47710'
+STANDARD_TREASURY='0x0000000000000000000000000000000000000000'
 
-echo "Deploying MintSplitter..."
-MINT_SPLITTER_DEPLOYMENT=$(forge create \
+echo "Deploying Circles v1 Hub..."
+CIRCLE_V1_HUB=$(forge create \
   --rpc-url ${RPC_URL} \
   --private-key ${PRIVATE_KEY} \
-  src/mint/MintSplitter.sol:MintSplitter \
-  --constructor-args ${V1_HUB_ADDRESS})
+  src/circles-v1-graph/Hub.sol:Hub \
+  --constructor-args ${STANDARD_GROUP_MINT_POLICY})
 
-MINT_SPLITTER_ADDRESS=$(echo "$MINT_SPLITTER_DEPLOYMENT" | grep "Deployed to:" | awk '{print $3}')
-echo "MintSplitter deployed at ${MINT_SPLITTER_ADDRESS}"
+CIRCLE_V1_HUB_ADDRESS=$(echo "$CIRCLE_V1_HUB" | grep "Deployed to:" | awk '{print $3}')
+echo "Circles v1 Hub deployed at ${CIRCLE_V1_HUB_ADDRESS}"
 
-echo "Deploying TimeCircle..."
-TIME_CIRCLE_DEPLOYMENT=$(forge create \
+echo "Deploying ERC1155 Hub..."
+MULTITOKEN_HUB=$(forge create \
   --rpc-url ${RPC_URL} \
   --private-key ${PRIVATE_KEY} \
-  src/circles/TimeCircle.sol:TimeCircle)
-
-TIME_CIRCLE_ADDRESS=$(echo "$TIME_CIRCLE_DEPLOYMENT" | grep "Deployed to:" | awk '{print $3}')
-echo "TimeCircle deployed at ${TIME_CIRCLE_ADDRESS}"
-
-echo "Deploying GroupCircle..."
-GROUP_CIRCLES_DEPLOYMENT=$(forge create \
-  --rpc-url ${RPC_URL} \
-  --private-key ${PRIVATE_KEY} \
-  src/circles/GroupCircle.sol:GroupCircle)
-
-GROUP_CIRCLES_ADDRESS=$(echo "$GROUP_CIRCLES_DEPLOYMENT" | grep "Deployed to:" | awk '{print $3}')
-echo "GroupCircle deployed at ${GROUP_CIRCLES_ADDRESS}"
-
-echo "Deploying Graph..."
-GRAPH_DEPLOYMENT=$(forge create \
-  --rpc-url ${RPC_URL} \
-  --private-key ${PRIVATE_KEY} \
-  src/graph/Graph.sol:Graph \
-  --constructor-args ${MINT_SPLITTER_ADDRESS} '0x0000000000000000000000000000000000000000' ${TIME_CIRCLE_ADDRESS} ${GROUP_CIRCLES_ADDRESS})
-
-GRAPH_ADDRESS=$(echo "$GRAPH_DEPLOYMENT" | grep "Deployed to:" | awk '{print $3}')
-echo "Graph deployed at ${GRAPH_ADDRESS}"
+  src/multitoken-graph/Hub.sol:Hub \
+  --constructor-args ${CIRCLE_V1_HUB_ADDRESS} ${STANDARD_TREASURY} "https://example.com/")
+MULTITOKEN_HUB_ADDRESS=$(echo "$MULTITOKEN_HUB" | grep "Deployed to:" | awk '{print $3}')
+echo "ERC1155 Hub deployed at ${MULTITOKEN_HUB_ADDRESS}"
 
 echo ""
 echo "Summary:"
 echo "========"
-echo "MintSplitter: ${MINT_SPLITTER_ADDRESS}"
-echo "TimeCircle: ${TIME_CIRCLE_ADDRESS}"
-echo "GroupCircle: ${GROUP_CIRCLES_ADDRESS}"
-echo "Graph: ${GRAPH_ADDRESS}"
+echo "Circles v1 Hub: ${CIRCLE_V1_HUB_ADDRESS}"
+echo "Circles v2 Hub: ${MULTITOKEN_HUB_ADDRESS}"

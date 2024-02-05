@@ -7,7 +7,7 @@ import "../../src/mint/MintSplitter.sol";
 import "../../src/graph/Graph.sol";
 import "../../src/circles/TimeCircle.sol";
 import "../../src/circles/GroupCircle.sol";
-import "../migration/MockHub.sol";
+import "../migration/MockHubV1.sol";
 import "./TimeSetup.sol";
 
 contract TimeCircleSetup is TimeSetup {

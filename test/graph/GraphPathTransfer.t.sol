@@ -8,7 +8,7 @@ import "../../src/circles/TimeCircle.sol";
 import "../../src/circles/GroupCircle.sol";
 import "../../src/mint/MintSplitter.sol";
 import "../setup/TimeSetup.sol";
-import "../migration/MockHub.sol";
+import "../migration/MockHubV1.sol";
 
 contract GraphPathTransferTest is Test, TimeSetup {
     // Constant
