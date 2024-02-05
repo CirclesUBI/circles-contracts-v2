@@ -21,10 +21,33 @@ import "../circles/Circles.sol";
  * ERC20 Circles contract.
  */
 contract Hub is Circles {
+    // Type declarations
+
+    /**
+     * @notice MintTime struct stores the last mint time,
+     * and the status of a connected v1 Circles contract.
+     * @dev This is used to store the last mint time for each avatar,
+     * and the address is used as a status for the connected v1 Circles contract.
+     * The address is kept at zero address if the avatar is not registered in Hub v1.
+     * If the avatar is registered in Hub v1, but the associated Circles ERC20 contract
+     * has not been stopped, then the address is set to that v1 Circles contract address.
+     * Once the Circles v1 contract has been stopped, the address is set to 0x01.
+     * At every observed transition of the status of the v1 Circles contract,
+     * the lastMintTime will be updated to the current timestamp to avoid possible
+     * overlap of the mint between Hub v1 and Hub v2.
+     */
+    struct MintTime {
+        address mintV1Status;
+        uint96 lastMintTime;
+    }
+
     // Constants
 
     // The address used as the first element of the linked list of avatars.
     address public constant SENTINEL = address(0x1);
+
+    // Address used to indicate that the associated v1 Circles contract has been stopped.
+    address public constant CIRCLES_STOPPED_V1 = address(0x1);
 
     // State variables
 
@@ -56,12 +79,18 @@ contract Hub is Circles {
     address public immutable standardTreasury;
 
     /**
-     * @notice The mapping of avatar addresses to the next avatar address.
+     * @notice The mapping of registered avatar addresses to the next avatar address,
+     * stored as a linked list.
      * @dev This is used to store the linked list of registered avatars.
      */
     mapping(address => address) public avatars;
 
-    mapping(address => uint256) public lastMintTimes;
+    /**
+     * @notice The mapping of avatar addresses to the last mint time,
+     * and the status of the v1 Circles minting.
+     * @dev This is used to store the last mint time for each avatar.
+     */
+    mapping(address => MintTime) public mintTimes;
 
     mapping(address => bool) public stopped;
 
@@ -75,32 +104,20 @@ contract Hub is Circles {
     // todo: ok for linked list, expiry 96 bits
     mapping(address => mapping(address => uint256)) public trustMarkers;
 
-    // todo: do address
-    mapping(uint256 => bytes32) public avatarIpfsUris;
+    /**
+     * @notice tokenIDToCidV0Digest is a mapping of token IDs to the IPFS CIDv0 digest.
+     */
+    mapping(uint256 => bytes32) public tokenIdToCidV0Digest;
+
+    // Events
 
     // Modifiers
 
+    /**
+     * Modifier to check if the current time is during the bootstrap period.
+     */
     modifier duringBootstrap() {
         require(block.timestamp < invitationOnlyTime, "Bootstrap period has ended");
-        _;
-    }
-
-    modifier isHuman(address _human) {
-        require(lastMintTimes[_human] > 0, "");
-        _;
-    }
-
-    modifier isGroup(address _group) {
-        require(mintPolicies[_group] != address(0), "");
-        _;
-    }
-
-    modifier isOrganization(address _organization) {
-        require(
-            avatars[_organization] != address(0) && mintPolicies[_organization] == address(0)
-                && lastMintTimes[_organization] == uint256(0),
-            ""
-        );
         _;
     }
 
@@ -110,11 +127,12 @@ contract Hub is Circles {
      * Constructor for the Hub contract.
      * @param _hubV1 address of the Hub v1 contract
      * @param _standardTreasury address of the standard treasury contract
-     * @param _bootstrapTime duration of the bootstrap period (v1 registration & invitation) in seconds
-     * @param _ipfsUri fallback URI string for the ERC1155 metadata, (todo: eg. "ipfs://f0")
+     * @param _bootstrapTime duration of the bootstrap period (for v1 registration) in seconds
+     * @param _fallbackUri fallback URI string for the ERC1155 metadata,
+     * (todo: eg. "https://fallback.aboutcircles.com/v1/circles/{id}.json")
      */
-    constructor(IHubV1 _hubV1, address _standardTreasury, uint256 _bootstrapTime, string memory _ipfsUri)
-        ERC1155(_ipfsUri)
+    constructor(IHubV1 _hubV1, address _standardTreasury, uint256 _bootstrapTime, string memory _fallbackUri)
+        ERC1155(_fallbackUri)
     {
         require(address(_hubV1) != address(0), "Hub v1 address can not be zero.");
         require(_standardTreasury != address(0), "Standard treasury address can not be zero.");
@@ -138,27 +156,28 @@ contract Hub is Circles {
     /**
      * Register human allows to register an avatar for a human,
      * if they have a stopped v1 Circles contract, during the bootstrap period.
-     * @param _ipfsCid (optional) IPFS CID for the avatar metadata should follow ERC1155 metadata standard
+     * @param _cidV0Digest (optional) IPFS CIDv0 digest for the avatar metadata
+     * should follow ERC1155 metadata standard.
      */
-    function registerHuman(bytes32 _ipfsCid) external duringBootstrap {
+    function registerHuman(bytes32 _cidV0Digest) external duringBootstrap {
+        // only available for v1 users with stopped v1 mint, for initial bootstrap period
+        require(_avatarV1TokenStopped(msg.sender), "Avatar must have stopped v1 Circles contract");
+        // insert avatar into linked list; reverts if it already exists
         _insertAvatar(msg.sender);
-        // only available for v1 users with stopped mint, for initial bootstrap period
-        //
-        //require(trusts(_inviter, msg.sender), "");
-        // todo: v1 stopped & enable migration
-        //require(...);
+        tokenIdToCidV0Digest[uint256(uint160(msg.sender))] = _cidV0Digest;
 
-        lastMintTimes[msg.sender] = block.timestamp;
-        // treasuries[msg.sender] = address(0);
-
-        // don't receive welcome mint as v1 user
-        // todo: let's welcome mint re-introduced; 3 days not demurraged
+        // set the last mint time to the current timestamp
+        // and register the v1 Circles contract as stopped
+        MintTime storage mintTime = mintTimes[msg.sender];
+        mintTime.mintV1Status = CIRCLES_STOPPED_V1;
+        mintTime.lastMintTime = uint96(block.timestamp);
     }
 
     function inviteHuman(address _human) external {
         // works from the start (ie. also during bootstrap period)
         // inviter burns 2x welcome bonus
         // invited receives welcome bonus
+        // todo: let's welcome mint re-introduced; 3 days not demurraged
         // inviter trusts invited
         // invited can still setup migration from v1; simply not initiate registerHuman anymore
         // require(
@@ -192,14 +211,17 @@ contract Hub is Circles {
         trustMarkers[msg.sender][_trustReceiver] = _expiry;
     }
 
-    // todo: happy with this name?
-    function personalMint() external isHuman(msg.sender) {
-        // do daily demurrage over claimable period; max 2week
-        uint256 secondsElapsed = (block.timestamp - lastMintTimes[msg.sender]);
+    function personalMint() external {
+        require(isHuman(msg.sender), "Only avatars registered as human can call personal mint.");
+        // todo: do daily demurrage over claimable period; max 2week
+        // todo: check v1 mint status and update accordingly
+
+        // todo: this is placeholder code using seconds.
+        uint256 secondsElapsed = (block.timestamp - mintTimes[msg.sender].lastMintTime);
         require(secondsElapsed > 0, "No tokens available to mint yet");
 
         _mint(msg.sender, uint256(uint160(address(msg.sender))), secondsElapsed * 277777777777777, "");
-        lastMintTimes[msg.sender] = block.timestamp; // Reset the registration time after minting
+        mintTimes[msg.sender].lastMintTime = uint96(block.timestamp); // Reset the registration time after minting
     }
 
     // graph transfers SHOULD allow personal -> group conversion en route
@@ -281,21 +303,36 @@ contract Hub is Circles {
     // do some unique name hash finding for personal circles
     // register with a salt for avoiding malicious blockage
 
+    /**
+     * uri returns the IPFS URI for the ERC1155 token.
+     * If the
+     * @param _id tokenId of the ERC1155 token
+     */
     function uri(uint256 _id) public view override returns (string memory uri_) {
-        // charge 1 CRC for setting uri
-        if (avatarIpfsUris[_id] != bytes32(0)) {
-            //return uri_ = string(abi.encodedPacked(super.uri(id), bytes32ToHex(avatarIpfsUris[_id])));
-        } else {
-            // todo: fallback should move into SDK rather than contract
-            // "https://fallback.aboutcircles.com/v1/profile/{id}.json"
-            return super.uri(_id);
-        }
+        // todo: fallback should move into SDK rather than contract
+        // "https://fallback.aboutcircles.com/v1/profile/{id}.json"
+        return super.uri(_id);
     }
 
-    function setUri(bytes32 _ipfsCid) external {
+    function setIpfsCidV0(bytes32 _ipfsCid) external {
         // charge 1 CRC to update
         // msg.sender -> tokenId
-        avatarIpfsUris[uint256(uint160(msg.sender))] = _ipfsCid;
+        tokenIdToCidV0Digest[uint256(uint160(msg.sender))] = _ipfsCid;
+    }
+
+    // Public functions
+
+    function isHuman(address _human) public view returns (bool) {
+        return mintTimes[_human].lastMintTime > 0;
+    }
+
+    function isGroup(address _group) public view returns (bool) {
+        return mintPolicies[_group] != address(0);
+    }
+
+    function isOrganization(address _organization) public view returns (bool) {
+        return avatars[_organization] != address(0) && mintPolicies[_organization] == address(0)
+            && mintTimes[_organization].lastMintTime == uint256(0);
     }
 
     // Internal functions
