@@ -126,6 +126,10 @@ contract Hub is Circles {
 
     mapping(address => address) public treasuries;
 
+    mapping(address => string) public names;
+
+    mapping(address => string) public symbols;
+
     /**
      * @notice The iterable mapping of directional trust relations between avatars and
      * their expiry times.
@@ -138,6 +142,20 @@ contract Hub is Circles {
     mapping(uint256 => bytes32) public tokenIdToCidV0Digest;
 
     // Events
+
+    event RegisterHuman(address indexed avatar, bytes32 cidV0Digest);
+    event InviteHuman(address indexed inviter, address indexed invited);
+    event RegisterOrganization(address indexed organization, string name, bytes32 cidV0Digest);
+    event RegisterGroup(
+        address indexed group,
+        address indexed mint,
+        address indexed treasury,
+        string name,
+        string symbol,
+        bytes32 cidV0Digest
+    );
+
+    event Trust(address indexed truster, address indexed trustee, uint256 expiryTime);
 
     // Modifiers
 
@@ -194,6 +212,8 @@ contract Hub is Circles {
         );
         // insert avatar into linked list; reverts if it already exists
         _insertAvatar(msg.sender);
+
+        // store the IPFS CIDv0 digest for the avatar metadata
         tokenIdToCidV0Digest[uint256(uint160(msg.sender))] = _cidV0Digest;
 
         // set the last mint time to the current timestamp
@@ -204,6 +224,8 @@ contract Hub is Circles {
 
         // trust self indefinitely
         _trust(msg.sender, msg.sender, INDEFINITELY);
+
+        emit RegisterHuman(msg.sender, _cidV0Digest);
     }
 
     /**
@@ -237,32 +259,62 @@ contract Hub is Circles {
 
         // set the trust for the invited to self to indefinite future; not editable later
         _trust(_human, _human, INDEFINITELY);
+
+        emit InviteHuman(msg.sender, _human);
     }
 
     /**
      * @notice Register group allows to register a group avatar.
      * @param _mint mint address will be called before minting group circles
-     * @param _name immutable name of the group
-     * @param _symbol immutable symbol of the group
+     * @param _name immutable name of the group Circles
+     * @param _symbol immutable symbol of the group Circles
+     * @param _cidV0Digest IPFS CIDv0 digest for the group metadata
      */
-    function registerGroup(address _mint, string calldata _name, string calldata _symbol) external {
-        require(avatars[msg.sender] == address(0), "Avatar is already inserted.");
-        _registerGroup(msg.sender, _mint, standardTreasury, _name, _symbol);
-    }
-
-    function registerCustomGroup(address _mint, address _treasury, string calldata _name, string calldata _symbol)
+    function registerGroup(address _mint, string calldata _name, string calldata _symbol, bytes32 _cidV0Digest)
         external
     {
-        // msg.sender controls membership
-        // minting: policy only
-        // redemption: treasury contract (ideally generated from a factory - outside protocol)
-        require(avatars[msg.sender] == address(0));
-        _registerGroup(msg.sender, _mint, _treasury, _name, _symbol);
+        _registerGroup(msg.sender, _mint, standardTreasury, _name, _symbol);
+
+        // store the IPFS CIDv0 digest for the group metadata
+        tokenIdToCidV0Digest[_toTokenId(msg.sender)] = _cidV0Digest;
+
+        emit RegisterGroup(msg.sender, _mint, standardTreasury, _name, _symbol, _cidV0Digest);
     }
 
-    function registerOrganization(string calldata _name) external {
-        require(avatars[msg.sender] == address(0));
+    /**
+     * @notice Register custom group allows to register a group with a custom treasury contract.
+     * @param _mint mint address will be called before minting group circles
+     * @param _treasury treasury address for receiving collateral
+     * @param _name immutable name of the group Circles
+     * @param _symbol immutable symbol of the group Circles
+     * @param _cidV0Digest IPFS CIDv0 digest for the group metadata
+     */
+    function registerCustomGroup(
+        address _mint,
+        address _treasury,
+        string calldata _name,
+        string calldata _symbol,
+        bytes32 _cidV0Digest
+    ) external {
+        _registerGroup(msg.sender, _mint, _treasury, _name, _symbol);
+
+        // store the IPFS CIDv0 digest for the group metadata
+        tokenIdToCidV0Digest[_toTokenId(msg.sender)] = _cidV0Digest;
+
+        emit RegisterGroup(msg.sender, _mint, _treasury, _name, _symbol, _cidV0Digest);
+    }
+
+    function registerOrganization(string calldata _name, bytes32 _cidV0Digest) external {
+        require(_isValidName(_name), "Invalid organization name.");
         _insertAvatar(msg.sender);
+
+        // store the name for the organization
+        names[msg.sender] = _name;
+
+        // store the IPFS CIDv0 digest for the organization metadata
+        tokenIdToCidV0Digest[_toTokenId(msg.sender)] = _cidV0Digest;
+
+        emit RegisterOrganization(msg.sender, _name, _cidV0Digest);
     }
 
     /**
@@ -388,9 +440,9 @@ contract Hub is Circles {
     }
 
     function setIpfsCidV0(bytes32 _ipfsCid) external {
-        // charge 1 CRC to update
-        // msg.sender -> tokenId
-        tokenIdToCidV0Digest[uint256(uint160(msg.sender))] = _ipfsCid;
+        require(avatars[msg.sender] != address(0), "Avatar must be registered.");
+        // todo: we should charge in CRC, but better done later through a storage market
+        tokenIdToCidV0Digest[_toTokenId(msg.sender)] = _ipfsCid;
     }
 
     function toDemurrageAmount(uint256 _amount, uint256 _timestamp) external {
@@ -422,7 +474,11 @@ contract Hub is Circles {
 
     // Internal functions
 
-    function _trust(address _truster, address _trustee, uint96 _expiry) internal {}
+    function _trust(address _truster, address _trustee, uint96 _expiry) internal {
+        _upsertTrustMarker(_truster, _trustee, _expiry);
+
+        emit Trust(_truster, _trustee, _expiry);
+    }
 
     /**
      * Casts an avatar address to a tokenId uint256.
@@ -483,9 +539,15 @@ contract Hub is Circles {
         // insert avatar into linked list; reverts if it already exists
         _insertAvatar(_avatar);
 
+        // store the mint policy for the group
         mintPolicies[_avatar] = _mint;
 
-        // do
+        // store the treasury for the group
+        treasuries[_avatar] = _treasury;
+
+        // store the name and symbol for the group
+        names[_avatar] = _name;
+        symbols[_avatar] = _symbol;
     }
 
     // Private functions
@@ -539,14 +601,11 @@ contract Hub is Circles {
         for (uint256 i = 0; i < symbolBytes.length; i++) {
             bytes1 char = symbolBytes[i];
             if (
-                // 0-9
-                // A-Z
-                // a-z
-                // Hyphen (-)
+                // allowed ASCII characters 0-9, A-Z, a-z, Hyphen (-), Underscore (_)
                 !(
                     (char >= 0x30 && char <= 0x39) || (char >= 0x41 && char <= 0x5A) || (char >= 0x61 && char <= 0x7A)
                         || (char == 0x2D) || (char == 0x5F)
-                ) // Underscore (_)
+                )
             ) {
                 return false;
             }
