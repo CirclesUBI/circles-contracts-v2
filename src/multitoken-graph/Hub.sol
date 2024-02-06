@@ -206,8 +206,14 @@ contract Hub is Circles {
         _trust(msg.sender, msg.sender, INDEFINITELY);
     }
 
+    /**
+     * Invite human allows to register another human avatar.
+     * The inviter must burn twice the welcome bonus of their own Circles,
+     * and the invited human receives the welcome bonus in their personal Circles.
+     * The inviter is set to trust the invited avatar.
+     * @param _human avatar of the human to invite
+     */
     function inviteHuman(address _human) external {
-        // todo: if groups invite, we need to handle the burn of collateral properly.
         require(isHuman(msg.sender), "Only humans can invite.");
 
         // insert avatar into linked list; reverts if it already exists
