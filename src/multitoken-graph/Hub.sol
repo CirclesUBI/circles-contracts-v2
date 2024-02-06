@@ -41,6 +41,17 @@ contract Hub is Circles {
         uint96 lastMintTime;
     }
 
+    /**
+     * @notice TrustMarker stores the expiry of a trust relation as uint96,
+     * and is iterable as a linked list of trust markers.
+     * @dev This is used to store the directional trust relation between two avatars,
+     * and the expiry of the trust relation as uint96 in unix time.
+     */
+    struct TrustMarker {
+        address previous;
+        uint96 expiry;
+    }
+
     // Constants
 
     /**
@@ -110,8 +121,11 @@ contract Hub is Circles {
 
     mapping(address => address) public treasuries;
 
-    // todo: ok for linked list, expiry 96 bits
-    mapping(address => mapping(address => uint256)) public trustMarkers;
+    /**
+     * @notice The iterable mapping of directional trust relations between avatars and
+     * their expiry times.
+     */
+    mapping(address => mapping(address => TrustMarker)) public trustMarkers;
 
     /**
      * @notice tokenIDToCidV0Digest is a mapping of token IDs to the IPFS CIDv0 digest.
@@ -126,7 +140,7 @@ contract Hub is Circles {
      * Modifier to check if the current time is during the bootstrap period.
      */
     modifier duringBootstrap() {
-        require(block.timestamp < invitationOnlyTime, "Bootstrap period has ended");
+        require(block.timestamp < invitationOnlyTime, "Bootstrap period has ended.");
         _;
     }
 
@@ -170,7 +184,7 @@ contract Hub is Circles {
      */
     function registerHuman(bytes32 _cidV0Digest) external duringBootstrap {
         // only available for v1 users with stopped v1 mint, for initial bootstrap period
-        require(_avatarV1TokenStopped(msg.sender), "Avatar must have stopped v1 Circles contract");
+        require(_avatarV1TokenStopped(msg.sender), "Avatar must have stopped v1 Circles contract.");
         // insert avatar into linked list; reverts if it already exists
         _insertAvatar(msg.sender);
         tokenIdToCidV0Digest[uint256(uint160(msg.sender))] = _cidV0Digest;
@@ -184,7 +198,7 @@ contract Hub is Circles {
 
     function inviteHuman(address _human) external {
         // todo: if groups invite, we need to handle the burn of collateral properly.
-        require(isHuman(msg.sender), "Only humans can invite");
+        require(isHuman(msg.sender), "Only humans can invite.");
 
         // insert avatar into linked list; reverts if it already exists
         _insertAvatar(_human);
@@ -195,9 +209,6 @@ contract Hub is Circles {
         // invited receives the welcome bonus in their personal Circles
         _mint(_human, _toTokenId(_human), WELCOME_BONUS, "");
 
-        // inviter burns 2x welcome bonus
-        // invited receives welcome bonus
-        // todo: let's welcome mint re-introduced; 3 days not demurraged
         // inviter trusts invited
         // invited can still setup migration from v1; simply not initiate registerHuman anymore
         // require(
@@ -225,10 +236,23 @@ contract Hub is Circles {
         _insertAvatar(msg.sender);
     }
 
-    function trust(address _trustReceiver, uint256 _expiry) external {
-        // todo: make iterable; don't require expiry > block.timestamp
-        // possibly: if _expiry < block.timestamp, set expiry = block.timestamp;
-        trustMarkers[msg.sender][_trustReceiver] = _expiry;
+    /**
+     * Trust allows to trust another address for a certain period of time.
+     * Expiry times in the past are set to the current block timestamp.
+     * @param _trustReceiver address that is trusted by the caller
+     * @param _expiry expiry time in seconds since unix epoch until when trust is valid
+     * @dev Trust is directional and can be set by the caller to any address.
+     * The trusted address does not (yet) have to be registered in the Hub contract.
+     */
+    function trust(address _trustReceiver, uint96 _expiry) external {
+        require(avatars[msg.sender] != address(0), "Caller must be registered as an avatar in the Hub contract.");
+        require(
+            _trustReceiver != address(0) || _trustReceiver != SENTINEL, "You cannot trust the zero, or 0x1 address."
+        );
+        require(_trustReceiver != msg.sender, "You cannot edit your own trust relation.");
+        // expiring trust cannot be set in the past
+        if (_expiry < block.timestamp) _expiry = uint96(block.timestamp);
+        _trust(msg.sender, _trustReceiver, _expiry);
     }
 
     function personalMint() external {
@@ -238,7 +262,7 @@ contract Hub is Circles {
 
         // todo: this is placeholder code using seconds.
         uint256 secondsElapsed = (block.timestamp - mintTimes[msg.sender].lastMintTime);
-        require(secondsElapsed > 0, "No tokens available to mint yet");
+        require(secondsElapsed > 0, "No tokens available to mint yet.");
 
         _mint(msg.sender, _toTokenId(msg.sender), secondsElapsed * 277777777777777, "");
         mintTimes[msg.sender].lastMintTime = uint96(block.timestamp); // Reset the registration time after minting
@@ -357,6 +381,8 @@ contract Hub is Circles {
 
     // Internal functions
 
+    function _trust(address _truster, address _trustee, uint96 _expiry) internal {}
+
     /**
      * Casts an avatar address to a tokenId uint256.
      * @param _avatar avatar address to convert to tokenId
@@ -423,6 +449,36 @@ contract Hub is Circles {
         string calldata _symbol
     ) internal {
         // do
+    }
+
+    // Private functions
+
+    /**
+     * @dev Internal function to upsert a trust marker for a truster and a trusted address.
+     * It will initialize the linked list for the truster if it does not exist yet.
+     * If the trustee is not yet trusted by the truster, it will insert the trust marker.
+     * It will update the expiry time for the trusted address.
+     */
+    function _upsertTrustMarker(address _truster, address _trusted, uint96 _expiry) private {
+        assert(_truster != address(0));
+        assert(_trusted != address(0));
+        assert(_trusted != SENTINEL);
+
+        TrustMarker storage sentinelMarker = trustMarkers[_truster][SENTINEL];
+        if (sentinelMarker.previous == address(0)) {
+            // initialize the linked list for truster
+            sentinelMarker.previous = SENTINEL;
+        }
+
+        TrustMarker storage trustMarker = trustMarkers[_truster][_trusted];
+        if (trustMarker.previous == address(0)) {
+            // insert the trust marker
+            trustMarker.previous = sentinelMarker.previous;
+            sentinelMarker.previous = _trusted;
+        }
+
+        // update the expiry; checks must be done by caller
+        trustMarker.expiry = _expiry;
     }
 }
 
