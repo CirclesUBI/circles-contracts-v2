@@ -540,9 +540,9 @@ contract Hub is Circles {
             bytes1 char = symbolBytes[i];
             if (
                 // 0-9
-                    // A-Z
-                    // a-z
-                    // Hyphen (-)
+                // A-Z
+                // a-z
+                // Hyphen (-)
                 !(
                     (char >= 0x30 && char <= 0x39) || (char >= 0x41 && char <= 0x5A) || (char >= 0x61 && char <= 0x7A)
                         || (char == 0x2D) || (char == 0x5F)
