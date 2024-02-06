@@ -239,8 +239,14 @@ contract Hub is Circles {
         _trust(_human, _human, INDEFINITELY);
     }
 
+    /**
+     * @notice Register group allows to register a group avatar.
+     * @param _mint mint address will be called before minting group circles
+     * @param _name immutable name of the group
+     * @param _symbol immutable symbol of the group
+     */
     function registerGroup(address _mint, string calldata _name, string calldata _symbol) external {
-        require(avatars[msg.sender] == address(0));
+        require(avatars[msg.sender] == address(0), "Avatar is already inserted.");
         _registerGroup(msg.sender, _mint, standardTreasury, _name, _symbol);
     }
 
@@ -465,10 +471,88 @@ contract Hub is Circles {
         string calldata _name,
         string calldata _symbol
     ) internal {
+        // todo: we could check ERC165 support interface for mint policy
+        require(_mint != address(0), "Mint address can not be zero.");
+        // todo: same check treasury is an ERC1155Receiver for receiving collateral
+        require(_treasury != address(0), "Treasury address can not be zero.");
+        // name must be ASCII alphanumeric and some special characters
+        require(_isValidName(_name), "Invalid group name.");
+        // symbol must be ASCII alphanumeric and some special characters
+        require(_isValidSymbol(_symbol), "Invalid group symbol.");
+
+        // insert avatar into linked list; reverts if it already exists
+        _insertAvatar(_avatar);
+
+        mintPolicies[_avatar] = _mint;
+
         // do
     }
 
     // Private functions
+
+    /**
+     * @dev checks whether string is a valid name by checking
+     * the length as max 32 bytes and the allowed characters: 0-9, A-Z, a-z, space,
+     * hyphen, underscore, period, parentheses, apostrophe,
+     * ampersand, plus and hash.
+     * This restricts the contract name to a subset of ASCII characters,
+     * and excludes unicode characters for other alphabets and emoticons.
+     * Instead the default ERC1155 metadata read from the IPFS CID registry,
+     * should provide the full display name with unicode characters.
+     * Names are not checked for uniqueness.
+     */
+    function _isValidName(string memory _name) public pure returns (bool) {
+        bytes memory nameBytes = bytes(_name);
+        if (nameBytes.length > 32 || nameBytes.length == 0) return false; // Check length
+
+        for (uint256 i = 0; i < nameBytes.length; i++) {
+            bytes1 char = nameBytes[i];
+            if (
+                !(char >= 0x30 && char <= 0x39) // 0-9
+                    && !(char >= 0x41 && char <= 0x5A) // A-Z
+                    && !(char >= 0x61 && char <= 0x7A) // a-z
+                    && !(char == 0x20) // Space
+                    && !(char == 0x2D || char == 0x5F) // Hyphen (-), Underscore (_)
+                    && !(char == 0x2E) // Period (.)
+                    && !(char == 0x28 || char == 0x29) // Parentheses ( () )
+                    && !(char == 0x27) // Apostrophe (')
+                    && !(char == 0x26) // Ampersand (&)
+                    && !(char == 0x2B || char == 0x23) // Plus (+), Hash (#)
+            ) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * @dev checks whether string is a valid symbol by checking
+     * the length as max 16 bytes and the allowed characters: 0-9, A-Z, a-z,
+     * hyphen, underscore.
+     */
+    function _isValidSymbol(string memory _symbol) public pure returns (bool) {
+        bytes memory symbolBytes = bytes(_symbol);
+        if (symbolBytes.length == 0 || symbolBytes.length > 16) {
+            return false; // Check length is within range
+        }
+
+        for (uint256 i = 0; i < symbolBytes.length; i++) {
+            bytes1 char = symbolBytes[i];
+            if (
+                // 0-9
+                    // A-Z
+                    // a-z
+                    // Hyphen (-)
+                !(
+                    (char >= 0x30 && char <= 0x39) || (char >= 0x41 && char <= 0x5A) || (char >= 0x61 && char <= 0x7A)
+                        || (char == 0x2D) || (char == 0x5F)
+                ) // Underscore (_)
+            ) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     /**
      * @dev Internal function to upsert a trust marker for a truster and a trusted address.
