@@ -69,6 +69,11 @@ contract Hub is Circles {
      */
     address public constant CIRCLES_STOPPED_V1 = address(0x1);
 
+    /**
+     * @notice Indefinitely, or approximate future infinity with uint96.max
+     */
+    uint96 public constant INDEFINITELY = type(uint96).max;
+
     // State variables
 
     /**
@@ -184,7 +189,9 @@ contract Hub is Circles {
      */
     function registerHuman(bytes32 _cidV0Digest) external duringBootstrap {
         // only available for v1 users with stopped v1 mint, for initial bootstrap period
-        require(_avatarV1TokenStopped(msg.sender), "Avatar must have stopped v1 Circles contract.");
+        require(
+            _avatarV1CirclesStatus(msg.sender) == CIRCLES_STOPPED_V1, "Avatar must have stopped v1 Circles contract."
+        );
         // insert avatar into linked list; reverts if it already exists
         _insertAvatar(msg.sender);
         tokenIdToCidV0Digest[uint256(uint160(msg.sender))] = _cidV0Digest;
@@ -194,6 +201,9 @@ contract Hub is Circles {
         MintTime storage mintTime = mintTimes[msg.sender];
         mintTime.mintV1Status = CIRCLES_STOPPED_V1;
         mintTime.lastMintTime = uint96(block.timestamp);
+
+        // trust self indefinitely
+        _trust(msg.sender, msg.sender, INDEFINITELY);
     }
 
     function inviteHuman(address _human) external {
@@ -203,17 +213,24 @@ contract Hub is Circles {
         // insert avatar into linked list; reverts if it already exists
         _insertAvatar(_human);
 
+        // set the last mint time to the current timestamp for invited human
+        // and register the v1 Circles contract status
+        address v1CirclesStatus = _avatarV1CirclesStatus(_human);
+        MintTime storage mintTime = mintTimes[_human];
+        mintTime.mintV1Status = v1CirclesStatus;
+        mintTime.lastMintTime = uint96(block.timestamp);
+
         // inviter must burn twice the welcome bonus of their own Circles
         _burn(msg.sender, _toTokenId(msg.sender), 2 * WELCOME_BONUS);
 
         // invited receives the welcome bonus in their personal Circles
         _mint(_human, _toTokenId(_human), WELCOME_BONUS, "");
 
-        // inviter trusts invited
-        // invited can still setup migration from v1; simply not initiate registerHuman anymore
-        // require(
+        // set trust to indefinite future, but avatar can edit this later
+        _trust(msg.sender, _human, INDEFINITELY);
 
-        // )
+        // set the trust for the invited to self to indefinite future; not editable later
+        _trust(_human, _human, INDEFINITELY);
     }
 
     function registerGroup(address _mint, string calldata _name, string calldata _symbol) external {
@@ -364,6 +381,18 @@ contract Hub is Circles {
         tokenIdToCidV0Digest[uint256(uint160(msg.sender))] = _ipfsCid;
     }
 
+    function toDemurrageAmount(uint256 _amount, uint256 _timestamp) external {
+        // timestamp should be "stepfunction" the timestamp
+        // todo: ask where the best time step is
+
+        if (_timestamp < circlesStartTime) _timestamp = block.timestamp;
+
+        // uint256 durationSinceStart = _time - hubV1start;
+        // do conversion
+    }
+
+    function ToInflationAmount(uint256 _amount, uint256 _timestamp) external {}
+
     // Public functions
 
     function isHuman(address _human) public view returns (bool) {
@@ -392,30 +421,24 @@ contract Hub is Circles {
     }
 
     /**
-     * Check if an avatar exists in the Hub v1 contract.
-     * @param _avatar avatar address to check
+     * Checks the status of an avatar's Circles in the Hub v1 contract,
+     * and returns the address of the Circles if it exists and is not stopped.
+     * Else, it returns the zero address if no Circles exist,
+     * and it returns the address CIRCLES_STOPPED_V1 (0x1) if the Circles contract is stopped.
+     * @param _avatar avatar address for which to check registration in Hub v1
      */
-    function _avatarV1Exists(address _avatar) internal returns (bool) {
-        // check if the avatar exists in the Hub v1 contract,
-        // by retrieving the associated token address
-        address tokenV1 = hubV1.userToToken(_avatar);
-
-        // return true if the token address is not zero
-        return (tokenV1 != address(0));
-    }
-
-    /**
-     * Check if an avatar's token is stopped in the Hub v1 contract.
-     * @param _avatar avatar address to check
-     */
-    function _avatarV1TokenStopped(address _avatar) internal returns (bool) {
-        // token must exist in V1 to answer whether it is stopped,
-        // or not stopped.
-        address tokenV1 = hubV1.userToToken(_avatar);
-        require(tokenV1 != address(0), "Avatar does not exist in v1");
-
-        // return the stopped status of the token
-        return ITokenV1(tokenV1).stopped();
+    function _avatarV1CirclesStatus(address _avatar) internal returns (address) {
+        address circlesV1 = hubV1.userToToken(_avatar);
+        // no token exists in Hub v1, so return status is zero address
+        if (circlesV1 == address(0)) return address(0);
+        // return the status of the token
+        if (ITokenV1(circlesV1).stopped()) {
+            // return the stopped status of the Circles contract
+            return CIRCLES_STOPPED_V1;
+        } else {
+            // return the address of the Circles contract if it exists and is not stopped
+            return circlesV1;
+        }
     }
 
     /**
@@ -428,18 +451,6 @@ contract Hub is Circles {
         avatars[_avatar] = avatars[SENTINEL];
         avatars[SENTINEL] = _avatar;
     }
-
-    function toDemurrageAmount(uint256 _amount, uint256 _timestamp) external {
-        // timestamp should be "stepfunction" the timestamp
-        // todo: ask where the best time step is
-
-        if (_timestamp < circlesStartTime) _timestamp = block.timestamp;
-
-        // uint256 durationSinceStart = _time - hubV1start;
-        // do conversion
-    }
-
-    function ToInflationAmount(uint256 _amount, uint256 _timestamp) external {}
 
     function _registerGroup(
         address _avatar,
