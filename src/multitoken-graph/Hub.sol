@@ -143,19 +143,16 @@ contract Hub is Circles {
 
     // Events
 
-    event RegisterHuman(address indexed avatar, bytes32 cidV0Digest);
+    event RegisterHuman(address indexed avatar);
     event InviteHuman(address indexed inviter, address indexed invited);
-    event RegisterOrganization(address indexed organization, string name, bytes32 cidV0Digest);
+    event RegisterOrganization(address indexed organization, string name);
     event RegisterGroup(
-        address indexed group,
-        address indexed mint,
-        address indexed treasury,
-        string name,
-        string symbol,
-        bytes32 cidV0Digest
+        address indexed group, address indexed mint, address indexed treasury, string name, string symbol
     );
 
     event Trust(address indexed truster, address indexed trustee, uint256 expiryTime);
+
+    event CidV0(address indexed avatar, bytes32 cidV0Digest);
 
     // Modifiers
 
@@ -225,7 +222,9 @@ contract Hub is Circles {
         // trust self indefinitely
         _trust(msg.sender, msg.sender, INDEFINITELY);
 
-        emit RegisterHuman(msg.sender, _cidV0Digest);
+        emit RegisterHuman(msg.sender);
+
+        emit CidV0(msg.sender, _cidV0Digest);
     }
 
     /**
@@ -278,7 +277,9 @@ contract Hub is Circles {
         // store the IPFS CIDv0 digest for the group metadata
         tokenIdToCidV0Digest[_toTokenId(msg.sender)] = _cidV0Digest;
 
-        emit RegisterGroup(msg.sender, _mint, standardTreasury, _name, _symbol, _cidV0Digest);
+        emit RegisterGroup(msg.sender, _mint, standardTreasury, _name, _symbol);
+
+        emit CidV0(msg.sender, _cidV0Digest);
     }
 
     /**
@@ -301,7 +302,9 @@ contract Hub is Circles {
         // store the IPFS CIDv0 digest for the group metadata
         tokenIdToCidV0Digest[_toTokenId(msg.sender)] = _cidV0Digest;
 
-        emit RegisterGroup(msg.sender, _mint, _treasury, _name, _symbol, _cidV0Digest);
+        emit RegisterGroup(msg.sender, _mint, _treasury, _name, _symbol);
+
+        emit CidV0(msg.sender, _cidV0Digest);
     }
 
     function registerOrganization(string calldata _name, bytes32 _cidV0Digest) external {
@@ -314,7 +317,9 @@ contract Hub is Circles {
         // store the IPFS CIDv0 digest for the organization metadata
         tokenIdToCidV0Digest[_toTokenId(msg.sender)] = _cidV0Digest;
 
-        emit RegisterOrganization(msg.sender, _name, _cidV0Digest);
+        emit RegisterOrganization(msg.sender, _name);
+
+        emit CidV0(msg.sender, _cidV0Digest);
     }
 
     /**
@@ -425,24 +430,16 @@ contract Hub is Circles {
         // and how?
     }
 
-    // do some unique name hash finding for personal circles
-    // register with a salt for avoiding malicious blockage
-
     /**
-     * uri returns the IPFS URI for the ERC1155 token.
-     * If the
-     * @param _id tokenId of the ERC1155 token
+     * set IPFS CIDv0 digest for the avatar metadata.
+     * @param _ipfsCid IPFS CIDv0 digest for the avatar metadata
      */
-    function uri(uint256 _id) public view override returns (string memory uri_) {
-        // todo: fallback should move into SDK rather than contract
-        // "https://fallback.aboutcircles.com/v1/profile/{id}.json"
-        return super.uri(_id);
-    }
-
     function setIpfsCidV0(bytes32 _ipfsCid) external {
         require(avatars[msg.sender] != address(0), "Avatar must be registered.");
         // todo: we should charge in CRC, but better done later through a storage market
         tokenIdToCidV0Digest[_toTokenId(msg.sender)] = _ipfsCid;
+
+        emit CidV0(msg.sender, _ipfsCid);
     }
 
     function toDemurrageAmount(uint256 _amount, uint256 _timestamp) external {
@@ -470,6 +467,18 @@ contract Hub is Circles {
     function isOrganization(address _organization) public view returns (bool) {
         return avatars[_organization] != address(0) && mintPolicies[_organization] == address(0)
             && mintTimes[_organization].lastMintTime == uint256(0);
+    }
+
+    /**
+     * uri returns the IPFS URI for the ERC1155 token.
+     * If the
+     * @param _id tokenId of the ERC1155 token
+     */
+    function uri(uint256 _id) public view override returns (string memory uri_) {
+        // todo: should fallback move into SDK rather than contract ?
+        // todo: we don't need to override this function if we keep this pattern
+        // "https://fallback.aboutcircles.com/v1/profile/{id}.json"
+        return super.uri(_id);
     }
 
     // Internal functions
