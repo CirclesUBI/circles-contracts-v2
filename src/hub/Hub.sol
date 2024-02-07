@@ -60,6 +60,13 @@ contract Hub is Circles {
     uint256 public constant WELCOME_BONUS = 3 * 24 * 10 ** 18;
 
     /**
+     * @dev The minimum donation amount for registering a human as an organization,
+     * paid in xDai, set to 0.1 xDai. The donation benefiary is arbitrary, and purely
+     * reputational for the organization inviting people to Circles.
+     */
+    uint256 public constant MINIMUM_DONATION = 10 ** 17;
+
+    /**
      * @dev The address used as the first element of the linked list of avatars.
      */
     address public constant SENTINEL = address(0x1);
@@ -204,23 +211,11 @@ contract Hub is Circles {
      */
     function registerHuman(bytes32 _cidV0Digest) external duringBootstrap {
         // only available for v1 users with stopped v1 mint, for initial bootstrap period
-        require(
-            _avatarV1CirclesStatus(msg.sender) == CIRCLES_STOPPED_V1, "Avatar must have stopped v1 Circles contract."
-        );
-        // insert avatar into linked list; reverts if it already exists
-        _insertAvatar(msg.sender);
+        address v1CirclesStatus = _registerHuman(msg.sender);
+        require(v1CirclesStatus != CIRCLES_STOPPED_V1, "Avatar must have stopped v1 Circles contract.");
 
         // store the IPFS CIDv0 digest for the avatar metadata
         tokenIdToCidV0Digest[_toTokenId(msg.sender)] = _cidV0Digest;
-
-        // set the last mint time to the current timestamp
-        // and register the v1 Circles contract as stopped
-        MintTime storage mintTime = mintTimes[msg.sender];
-        mintTime.mintV1Status = CIRCLES_STOPPED_V1;
-        mintTime.lastMintTime = uint96(block.timestamp);
-
-        // trust self indefinitely
-        _trust(msg.sender, msg.sender, INDEFINITELY);
 
         emit RegisterHuman(msg.sender);
 
@@ -237,15 +232,8 @@ contract Hub is Circles {
     function inviteHuman(address _human) external {
         require(isHuman(msg.sender), "Only humans can invite.");
 
-        // insert avatar into linked list; reverts if it already exists
-        _insertAvatar(_human);
-
-        // set the last mint time to the current timestamp for invited human
-        // and register the v1 Circles contract status
-        address v1CirclesStatus = _avatarV1CirclesStatus(_human);
-        MintTime storage mintTime = mintTimes[_human];
-        mintTime.mintV1Status = v1CirclesStatus;
-        mintTime.lastMintTime = uint96(block.timestamp);
+        // register the invited human; reverts if they already exist
+        _registerHuman(_human);
 
         // inviter must burn twice the welcome bonus of their own Circles
         _burn(msg.sender, _toTokenId(msg.sender), 2 * WELCOME_BONUS);
@@ -256,8 +244,33 @@ contract Hub is Circles {
         // set trust to indefinite future, but avatar can edit this later
         _trust(msg.sender, _human, INDEFINITELY);
 
-        // set the trust for the invited to self to indefinite future; not editable later
-        _trust(_human, _human, INDEFINITELY);
+        emit InviteHuman(msg.sender, _human);
+    }
+
+    /**
+     * Invite human as organization allows to register a human avatar as an organization.
+     * @param _human address of the human to invite
+     * @param _donationReceiver address of where to send the donation to with 2300 gas (using transfer)
+     */
+    function inviteHumanAsOrganization(address _human, address payable _donationReceiver) external payable {
+        require(msg.value > MINIMUM_DONATION, "Donation must be at least 0.1 xDai.");
+        // The donation is understood to be a reputational requirement for the organization.
+        // It is obvious that one can send to self over a different address, but that is reputationally worthless.
+        // Nonetheless, we require to not directly send to self, mostly to avoid "plausible denial" arguments.
+        require(_donationReceiver != msg.sender, "Donation receiver cannot be the caller.");
+        require(isOrganization(msg.sender), "Only organizations can invite.");
+
+        _registerHuman(_human);
+
+        // set trust for a year, but organization can edit this later
+        _trust(msg.sender, _human, uint96(block.timestamp + 365 days));
+
+        // invited receives the welcome bonus in their personal Circles
+        _mint(_human, _toTokenId(_human), WELCOME_BONUS, "");
+
+        // send the donation to the donation receiver but with minimal gas
+        // to avoid reentrancy attacks
+        _donationReceiver.transfer(msg.value);
 
         emit InviteHuman(msg.sender, _human);
     }
@@ -483,6 +496,67 @@ contract Hub is Circles {
 
     // Internal functions
 
+    /**
+     * Register human allows to register an avatar for a human,
+     * and returns the status of the associated v1 Circles contract.
+     * Additionally set the trust to self indefinitely.
+     * @param _human address of the human to be registered
+     */
+    function _registerHuman(address _human) internal returns (address v1CirclesStatus) {
+        // insert avatar into linked list; reverts if it already exists
+        _insertAvatar(_human);
+
+        // set the last mint time to the current timestamp for invited human
+        // and register the v1 Circles contract status
+        v1CirclesStatus = _avatarV1CirclesStatus(_human);
+        MintTime storage mintTime = mintTimes[_human];
+        mintTime.mintV1Status = v1CirclesStatus;
+        mintTime.lastMintTime = uint96(block.timestamp);
+
+        // trust self indefinitely, cannot be altered later
+        _trust(_human, _human, INDEFINITELY);
+
+        return v1CirclesStatus;
+    }
+
+    /**
+     * Register a group avatar.
+     * @param _avatar address of the group registering
+     * @param _mint address of the mint policy for the group
+     * @param _treasury address of the treasury for the group
+     * @param _name name of the group Circles
+     * @param _symbol symbol of the group Circles
+     */
+    function _registerGroup(
+        address _avatar,
+        address _mint,
+        address _treasury,
+        string calldata _name,
+        string calldata _symbol
+    ) internal {
+        // todo: we could check ERC165 support interface for mint policy
+        require(_mint != address(0), "Mint address can not be zero.");
+        // todo: same check treasury is an ERC1155Receiver for receiving collateral
+        require(_treasury != address(0), "Treasury address can not be zero.");
+        // name must be ASCII alphanumeric and some special characters
+        require(_isValidName(_name), "Invalid group name.");
+        // symbol must be ASCII alphanumeric and some special characters
+        require(_isValidSymbol(_symbol), "Invalid group symbol.");
+
+        // insert avatar into linked list; reverts if it already exists
+        _insertAvatar(_avatar);
+
+        // store the mint policy for the group
+        mintPolicies[_avatar] = _mint;
+
+        // store the treasury for the group
+        treasuries[_avatar] = _treasury;
+
+        // store the name and symbol for the group
+        names[_avatar] = _name;
+        symbols[_avatar] = _symbol;
+    }
+
     function _trust(address _truster, address _trustee, uint96 _expiry) internal {
         _upsertTrustMarker(_truster, _trustee, _expiry);
 
@@ -527,36 +601,6 @@ contract Hub is Circles {
         require(avatars[_avatar] == address(0), "Avatar already inserted");
         avatars[_avatar] = avatars[SENTINEL];
         avatars[SENTINEL] = _avatar;
-    }
-
-    function _registerGroup(
-        address _avatar,
-        address _mint,
-        address _treasury,
-        string calldata _name,
-        string calldata _symbol
-    ) internal {
-        // todo: we could check ERC165 support interface for mint policy
-        require(_mint != address(0), "Mint address can not be zero.");
-        // todo: same check treasury is an ERC1155Receiver for receiving collateral
-        require(_treasury != address(0), "Treasury address can not be zero.");
-        // name must be ASCII alphanumeric and some special characters
-        require(_isValidName(_name), "Invalid group name.");
-        // symbol must be ASCII alphanumeric and some special characters
-        require(_isValidSymbol(_symbol), "Invalid group symbol.");
-
-        // insert avatar into linked list; reverts if it already exists
-        _insertAvatar(_avatar);
-
-        // store the mint policy for the group
-        mintPolicies[_avatar] = _mint;
-
-        // store the treasury for the group
-        treasuries[_avatar] = _treasury;
-
-        // store the name and symbol for the group
-        names[_avatar] = _name;
-        symbols[_avatar] = _symbol;
     }
 
     // Private functions

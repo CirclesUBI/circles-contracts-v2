@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity >=0.8.13;
 
-import "../multitoken-graph/IHub.sol";
+import "../hub/IHub.sol";
 
 contract NameRegistry {
     // Constants
