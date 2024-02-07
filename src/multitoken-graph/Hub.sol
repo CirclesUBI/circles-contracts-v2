@@ -211,7 +211,7 @@ contract Hub is Circles {
         _insertAvatar(msg.sender);
 
         // store the IPFS CIDv0 digest for the avatar metadata
-        tokenIdToCidV0Digest[uint256(uint160(msg.sender))] = _cidV0Digest;
+        tokenIdToCidV0Digest[_toTokenId(msg.sender)] = _cidV0Digest;
 
         // set the last mint time to the current timestamp
         // and register the v1 Circles contract as stopped
