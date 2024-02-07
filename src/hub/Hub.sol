@@ -60,6 +60,13 @@ contract Hub is Circles {
     uint256 public constant WELCOME_BONUS = 3 * 24 * 10 ** 18;
 
     /**
+     * @dev The minimum donation amount for registering a human as an organization,
+     * paid in xDai, set to 0.1 xDai. The donation benefiary is arbitrary, and purely
+     * reputational for the organization inviting people to Circles.
+     */
+    uint256 public constant MINIMUM_DONATION = 10 ** 17;
+
+    /**
      * @dev The address used as the first element of the linked list of avatars.
      */
     address public constant SENTINEL = address(0x1);
@@ -258,6 +265,41 @@ contract Hub is Circles {
 
         // set the trust for the invited to self to indefinite future; not editable later
         _trust(_human, _human, INDEFINITELY);
+
+        emit InviteHuman(msg.sender, _human);
+    }
+
+    /**
+     * Invite human as organization allows to register a human avatar as an organization.
+     * @param _human address of the human to invite
+     * @param _donationReceiver address of where to send the donation to with 2300 gas (using transfer)
+     */
+    function inviteHumanAsOrganization(address _human, address payable _donationReceiver) external payable {
+        require(msg.value > MINIMUM_DONATION, "Donation must be at least 0.1 xDai.");
+        require(isOrganization(msg.sender), "Only organizations can invite.");
+
+        // insert avatar into linked list; reverts if it already exists
+        _insertAvatar(_human);
+
+        // set the last mint time to the current timestamp for invited human
+        // and register the v1 Circles contract status
+        address v1CirclesStatus = _avatarV1CirclesStatus(_human);
+        MintTime storage mintTime = mintTimes[_human];
+        mintTime.mintV1Status = v1CirclesStatus;
+        mintTime.lastMintTime = uint96(block.timestamp);
+
+        // invited receives the welcome bonus in their personal Circles
+        _mint(_human, _toTokenId(_human), WELCOME_BONUS, "");
+
+        // set trust for a year, but organization can edit this later
+        _trust(msg.sender, _human, uint96(block.timestamp + 365 days));
+
+        // set the trust for the invited to self to indefinite future; not editable later
+        _trust(_human, _human, INDEFINITELY);
+
+        // send the donation to the donation receiver but with minimal gas
+        // to avoid reentrancy attacks
+        _donationReceiver.transfer(msg.value);
 
         emit InviteHuman(msg.sender, _human);
     }
