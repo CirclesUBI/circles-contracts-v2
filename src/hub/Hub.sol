@@ -61,13 +61,6 @@ contract Hub is Circles {
     IHubV1 public immutable hubV1;
 
     /**
-     * @notice The timestamp of the start of the Circles v1 contract.
-     * @dev This is used as the global offset to calculate the demurrage,
-     * or equivalently the inflationary mint of Circles.
-     */
-    uint256 public immutable circlesStartTime;
-
-    /**
      * @notice The timestamp of the start of the invitation-only period.
      * @dev This is used to determine the start of the invitation-only period.
      * Prior to this time v1 avatars can register without an invitation, and
@@ -155,8 +148,7 @@ contract Hub is Circles {
 
         // store the Hub v1 contract address
         hubV1 = _hubV1;
-        // retrieve the start time of the Circles Hub v1 contract
-        circlesStartTime = _hubV1.deployedAt();
+
         // store the standard treasury contract address for registerGrouo()
         standardTreasury = _standardTreasury;
 
