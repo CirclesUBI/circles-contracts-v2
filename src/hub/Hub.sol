@@ -24,24 +24,6 @@ contract Hub is Circles {
     // Type declarations
 
     /**
-     * @notice MintTime struct stores the last mint time,
-     * and the status of a connected v1 Circles contract.
-     * @dev This is used to store the last mint time for each avatar,
-     * and the address is used as a status for the connected v1 Circles contract.
-     * The address is kept at zero address if the avatar is not registered in Hub v1.
-     * If the avatar is registered in Hub v1, but the associated Circles ERC20 contract
-     * has not been stopped, then the address is set to that v1 Circles contract address.
-     * Once the Circles v1 contract has been stopped, the address is set to 0x01.
-     * At every observed transition of the status of the v1 Circles contract,
-     * the lastMintTime will be updated to the current timestamp to avoid possible
-     * overlap of the mint between Hub v1 and Hub v2.
-     */
-    struct MintTime {
-        address mintV1Status;
-        uint96 lastMintTime;
-    }
-
-    /**
      * @notice TrustMarker stores the expiry of a trust relation as uint96,
      * and is iterable as a linked list of trust markers.
      * @dev This is used to store the directional trust relation between two avatars,
@@ -70,16 +52,6 @@ contract Hub is Circles {
      * @dev The address used as the first element of the linked list of avatars.
      */
     address public constant SENTINEL = address(0x1);
-
-    /**
-     * @dev Address used to indicate that the associated v1 Circles contract has been stopped.
-     */
-    address public constant CIRCLES_STOPPED_V1 = address(0x1);
-
-    /**
-     * @notice Indefinite future, or approximated with uint96.max
-     */
-    uint96 public constant INDEFINITE_FUTURE = type(uint96).max;
 
     // State variables
 
@@ -117,15 +89,6 @@ contract Hub is Circles {
      */
     mapping(address => address) public avatars;
 
-    /**
-     * @notice The mapping of avatar addresses to the last mint time,
-     * and the status of the v1 Circles minting.
-     * @dev This is used to store the last mint time for each avatar.
-     */
-    mapping(address => MintTime) public mintTimes;
-
-    mapping(uint256 => WrappedERC20) public tokenIDToInfERC20;
-
     // Mint policy registered by avatar.
     mapping(address => address) public mintPolicies;
 
@@ -134,6 +97,8 @@ contract Hub is Circles {
     mapping(address => string) public names;
 
     mapping(address => string) public symbols;
+
+    mapping(uint256 => WrappedERC20) public tokenIDToInfERC20;
 
     /**
      * @notice The iterable mapping of directional trust relations between avatars and
@@ -359,6 +324,14 @@ contract Hub is Circles {
 
     function personalMint() external {
         require(isHuman(msg.sender), "Only avatars registered as human can call personal mint.");
+        MintTime storage mintTime = mintTimes[msg.sender];
+        if (mintTime.mintV1Status != CIRCLES_STOPPED_V1) {
+            // if v1 Circles is not known to be stopped, check the status
+            address v1MintStatus = _avatarV1CirclesStatus(msg.sender);
+            _updateMintV1Status(msg.sender, v1MintStatus);
+        }
+        uint256 issuanceDue = _calculateIssuance(msg.sender);
+
         // todo: do daily demurrage over claimable period; max 2week
         // todo: check v1 mint status and update accordingly
 
@@ -668,7 +641,7 @@ contract Hub is Circles {
      * and it returns the address CIRCLES_STOPPED_V1 (0x1) if the Circles contract is stopped.
      * @param _avatar avatar address for which to check registration in Hub v1
      */
-    function _avatarV1CirclesStatus(address _avatar) internal returns (address) {
+    function _avatarV1CirclesStatus(address _avatar) internal view returns (address) {
         address circlesV1 = hubV1.userToToken(_avatar);
         // no token exists in Hub v1, so return status is zero address
         if (circlesV1 == address(0)) return address(0);
