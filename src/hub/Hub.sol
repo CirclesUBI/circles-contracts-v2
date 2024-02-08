@@ -77,9 +77,9 @@ contract Hub is Circles {
     address public constant CIRCLES_STOPPED_V1 = address(0x1);
 
     /**
-     * @notice Indefinitely, or approximate future infinity with uint96.max
+     * @notice Indefinite future, or approximated with uint96.max
      */
-    uint96 public constant INDEFINITELY = type(uint96).max;
+    uint96 public constant INDEFINITE_FUTURE = type(uint96).max;
 
     // State variables
 
@@ -123,8 +123,6 @@ contract Hub is Circles {
      * @dev This is used to store the last mint time for each avatar.
      */
     mapping(address => MintTime) public mintTimes;
-
-    mapping(address => bool) public stopped;
 
     mapping(uint256 => WrappedERC20) public tokenIDToInfERC20;
 
@@ -182,7 +180,7 @@ contract Hub is Circles {
      * (todo: eg. "https://fallback.aboutcircles.com/v1/circles/{id}.json")
      */
     constructor(IHubV1 _hubV1, address _standardTreasury, uint256 _bootstrapTime, string memory _fallbackUri)
-        ERC1155(_fallbackUri)
+        Circles(_fallbackUri)
     {
         require(address(_hubV1) != address(0), "Hub v1 address can not be zero.");
         require(_standardTreasury != address(0), "Standard treasury address can not be zero.");
@@ -212,7 +210,7 @@ contract Hub is Circles {
     function registerHuman(bytes32 _cidV0Digest) external duringBootstrap {
         // only available for v1 users with stopped v1 mint, for initial bootstrap period
         address v1CirclesStatus = _registerHuman(msg.sender);
-        require(v1CirclesStatus != CIRCLES_STOPPED_V1, "Avatar must have stopped v1 Circles contract.");
+        require(v1CirclesStatus == CIRCLES_STOPPED_V1, "Avatar must have stopped v1 Circles contract.");
 
         // store the IPFS CIDv0 digest for the avatar metadata
         tokenIdToCidV0Digest[_toTokenId(msg.sender)] = _cidV0Digest;
@@ -242,7 +240,7 @@ contract Hub is Circles {
         _mint(_human, _toTokenId(_human), WELCOME_BONUS, "");
 
         // set trust to indefinite future, but avatar can edit this later
-        _trust(msg.sender, _human, INDEFINITELY);
+        _trust(msg.sender, _human, INDEFINITE_FUTURE);
 
         emit InviteHuman(msg.sender, _human);
     }
@@ -320,6 +318,11 @@ contract Hub is Circles {
         emit CidV0(msg.sender, _cidV0Digest);
     }
 
+    /**
+     * Register organization allows to register an organization avatar.
+     * @param _name name of the organization
+     * @param _cidV0Digest IPFS CIDv0 digest for the organization metadata
+     */
     function registerOrganization(string calldata _name, bytes32 _cidV0Digest) external {
         require(_isValidName(_name), "Invalid organization name.");
         _insertAvatar(msg.sender);
@@ -385,6 +388,20 @@ contract Hub is Circles {
         // TODO sum up amounts
         sumAmounts = _amounts[0];
         _mint(msg.sender, _toTokenId(_group), sumAmounts, "");
+    }
+
+    function stop() external {
+        require(isHuman(msg.sender), "Only human can call stop.");
+        MintTime storage mintTime = mintTimes[msg.sender];
+        // stop future mints of personal Circles
+        // by setting the last mint time to indefinite future.
+        mintTime.lastMintTime = INDEFINITE_FUTURE;
+    }
+
+    function stopped(address _human) external view returns (bool) {
+        require(isHuman(_human), "Only personal Circles can stopped or not stopped.");
+        MintTime storage mintTime = mintTimes[msg.sender];
+        return (mintTime.lastMintTime == INDEFINITE_FUTURE);
     }
 
     // check if path transfer can be fully ERC1155 compatible
@@ -469,14 +486,26 @@ contract Hub is Circles {
 
     // Public functions
 
+    /**
+     * Checks if an avatar is registered as a human.
+     * @param _human address of the human to check
+     */
     function isHuman(address _human) public view returns (bool) {
         return mintTimes[_human].lastMintTime > 0;
     }
 
+    /**
+     * Checks if an avatar is registered as a group.
+     * @param _group address of the group to check
+     */
     function isGroup(address _group) public view returns (bool) {
         return mintPolicies[_group] != address(0);
     }
 
+    /**
+     * Checks if an avatar is registered as an organization.
+     * @param _organization address of the organization to check
+     */
     function isOrganization(address _organization) public view returns (bool) {
         return avatars[_organization] != address(0) && mintPolicies[_organization] == address(0)
             && mintTimes[_organization].lastMintTime == uint256(0);
@@ -492,6 +521,67 @@ contract Hub is Circles {
         // todo: we don't need to override this function if we keep this pattern
         // "https://fallback.aboutcircles.com/v1/profile/{id}.json"
         return super.uri(_id);
+    }
+
+    /**
+     * @dev checks whether string is a valid name by checking
+     * the length as max 32 bytes and the allowed characters: 0-9, A-Z, a-z, space,
+     * hyphen, underscore, period, parentheses, apostrophe,
+     * ampersand, plus and hash.
+     * This restricts the contract name to a subset of ASCII characters,
+     * and excludes unicode characters for other alphabets and emoticons.
+     * Instead the default ERC1155 metadata read from the IPFS CID registry,
+     * should provide the full display name with unicode characters.
+     * Names are not checked for uniqueness.
+     */
+    function _isValidName(string memory _name) public pure returns (bool) {
+        bytes memory nameBytes = bytes(_name);
+        if (nameBytes.length > 32 || nameBytes.length == 0) return false; // Check length
+
+        for (uint256 i = 0; i < nameBytes.length; i++) {
+            bytes1 char = nameBytes[i];
+            if (
+                !(char >= 0x30 && char <= 0x39) // 0-9
+                    && !(char >= 0x41 && char <= 0x5A) // A-Z
+                    && !(char >= 0x61 && char <= 0x7A) // a-z
+                    && !(char == 0x20) // Space
+                    && !(char == 0x2D || char == 0x5F) // Hyphen (-), Underscore (_)
+                    && !(char == 0x2E) // Period (.)
+                    && !(char == 0x28 || char == 0x29) // Parentheses ( () )
+                    && !(char == 0x27) // Apostrophe (')
+                    && !(char == 0x26) // Ampersand (&)
+                    && !(char == 0x2B || char == 0x23) // Plus (+), Hash (#)
+            ) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * @dev checks whether string is a valid symbol by checking
+     * the length as max 16 bytes and the allowed characters: 0-9, A-Z, a-z,
+     * hyphen, underscore.
+     */
+    function _isValidSymbol(string memory _symbol) public pure returns (bool) {
+        bytes memory symbolBytes = bytes(_symbol);
+        if (symbolBytes.length == 0 || symbolBytes.length > 16) {
+            return false; // Check length is within range
+        }
+
+        for (uint256 i = 0; i < symbolBytes.length; i++) {
+            bytes1 char = symbolBytes[i];
+            if (
+                // allowed ASCII characters 0-9, A-Z, a-z, Hyphen (-), Underscore (_)
+                !(
+                    (char >= 0x30 && char <= 0x39) || (char >= 0x41 && char <= 0x5A) || (char >= 0x61 && char <= 0x7A)
+                        || (char == 0x2D) || (char == 0x5F)
+                )
+            ) {
+                return false;
+            }
+        }
+        return true;
     }
 
     // Internal functions
@@ -514,7 +604,7 @@ contract Hub is Circles {
         mintTime.lastMintTime = uint96(block.timestamp);
 
         // trust self indefinitely, cannot be altered later
-        _trust(_human, _human, INDEFINITELY);
+        _trust(_human, _human, INDEFINITE_FUTURE);
 
         return v1CirclesStatus;
     }
@@ -604,67 +694,6 @@ contract Hub is Circles {
     }
 
     // Private functions
-
-    /**
-     * @dev checks whether string is a valid name by checking
-     * the length as max 32 bytes and the allowed characters: 0-9, A-Z, a-z, space,
-     * hyphen, underscore, period, parentheses, apostrophe,
-     * ampersand, plus and hash.
-     * This restricts the contract name to a subset of ASCII characters,
-     * and excludes unicode characters for other alphabets and emoticons.
-     * Instead the default ERC1155 metadata read from the IPFS CID registry,
-     * should provide the full display name with unicode characters.
-     * Names are not checked for uniqueness.
-     */
-    function _isValidName(string memory _name) public pure returns (bool) {
-        bytes memory nameBytes = bytes(_name);
-        if (nameBytes.length > 32 || nameBytes.length == 0) return false; // Check length
-
-        for (uint256 i = 0; i < nameBytes.length; i++) {
-            bytes1 char = nameBytes[i];
-            if (
-                !(char >= 0x30 && char <= 0x39) // 0-9
-                    && !(char >= 0x41 && char <= 0x5A) // A-Z
-                    && !(char >= 0x61 && char <= 0x7A) // a-z
-                    && !(char == 0x20) // Space
-                    && !(char == 0x2D || char == 0x5F) // Hyphen (-), Underscore (_)
-                    && !(char == 0x2E) // Period (.)
-                    && !(char == 0x28 || char == 0x29) // Parentheses ( () )
-                    && !(char == 0x27) // Apostrophe (')
-                    && !(char == 0x26) // Ampersand (&)
-                    && !(char == 0x2B || char == 0x23) // Plus (+), Hash (#)
-            ) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
-     * @dev checks whether string is a valid symbol by checking
-     * the length as max 16 bytes and the allowed characters: 0-9, A-Z, a-z,
-     * hyphen, underscore.
-     */
-    function _isValidSymbol(string memory _symbol) public pure returns (bool) {
-        bytes memory symbolBytes = bytes(_symbol);
-        if (symbolBytes.length == 0 || symbolBytes.length > 16) {
-            return false; // Check length is within range
-        }
-
-        for (uint256 i = 0; i < symbolBytes.length; i++) {
-            bytes1 char = symbolBytes[i];
-            if (
-                // allowed ASCII characters 0-9, A-Z, a-z, Hyphen (-), Underscore (_)
-                !(
-                    (char >= 0x30 && char <= 0x39) || (char >= 0x41 && char <= 0x5A) || (char >= 0x61 && char <= 0x7A)
-                        || (char == 0x2D) || (char == 0x5F)
-                )
-            ) {
-                return false;
-            }
-        }
-        return true;
-    }
 
     /**
      * @dev Internal function to upsert a trust marker for a truster and a trusted address.
