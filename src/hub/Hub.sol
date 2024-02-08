@@ -175,7 +175,7 @@ contract Hub is Circles {
     function registerHuman(bytes32 _cidV0Digest) external duringBootstrap {
         // only available for v1 users with stopped v1 mint, for initial bootstrap period
         address v1CirclesStatus = _registerHuman(msg.sender);
-        require(v1CirclesStatus != CIRCLES_STOPPED_V1, "Avatar must have stopped v1 Circles contract.");
+        require(v1CirclesStatus == CIRCLES_STOPPED_V1, "Avatar must have stopped v1 Circles contract.");
 
         // store the IPFS CIDv0 digest for the avatar metadata
         tokenIdToCidV0Digest[_toTokenId(msg.sender)] = _cidV0Digest;
