@@ -89,12 +89,18 @@ contract Circles is ERC1155 {
      * BETA_64x64 stores the numerator for the signed 128bit 64.64
      * fixed decimal point expression:
      *   beta = beta_64x64 / 2**64.
-     * Expressed in time[second], for 6.7% p.d. inflation:
-     *   mint(t+1y) = (1 + 0.067) * mint(t)
-     *   => beta = (1+ 0.067)^(1/(365.25))
-     *           = 1.000000002143973196515...
+     * First calculate the equivalent rate for compounding on a daily basis,
+     * rather than annually. Let R be the equivalent daily compounding rate per year:
+     *   R = [ (1 + 0.07)^(1/365.25) - 1 ] * 365.25
+     *     = 0.0676649153805671...
+     * Expressed in time[second], for 6.8% p.a. inflation (n=365.25):
+     *   mint(t+1y) = (1 + R/n)^(n days/yr * 1yr) * mint(t)
+     *      => beta = (1 + R/n)^(1/(365.25*24*3600))
+     * If however, we express per unit of 1 day, 6.8% p.a.:
+     *   => beta = (1 + R)^(1/365)
+     *           = 1.0001792739503774572...
      *   => BETA_64x64 = beta * 2**64
-     *                 = 18446744113258876473
+     *                 = 18450051094391247475
      */
     int128 public constant BETA_64x64 = int128(0);
 

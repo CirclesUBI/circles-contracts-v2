@@ -132,14 +132,19 @@ contract Hub is Circles {
     /**
      * Constructor for the Hub contract.
      * @param _hubV1 address of the Hub v1 contract
+     * @param _demurrage_day_zero timestamp of the start of the global demurrage curve
      * @param _standardTreasury address of the standard treasury contract
      * @param _bootstrapTime duration of the bootstrap period (for v1 registration) in seconds
      * @param _fallbackUri fallback URI string for the ERC1155 metadata,
      * (todo: eg. "https://fallback.aboutcircles.com/v1/circles/{id}.json")
      */
-    constructor(IHubV1 _hubV1, address _standardTreasury, uint256 _bootstrapTime, string memory _fallbackUri)
-        Circles(_fallbackUri)
-    {
+    constructor(
+        IHubV1 _hubV1,
+        uint256 _demurrage_day_zero,
+        address _standardTreasury,
+        uint256 _bootstrapTime,
+        string memory _fallbackUri
+    ) Circles(_demurrage_day_zero, _fallbackUri) {
         require(address(_hubV1) != address(0), "Hub v1 address can not be zero.");
         require(_standardTreasury != address(0), "Standard treasury address can not be zero.");
 
@@ -441,7 +446,7 @@ contract Hub is Circles {
         // timestamp should be "stepfunction" the timestamp
         // todo: ask where the best time step is
 
-        if (_timestamp < circlesStartTime) _timestamp = block.timestamp;
+        if (_timestamp < demurrage_day_zero) _timestamp = block.timestamp;
 
         // uint256 durationSinceStart = _time - hubV1start;
         // do conversion
