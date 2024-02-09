@@ -62,7 +62,7 @@ and we know that the balances in both equations are equal (as we're only rewriti
 
 or an equivalent demurrage rate of 7,26% per annum on a daily accounted basis.
 
-For our purposes we don't need to know the percentage though, we simply need to determine D(i).
+For our purposes we don't need to know the percentage though, we simply need to determine `D(i)`.
 If we call `γ = 1 - γ'`, and `Γ = 1- Γ'/N`, then we can rewrite the above equations as
 
     B(1 yr) = γ B(0 yr)
@@ -81,7 +81,7 @@ Now we have a formula for the demurraged balances expressed in days:
 
 for any number `d` and `i` days. Again without loss of generality we can proceed with `d=0`
 and write this equation for `i=1, i=2, ...` and remember that 
- - `B(i) = inflationary.amount / D(i)`
+ - `B(i) = inflationary_balance / D(i)`
  - and this was a linear function, so considering a constant inflationary amount is sufficient,
    as any additional mints, or sending and receiving transfers over time can be written as a sum
    over which the same argument holds.
@@ -94,7 +94,7 @@ We write:
     1/D(n)   = Γ^n 1/D(0)
     1/D(n+1) = Γ^(n+1) 1/D(0) 
     
-We already defined `D(0) = 1`, and see that `D(n+1) = (1/Γ) D(n)`, so by induction we comclude
+We already defined `D(0) = 1`, and see that `D(n+1) = (1/Γ) D(n)`, so by induction we conclude
 that the global demurrage function `D(i)` is
 
     D(i) = (1/Γ)^i
@@ -102,7 +102,7 @@ that the global demurrage function `D(i)` is
 ## Conclusion
 
 So we can conclude that if we substitute this in our definition of "inflationary mint"
-then one day `i` the protocol should mint as inflationary amounts
+then on day `i` the protocol should mint as inflationary amounts
 
     (1/Γ)^i CRC/hour
 
