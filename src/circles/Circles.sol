@@ -3,6 +3,7 @@ pragma solidity >=0.8.13;
 
 import "openzeppelin-contracts/contracts/token/ERC1155/ERC1155.sol";
 import "openzeppelin-contracts/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import "../lib/Math64x64.sol";
 
 contract Circles is ERC1155 {
     // Type declarations
@@ -28,9 +29,10 @@ contract Circles is ERC1155 {
     // Constants
 
     /**
-     * @notice Issue one Circle per hour for each human.
+     * @notice Issue one Circle per hour for each human in demurraged units.
+     * So per second issue 10**18 / 3600 = 277777777777778 attoCircles.
      */
-    uint256 public constant ISSUANCE_PERIOD = 1 hours;
+    uint256 public constant ISSUANCE_PER_SECOND = uint256(277777777777778);
 
     /**
      * @notice Upon claiming, the maximum claim is upto two weeks
@@ -101,14 +103,14 @@ contract Circles is ERC1155 {
     uint96 public constant INDEFINITE_FUTURE = type(uint96).max;
 
     /**
-     * @dev ERC1155 tokens MUST be 18 decimals. Used to calculate the issuance rate.
+     * @dev ERC1155 tokens MUST be 18 decimals.
      */
     uint8 public constant DECIMALS = uint8(18);
 
     /**
      * @dev EXA factor as 10^18
      */
-    uint256 internal constant EXA = uint256(10 ** 18);
+    uint256 internal constant EXA = uint256(10 ** DECIMALS);
 
     /**
      * Store the signed 128-bit 64.64 representation of 1 as a constant
@@ -154,7 +156,55 @@ contract Circles is ERC1155 {
             "Circles v1 contract cannot be active."
         );
 
-        uint256 hoursSinceLastMint = (block.timestamp - mintTime.lastMintTime) / ISSUANCE_PERIOD;
+        // calculate the start of the claimable period
+        uint256 startMint = _max(block.timestamp - MAX_CLAIM_DURATION, mintTime.lastMintTime);
+
+        // day of start of mint, dA
+        uint256 dA = _day(startMint);
+        // day of end of mint (now), dB
+        uint256 dB = _day(block.timestamp);
+
+        // todo: later cache these computations, as they roll through a window of 15 days/values
+        // because there is a max claimable window, and once filled, only once per day we need to calculate
+        // a new value in the cache for all mints.
+
+        // iA = Beta^dA
+        int128 iA = Math64x64.pow(BETA_64x64, dA);
+        // iB = Beta^dB
+        int128 iB = 0;
+        if (dA == dB) {
+            // if the start and end day are the same, then the issuance factor is the same
+            iB = iA;
+        } else {
+            iB = Math64x64.pow(BETA_64x64, dB);
+        }
+        uint256 fullIssuance = 0;
+        {
+            // for the geometric sum we need Beta^(dB + 1) = iB1
+            int128 iB1 = Math64x64.mul(iB, BETA_64x64);
+
+            // first calculate the full issuance over the complete days [dA, dB]
+            // using the geometric sum:
+            //   SUM_i=dA..dB (Beta^i) = (Beta^(dB + 1) - 1) / (Beta^dA - 1)
+            int128 term1 = iB1 - ONE_64x64;
+            int128 term2 = iA - ONE_64x64;
+            int128 geometricSum = Math64x64.div(term1, term2);
+            // 24 hours * 1 CRC/hour * EXA * geometricSum
+            fullIssuance = Math64x64.mulu(geometricSum, 24 * EXA);
+        }
+
+        // But now we overcounted, as we start day A at startMint
+        // and end day B at block.timestamp, so we need to adjust
+        uint256 overcountA = startMint - (dA * 1 days + demurrage_day_zero);
+        uint256 overcountB = (dB + 1) * 1 days + demurrage_day_zero - block.timestamp;
+
+        uint256 overIssuanceA = Math64x64.mulu(iA, overcountA * ISSUANCE_PER_SECOND);
+        uint256 overIssuanceB = Math64x64.mulu(iB, overcountB * ISSUANCE_PER_SECOND);
+
+        // subtract the overcounted issuance
+        uint256 issuance = fullIssuance - overIssuanceA - overIssuanceB;
+
+        return issuance;
     }
 
     function _updateMintV1Status(address _human, address _mintV1Status) internal {
@@ -170,10 +220,35 @@ contract Circles is ERC1155 {
         }
     }
 
-    function _dailyIssuance(uint256 _timestamp) internal view returns (uint256) {
-        // first calculate which day the timestamp is in, rounding down
-        uint256 day = (_timestamp - demurrage_day_zero) / DEMURRAGE_WINDOW;
+    /**
+     * @dev Calculate the day since demurrage_day_zero for a given timestamp.
+     * @param _timestamp Timestamp for which to calculate the day since
+     * demurrage_day_zero.
+     */
+    function _day(uint256 _timestamp) internal view returns (uint256) {
+        // calculate which day the timestamp is in, rounding down
+        return (_timestamp - demurrage_day_zero) / DEMURRAGE_WINDOW;
+    }
 
-        // then calculate the issuance for that day
+    // /**
+    //  * @dev Issuance on day calculates the inflationary mint amount on a given day
+    //  * for a number of hours expressed in attoHours.
+    //  * @param _attoHours Attohours for which to calculate the issuance.
+    //  * @param _day Day for which to calculate the issuance.
+    //  */
+    // function _issuanceOnDay(uint256 _attoHours, uint256 _day) internal pure returns (uint256) {
+    //     // calculate the inflationary mint amount on day `d` for a number of hours
+    //     // expressed in attoHours.
+    //     return Math64x64.mulu(Math64x64.pow(BETA_64x64, _day), _attoHours);
+    // }
+
+    // Private functions
+
+    // function _min(uint256 a, uint256 b) private pure returns (uint256) {
+    //     return a <= b ? a : b;
+    // }
+
+    function _max(uint256 a, uint256 b) private pure returns (uint256) {
+        return a >= b ? a : b;
     }
 }
