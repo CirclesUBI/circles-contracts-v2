@@ -61,48 +61,34 @@ contract Circles is ERC1155 {
     uint256 public constant DEMURRAGE_WINDOW = 1 days;
 
     /**
-     * Reduction factor gamma for temporally discounting balances
-     *   balance(t) = gamma^t * balance(t=0)
-     * where 't' is expressed in units of DISCOUNT_WINDOW seconds,
-     * and gamma is the reduction factor over that resolution window.
-     * Gamma_64x64 stores the numerator for the signed 128bit 64.64
+     * @notice Reduction factor GAMMA for applying demurrage to balances
+     *   demurrage_balance(d) = GAMMA^d * inflationary_balance
+     * where 'd' is expressed in days (DEMURRAGE_WINDOW) since demurrage_day_zero,
+     * and GAMMA < 1.
+     * GAMMA_64x64 stores the numerator for the signed 128bit 64.64
      * fixed decimal point expression:
-     *   gamma = gamma_64x64 / 2**64.
-     * Expressed in time[second], for 7% p.a. discounting:
-     *   balance(t+1y) = (1 - 0.07)^(1yr) * balance(t)
-     *   => gamma = (0.93)^(1/(365*24*3600))
-     *            = 0.99999999769879842873...
-     *   => gamma_64x64 = gamma * 2**64
-     *                  = 18446744031260000000
-     * If however, we express per unit of 1 day, 7% p.a.:
-     *   => gamma = (0.93)^(1/365)
-     *            = 0.999801195948159168...
-     *   => gamma_64x64 = 18443076800000000000
+     *   GAMMA = GAMMA_64x64 / 2**64.
+     * To obtain GAMMA for a daily accounting of 7% p.a. demurrage
+     *   => GAMMA = (0.93)^(1/365.25)
+     *            = 0.99980133200859895743...
+     * and expressed in 64.64 fixed point representation:
+     *   => GAMMA_64x64 = 18443079296116538654
+     * For more details, see ./specifications/TCIP009-demurrage.md
      */
-    int128 public constant GAMMA_64x64 = int128(18443076800000000000);
+    int128 public constant GAMMA_64x64 = int128(18443079296116538654);
 
     /**
-     * @notice Inflation factor beta for adjusting the daily mint according
-     * to a 7% p.a. inflation rate. The mint on day `d` (DEMURRAGE_WINDOW) is
-     *   mint(d) = beta^d * mint(d=0)
-     * where `d` counts the number of days since day zero, and beta > 1.
-     * BETA_64x64 stores the numerator for the signed 128bit 64.64
-     * fixed decimal point expression:
-     *   beta = beta_64x64 / 2**64.
-     * First calculate the equivalent rate for compounding on a daily basis,
-     * rather than annually. Let R be the equivalent daily compounding rate per year:
-     *   R = [ (1 + 0.07)^(1/365.25) - 1 ] * 365.25
-     *     = 0.0676649153805671...
-     * Expressed in time[second], for 6.8% p.a. inflation (n=365.25):
-     *   mint(t+1y) = (1 + R/n)^(n days/yr * 1yr) * mint(t)
-     *      => beta = (1 + R/n)^(1/(365.25*24*3600))
-     * If however, we express per unit of 1 day, 6.8% p.a.:
-     *   => beta = (1 + R)^(1/365)
-     *           = 1.0001792739503774572...
-     *   => BETA_64x64 = beta * 2**64
-     *                 = 18450051094391247475
+     * @notice For calculating the inflationary mint amount on day `d`
+     * since demurrage_day_zero, a person can mint
+     *   (1/GAMMA)^d CRC / hour
+     * As GAMMA is a constant, to save gas costs store the inverse
+     * as BETA = 1 / GAMMA.
+     * BETA_64x64 is the 64.64 fixed point representation:
+     *   BETA_64x64 = 2**64 / ((0.93)^(1/365.25))
+     *              = 18450409579521241655
+     * For more details, see ./specifications/TCIP009-demurrage.md
      */
-    int128 public constant BETA_64x64 = int128(0);
+    int128 public constant BETA_64x64 = int128(18450409579521241655);
 
     /**
      * @dev Address used to indicate that the associated v1 Circles contract has been stopped.
