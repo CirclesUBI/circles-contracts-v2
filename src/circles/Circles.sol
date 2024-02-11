@@ -40,21 +40,6 @@ contract Circles is ERC1155 {
      */
     uint256 public constant MAX_CLAIM_DURATION = 2 weeks;
 
-    // /**
-    //  * @notice The timestamp of the start of the Circles v1 contract.
-    //  * Thursday 15th October 2020 at 6:25:30 pm UTC
-    //  * @dev This is used as the global offset to calculate the demurrage,
-    //  * or equivalently the inflationary mint of Circles.
-    //  */
-    // uint256 public constant CIRCLES_START_TIME = uint256(1602786330);
-
-    // /**
-    //  * @notice The original Hub v1 contract was deployed on Thursday 15th October 2020 at 6:25:30 pm UTC.
-    //  * So to reset the global demurrage window to midnight, an offset of 66330 seconds is subtracted to
-    //  * have the start of day zero, for which the original mint was 1 CRC per hour.
-    //  */
-    // uint256 public constant DEMURRAGE_DAY_ZERO = CIRCLES_START_TIME - uint256(66330);
-
     /**
      * @notice Demurrage window reduces the resolution for calculating
      * the demurrage of balances from once per second (block.timestamp)
@@ -145,16 +130,22 @@ contract Circles is ERC1155 {
 
     // Public functions
 
-    // Internal functions
-
-    function _claimIssuance() internal {}
-
-    function _calculateIssuance(address _human) internal returns (uint256) {
+    /**
+     * @notice Calculate the issuance for a human's avatar.
+     * @param _human Address of the human's avatar to calculate the issuance for.
+     */
+    function calculateIssuance(address _human) public view returns (uint256) {
         MintTime storage mintTime = mintTimes[_human];
         require(
             mintTime.mintV1Status == address(0) || mintTime.mintV1Status == CIRCLES_STOPPED_V1,
             "Circles v1 contract cannot be active."
         );
+
+        if (uint256(mintTime.lastMintTime) + 1 hours >= block.timestamp) {
+            // Mint time is set to indefinite future for stopped mints in v2
+            // and wait at least one hour for a minimal mint issuance
+            return 0;
+        }
 
         // calculate the start of the claimable period
         uint256 startMint = _max(block.timestamp - MAX_CLAIM_DURATION, mintTime.lastMintTime);
@@ -207,17 +198,20 @@ contract Circles is ERC1155 {
         return issuance;
     }
 
-    function _updateMintV1Status(address _human, address _mintV1Status) internal {
-        MintTime storage mintTime = mintTimes[_human];
-        // precautionary check to ensure that the last mint time is already set
-        // as this marks whether an avatar is registered as human or not
-        assert(mintTime.lastMintTime > 0);
-        // if the status has changed, update the last mint time
-        // to avoid possible overlap of the mint between Hub v1 and Hub v2
-        if (mintTime.mintV1Status != _mintV1Status) {
-            mintTime.mintV1Status = _mintV1Status;
-            mintTime.lastMintTime = uint96(block.timestamp);
-        }
+    // Internal functions
+
+    /**
+     * @notice Claim issuance for a human's avatar and update the last mint time.
+     * @param _human Address of the human's avatar to claim the issuance for.
+     */
+    function _claimIssuance(address _human) internal {
+        uint256 issuance = calculateIssuance(_human);
+        require(issuance > 0, "No issuance to claim.");
+        // mint personal Circles to the human
+        _mint(_human, _toTokenId(_human), issuance, "");
+
+        // update the last mint time
+        mintTimes[_human].lastMintTime = uint96(block.timestamp);
     }
 
     /**
@@ -230,24 +224,21 @@ contract Circles is ERC1155 {
         return (_timestamp - demurrage_day_zero) / DEMURRAGE_WINDOW;
     }
 
-    // /**
-    //  * @dev Issuance on day calculates the inflationary mint amount on a given day
-    //  * for a number of hours expressed in attoHours.
-    //  * @param _attoHours Attohours for which to calculate the issuance.
-    //  * @param _day Day for which to calculate the issuance.
-    //  */
-    // function _issuanceOnDay(uint256 _attoHours, uint256 _day) internal pure returns (uint256) {
-    //     // calculate the inflationary mint amount on day `d` for a number of hours
-    //     // expressed in attoHours.
-    //     return Math64x64.mulu(Math64x64.pow(BETA_64x64, _day), _attoHours);
-    // }
+    /**
+     * @dev Casts an avatar address to a tokenId uint256.
+     * @param _avatar avatar address to convert to tokenId
+     */
+    function _toTokenId(address _avatar) internal pure returns (uint256) {
+        return uint256(uint160(_avatar));
+    }
 
     // Private functions
 
-    // function _min(uint256 a, uint256 b) private pure returns (uint256) {
-    //     return a <= b ? a : b;
-    // }
-
+    /**
+     * @dev Max function to compare two values.
+     * @param a Value a
+     * @param b Value b
+     */
     function _max(uint256 a, uint256 b) private pure returns (uint256) {
         return a >= b ? a : b;
     }

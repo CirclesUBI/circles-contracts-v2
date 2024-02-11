@@ -130,9 +130,11 @@ contract Hub is Circles {
     // Constructor
 
     /**
-     * Constructor for the Hub contract.
+     * @notice Constructor for the Hub contract.
      * @param _hubV1 address of the Hub v1 contract
-     * @param _demurrage_day_zero timestamp of the start of the global demurrage curve
+     * @param _demurrage_day_zero timestamp of the start of the global demurrage curve.
+     * For deployment on Gnosis Chain this parameter should be set to midnight 15 October 2020,
+     * or in unix time 1602786330 (deployment at 6:25:30 pm UTC) - 66330 (offset to midnight) = 1602720000.
      * @param _standardTreasury address of the standard treasury contract
      * @param _bootstrapTime duration of the bootstrap period (for v1 registration) in seconds
      * @param _fallbackUri fallback URI string for the ERC1155 metadata,
@@ -164,7 +166,7 @@ contract Hub is Circles {
     // External functions
 
     /**
-     * Register human allows to register an avatar for a human,
+     * @notice Register human allows to register an avatar for a human,
      * if they have a stopped v1 Circles contract, during the bootstrap period.
      * @param _cidV0Digest (optional) IPFS CIDv0 digest for the avatar metadata
      * should follow ERC1155 metadata standard.
@@ -183,7 +185,7 @@ contract Hub is Circles {
     }
 
     /**
-     * Invite human allows to register another human avatar.
+     * @notice Invite human allows to register another human avatar.
      * The inviter must burn twice the welcome bonus of their own Circles,
      * and the invited human receives the welcome bonus in their personal Circles.
      * The inviter is set to trust the invited avatar.
@@ -208,7 +210,7 @@ contract Hub is Circles {
     }
 
     /**
-     * Invite human as organization allows to register a human avatar as an organization.
+     * @notice Invite human as organization allows to register a human avatar as an organization.
      * @param _human address of the human to invite
      * @param _donationReceiver address of where to send the donation to with 2300 gas (using transfer)
      */
@@ -281,7 +283,7 @@ contract Hub is Circles {
     }
 
     /**
-     * Register organization allows to register an organization avatar.
+     * @notice Register organization allows to register an organization avatar.
      * @param _name name of the organization
      * @param _cidV0Digest IPFS CIDv0 digest for the organization metadata
      */
@@ -301,7 +303,7 @@ contract Hub is Circles {
     }
 
     /**
-     * Trust allows to trust another address for a certain period of time.
+     * @notice Trust allows to trust another address for a certain period of time.
      * Expiry times in the past are set to the current block timestamp.
      * @param _trustReceiver address that is trusted by the caller
      * @param _expiry expiry time in seconds since unix epoch until when trust is valid
@@ -319,25 +321,20 @@ contract Hub is Circles {
         _trust(msg.sender, _trustReceiver, _expiry);
     }
 
+    /**
+     * @notice Personal mint allows to mint personal Circles for a registered human avatar.
+     */
     function personalMint() external {
         require(isHuman(msg.sender), "Only avatars registered as human can call personal mint.");
-        MintTime storage mintTime = mintTimes[msg.sender];
-        if (mintTime.mintV1Status != CIRCLES_STOPPED_V1) {
+        // check if v1 Circles is known to be stopped
+        if (mintTimes[msg.sender].mintV1Status != CIRCLES_STOPPED_V1) {
             // if v1 Circles is not known to be stopped, check the status
             address v1MintStatus = _avatarV1CirclesStatus(msg.sender);
             _updateMintV1Status(msg.sender, v1MintStatus);
         }
-        uint256 issuanceDue = _calculateIssuance(msg.sender);
 
-        // todo: do daily demurrage over claimable period; max 2week
-        // todo: check v1 mint status and update accordingly
-
-        // todo: this is placeholder code using seconds.
-        uint256 secondsElapsed = (block.timestamp - mintTimes[msg.sender].lastMintTime);
-        require(secondsElapsed > 0, "No tokens available to mint yet.");
-
-        _mint(msg.sender, _toTokenId(msg.sender), secondsElapsed * 277777777777777, "");
-        mintTimes[msg.sender].lastMintTime = uint96(block.timestamp); // Reset the registration time after minting
+        // claim issuance if any is available
+        _claimIssuance(msg.sender);
     }
 
     // graph transfers SHOULD allow personal -> group conversion en route
@@ -624,14 +621,6 @@ contract Hub is Circles {
     }
 
     /**
-     * Casts an avatar address to a tokenId uint256.
-     * @param _avatar avatar address to convert to tokenId
-     */
-    function _toTokenId(address _avatar) internal pure returns (uint256) {
-        return uint256(uint160(_avatar));
-    }
-
-    /**
      * Checks the status of an avatar's Circles in the Hub v1 contract,
      * and returns the address of the Circles if it exists and is not stopped.
      * Else, it returns the zero address if no Circles exist,
@@ -649,6 +638,24 @@ contract Hub is Circles {
         } else {
             // return the address of the Circles contract if it exists and is not stopped
             return circlesV1;
+        }
+    }
+
+    /**
+     * Update the mint status of an avatar given the status of the v1 Circles contract.
+     * @param _human Address of the human avatar to check the v1 mint status of.
+     * @param _mintV1Status Mint status of the v1 Circles contract.
+     */
+    function _updateMintV1Status(address _human, address _mintV1Status) internal {
+        MintTime storage mintTime = mintTimes[_human];
+        // precautionary check to ensure that the last mint time is already set
+        // as this marks whether an avatar is registered as human or not
+        assert(mintTime.lastMintTime > 0);
+        // if the status has changed, update the last mint time
+        // to avoid possible overlap of the mint between Hub v1 and Hub v2
+        if (mintTime.mintV1Status != _mintV1Status) {
+            mintTime.mintV1Status = _mintV1Status;
+            mintTime.lastMintTime = uint96(block.timestamp);
         }
     }
 
