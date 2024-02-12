@@ -237,7 +237,7 @@ contract Circles is ERC1155 {
     ) public override {
         // the `_values` parameter is expressed in demurraged units,
         // so it needs to be converted to inflationary units first
-        uint128 inflationaryFactor = Math64x64.pow(BETA_64x64, _day(block.timestamp));
+        int128 inflationaryFactor = Math64x64.pow(BETA_64x64, _day(block.timestamp));
         uint256[] memory inflationaryValues = new uint256[](_values.length);
         for (uint256 i = 0; i < _values.length; i++) {
             inflationaryValues[i] = Math64x64.mulu(inflationaryFactor, _values[i]);
