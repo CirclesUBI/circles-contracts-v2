@@ -24,24 +24,6 @@ contract Hub is Circles {
     // Type declarations
 
     /**
-     * @notice MintTime struct stores the last mint time,
-     * and the status of a connected v1 Circles contract.
-     * @dev This is used to store the last mint time for each avatar,
-     * and the address is used as a status for the connected v1 Circles contract.
-     * The address is kept at zero address if the avatar is not registered in Hub v1.
-     * If the avatar is registered in Hub v1, but the associated Circles ERC20 contract
-     * has not been stopped, then the address is set to that v1 Circles contract address.
-     * Once the Circles v1 contract has been stopped, the address is set to 0x01.
-     * At every observed transition of the status of the v1 Circles contract,
-     * the lastMintTime will be updated to the current timestamp to avoid possible
-     * overlap of the mint between Hub v1 and Hub v2.
-     */
-    struct MintTime {
-        address mintV1Status;
-        uint96 lastMintTime;
-    }
-
-    /**
      * @notice TrustMarker stores the expiry of a trust relation as uint96,
      * and is iterable as a linked list of trust markers.
      * @dev This is used to store the directional trust relation between two avatars,
@@ -71,29 +53,12 @@ contract Hub is Circles {
      */
     address public constant SENTINEL = address(0x1);
 
-    /**
-     * @dev Address used to indicate that the associated v1 Circles contract has been stopped.
-     */
-    address public constant CIRCLES_STOPPED_V1 = address(0x1);
-
-    /**
-     * @notice Indefinite future, or approximated with uint96.max
-     */
-    uint96 public constant INDEFINITE_FUTURE = type(uint96).max;
-
     // State variables
 
     /**
      * @notice The Hub v1 contract address.
      */
     IHubV1 public immutable hubV1;
-
-    /**
-     * @notice The timestamp of the start of the Circles v1 contract.
-     * @dev This is used as the global offset to calculate the demurrage,
-     * or equivalently the inflationary mint of Circles.
-     */
-    uint256 public immutable circlesStartTime;
 
     /**
      * @notice The timestamp of the start of the invitation-only period.
@@ -117,15 +82,6 @@ contract Hub is Circles {
      */
     mapping(address => address) public avatars;
 
-    /**
-     * @notice The mapping of avatar addresses to the last mint time,
-     * and the status of the v1 Circles minting.
-     * @dev This is used to store the last mint time for each avatar.
-     */
-    mapping(address => MintTime) public mintTimes;
-
-    mapping(uint256 => WrappedERC20) public tokenIDToInfERC20;
-
     // Mint policy registered by avatar.
     mapping(address => address) public mintPolicies;
 
@@ -134,6 +90,8 @@ contract Hub is Circles {
     mapping(address => string) public names;
 
     mapping(address => string) public symbols;
+
+    mapping(uint256 => WrappedERC20) public tokenIDToInfERC20;
 
     /**
      * @notice The iterable mapping of directional trust relations between avatars and
@@ -172,16 +130,23 @@ contract Hub is Circles {
     // Constructor
 
     /**
-     * Constructor for the Hub contract.
+     * @notice Constructor for the Hub contract.
      * @param _hubV1 address of the Hub v1 contract
+     * @param _demurrage_day_zero timestamp of the start of the global demurrage curve.
+     * For deployment on Gnosis Chain this parameter should be set to midnight 15 October 2020,
+     * or in unix time 1602786330 (deployment at 6:25:30 pm UTC) - 66330 (offset to midnight) = 1602720000.
      * @param _standardTreasury address of the standard treasury contract
      * @param _bootstrapTime duration of the bootstrap period (for v1 registration) in seconds
      * @param _fallbackUri fallback URI string for the ERC1155 metadata,
      * (todo: eg. "https://fallback.aboutcircles.com/v1/circles/{id}.json")
      */
-    constructor(IHubV1 _hubV1, address _standardTreasury, uint256 _bootstrapTime, string memory _fallbackUri)
-        Circles(_fallbackUri)
-    {
+    constructor(
+        IHubV1 _hubV1,
+        uint256 _demurrage_day_zero,
+        address _standardTreasury,
+        uint256 _bootstrapTime,
+        string memory _fallbackUri
+    ) Circles(_demurrage_day_zero, _fallbackUri) {
         require(address(_hubV1) != address(0), "Hub v1 address can not be zero.");
         require(_standardTreasury != address(0), "Standard treasury address can not be zero.");
 
@@ -190,8 +155,7 @@ contract Hub is Circles {
 
         // store the Hub v1 contract address
         hubV1 = _hubV1;
-        // retrieve the start time of the Circles Hub v1 contract
-        circlesStartTime = _hubV1.deployedAt();
+
         // store the standard treasury contract address for registerGrouo()
         standardTreasury = _standardTreasury;
 
@@ -202,7 +166,7 @@ contract Hub is Circles {
     // External functions
 
     /**
-     * Register human allows to register an avatar for a human,
+     * @notice Register human allows to register an avatar for a human,
      * if they have a stopped v1 Circles contract, during the bootstrap period.
      * @param _cidV0Digest (optional) IPFS CIDv0 digest for the avatar metadata
      * should follow ERC1155 metadata standard.
@@ -221,7 +185,7 @@ contract Hub is Circles {
     }
 
     /**
-     * Invite human allows to register another human avatar.
+     * @notice Invite human allows to register another human avatar.
      * The inviter must burn twice the welcome bonus of their own Circles,
      * and the invited human receives the welcome bonus in their personal Circles.
      * The inviter is set to trust the invited avatar.
@@ -246,7 +210,7 @@ contract Hub is Circles {
     }
 
     /**
-     * Invite human as organization allows to register a human avatar as an organization.
+     * @notice Invite human as organization allows to register a human avatar as an organization.
      * @param _human address of the human to invite
      * @param _donationReceiver address of where to send the donation to with 2300 gas (using transfer)
      */
@@ -319,7 +283,7 @@ contract Hub is Circles {
     }
 
     /**
-     * Register organization allows to register an organization avatar.
+     * @notice Register organization allows to register an organization avatar.
      * @param _name name of the organization
      * @param _cidV0Digest IPFS CIDv0 digest for the organization metadata
      */
@@ -339,7 +303,7 @@ contract Hub is Circles {
     }
 
     /**
-     * Trust allows to trust another address for a certain period of time.
+     * @notice Trust allows to trust another address for a certain period of time.
      * Expiry times in the past are set to the current block timestamp.
      * @param _trustReceiver address that is trusted by the caller
      * @param _expiry expiry time in seconds since unix epoch until when trust is valid
@@ -357,17 +321,20 @@ contract Hub is Circles {
         _trust(msg.sender, _trustReceiver, _expiry);
     }
 
+    /**
+     * @notice Personal mint allows to mint personal Circles for a registered human avatar.
+     */
     function personalMint() external {
         require(isHuman(msg.sender), "Only avatars registered as human can call personal mint.");
-        // todo: do daily demurrage over claimable period; max 2week
-        // todo: check v1 mint status and update accordingly
+        // check if v1 Circles is known to be stopped
+        if (mintTimes[msg.sender].mintV1Status != CIRCLES_STOPPED_V1) {
+            // if v1 Circles is not known to be stopped, check the status
+            address v1MintStatus = _avatarV1CirclesStatus(msg.sender);
+            _updateMintV1Status(msg.sender, v1MintStatus);
+        }
 
-        // todo: this is placeholder code using seconds.
-        uint256 secondsElapsed = (block.timestamp - mintTimes[msg.sender].lastMintTime);
-        require(secondsElapsed > 0, "No tokens available to mint yet.");
-
-        _mint(msg.sender, _toTokenId(msg.sender), secondsElapsed * 277777777777777, "");
-        mintTimes[msg.sender].lastMintTime = uint96(block.timestamp); // Reset the registration time after minting
+        // claim issuance if any is available
+        _claimIssuance(msg.sender);
     }
 
     // graph transfers SHOULD allow personal -> group conversion en route
@@ -476,7 +443,7 @@ contract Hub is Circles {
         // timestamp should be "stepfunction" the timestamp
         // todo: ask where the best time step is
 
-        if (_timestamp < circlesStartTime) _timestamp = block.timestamp;
+        if (_timestamp < demurrage_day_zero) _timestamp = block.timestamp;
 
         // uint256 durationSinceStart = _time - hubV1start;
         // do conversion
@@ -654,21 +621,13 @@ contract Hub is Circles {
     }
 
     /**
-     * Casts an avatar address to a tokenId uint256.
-     * @param _avatar avatar address to convert to tokenId
-     */
-    function _toTokenId(address _avatar) internal pure returns (uint256) {
-        return uint256(uint160(_avatar));
-    }
-
-    /**
      * Checks the status of an avatar's Circles in the Hub v1 contract,
      * and returns the address of the Circles if it exists and is not stopped.
      * Else, it returns the zero address if no Circles exist,
      * and it returns the address CIRCLES_STOPPED_V1 (0x1) if the Circles contract is stopped.
      * @param _avatar avatar address for which to check registration in Hub v1
      */
-    function _avatarV1CirclesStatus(address _avatar) internal returns (address) {
+    function _avatarV1CirclesStatus(address _avatar) internal view returns (address) {
         address circlesV1 = hubV1.userToToken(_avatar);
         // no token exists in Hub v1, so return status is zero address
         if (circlesV1 == address(0)) return address(0);
@@ -679,6 +638,24 @@ contract Hub is Circles {
         } else {
             // return the address of the Circles contract if it exists and is not stopped
             return circlesV1;
+        }
+    }
+
+    /**
+     * Update the mint status of an avatar given the status of the v1 Circles contract.
+     * @param _human Address of the human avatar to check the v1 mint status of.
+     * @param _mintV1Status Mint status of the v1 Circles contract.
+     */
+    function _updateMintV1Status(address _human, address _mintV1Status) internal {
+        MintTime storage mintTime = mintTimes[_human];
+        // precautionary check to ensure that the last mint time is already set
+        // as this marks whether an avatar is registered as human or not
+        assert(mintTime.lastMintTime > 0);
+        // if the status has changed, update the last mint time
+        // to avoid possible overlap of the mint between Hub v1 and Hub v2
+        if (mintTime.mintV1Status != _mintV1Status) {
+            mintTime.mintV1Status = _mintV1Status;
+            mintTime.lastMintTime = uint96(block.timestamp);
         }
     }
 
