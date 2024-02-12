@@ -177,7 +177,7 @@ contract Circles is ERC1155 {
             // first calculate the full issuance over the complete days [dA, dB]
             // using the geometric sum:
             //   SUM_i=dA..dB (Beta^i) = (Beta^(dB + 1) - 1) / (Beta^dA - 1)
-            int128 term1 = iB1 - ONE_64x64;
+            int128 term1 = iB1.sub(ONE_64x64);
             int128 term2 = iA - ONE_64x64;
             int128 geometricSum = Math64x64.div(term1, term2);
             // 24 hours * 1 CRC/hour * EXA * geometricSum
