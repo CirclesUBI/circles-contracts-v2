@@ -128,6 +128,19 @@ contract Circles is ERC1155 {
 
     // External functions
 
+    /**
+     * BalanceOf returns the demurraged balance for a requested Circles identifier.
+     * @param _account Address of the account for which to view the demurraged balance.
+     * @param _id Cirlces identifier for which to the check the balance.
+     */
+    function balanceOf(address _account, uint256 _id) public view override returns (uint256) {
+        uint256 inflationaryBalance = super.balanceOf(_account, _id);
+        uint256 day = _day(block.timestamp);
+        // todo: similarly, cache this daily factor upon transfer (keep balanceOf a view function)
+        uint256 demurrageBalance = Math64x64.mulu(Math64x64.pow(GAMMA_64x64, day), inflationaryBalance);
+        return demurrageBalance;
+    }
+
     // Public functions
 
     /**
