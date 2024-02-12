@@ -129,16 +129,39 @@ contract Circles is ERC1155 {
     // External functions
 
     /**
-     * BalanceOf returns the demurraged balance for a requested Circles identifier.
+     * @notice BalanceOf returns the demurraged balance for a requested Circles identifier.
      * @param _account Address of the account for which to view the demurraged balance.
      * @param _id Cirlces identifier for which to the check the balance.
      */
     function balanceOf(address _account, uint256 _id) public view override returns (uint256) {
         uint256 inflationaryBalance = super.balanceOf(_account, _id);
-        uint256 day = _day(block.timestamp);
         // todo: similarly, cache this daily factor upon transfer (keep balanceOf a view function)
-        uint256 demurrageBalance = Math64x64.mulu(Math64x64.pow(GAMMA_64x64, day), inflationaryBalance);
+        int128 demurrageFactor = Math64x64.pow(GAMMA_64x64, _day(block.timestamp));
+        uint256 demurrageBalance = Math64x64.mulu(demurrageFactor, inflationaryBalance);
         return demurrageBalance;
+    }
+
+    /**
+     * @notice BalanceOfBatch returns the balances of a batch request for given accounts and Circles identifiers.
+     * @param accounts Batch of addreses of the accounts for which to view the demurraged balances.
+     * @param ids Batch of Circles identifiers for which to check the balances.
+     */
+    function balanceOfBatch(address[] memory accounts, uint256[] memory ids)
+        public
+        view
+        override
+        returns (uint256[] memory)
+    {
+        // ERC1155.sol already checks for equal lenght of arrays
+        // get the inflationary balances as a batch
+        uint256[] memory batchBalances = super.balanceOfBatch(accounts, ids);
+        int128 demurrageFactor = Math64x64.pow(GAMMA_64x64, _day(block.timestamp));
+        for (uint256 i = 0; i < accounts.length; i++) {
+            // convert from inflationary balances to demurraged balances
+            // mutate the balances in place to save memory
+            batchBalances[i] = Math64x64.mulu(demurrageFactor, batchBalances[i]);
+        }
+        return batchBalances;
     }
 
     // Public functions
