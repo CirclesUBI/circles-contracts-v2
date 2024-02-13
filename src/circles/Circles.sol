@@ -288,6 +288,49 @@ contract Circles is ERC1155 {
     }
 
     /**
+     * @notice Burn Circles in demurrage units.
+     * @param _id Circles identifier for which to burn the Circles.
+     * @param _value Demurraged value of the Circles to burn.
+     */
+    function burn(uint256 _id, uint256 _value) public {
+        int128 inflationaryFactor = Math64x64.pow(BETA_64x64, _day(block.timestamp));
+        uint256 inflationaryValue = Math64x64.mulu(inflationaryFactor, _value);
+        super._burn(msg.sender, _id, inflationaryValue);
+    }
+
+    /**
+     * @notice Burn a batch of Circles in demurrage units.
+     * @param _ids Batch of Circles identifiers for which to burn the Circles.
+     * @param _values Batch of demurraged values of the Circles to burn.
+     */
+    function burnBatch(uint256[] memory _ids, uint256[] memory _values) public {
+        int128 inflationaryFactor = Math64x64.pow(BETA_64x64, _day(block.timestamp));
+        uint256[] memory inflationaryValues = new uint256[](_values.length);
+        for (uint256 i = 0; i < _values.length; i++) {
+            inflationaryValues[i] = Math64x64.mulu(inflationaryFactor, _values[i]);
+        }
+        super._burnBatch(msg.sender, _ids, inflationaryValues);
+    }
+
+    /**
+     * @notice Burn Circles in inflationary units.
+     * @param _id Circles identifier for which to burn the Circles.
+     * @param _value Value of the Circles to burn in inflationary units.
+     */
+    function inflationaryBurn(uint256 _id, uint256 _value) public {
+        super._burn(msg.sender, _id, _value);
+    }
+
+    /**
+     * @notice Burn a batch of Circles in inflationary units.
+     * @param _ids Batch of Circles identifiers for which to burn the Circles.
+     * @param _values Batch of values of the Circles to burn in inflationary units.
+     */
+    function inflationaryBurnBatch(uint256[] memory _ids, uint256[] memory _values) public {
+        super._burnBatch(msg.sender, _ids, _values);
+    }
+
+    /**
      * @notice Calculate the issuance for a human's avatar.
      * @param _human Address of the human's avatar to calculate the issuance for.
      */
