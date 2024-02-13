@@ -120,6 +120,46 @@ contract Circles is ERC1155 {
      */
     mapping(address => MintTime) public mintTimes;
 
+    // Events
+
+    /**
+     * @dev Emitted when Circles are transferred in addition to TransferSingle event,
+     * to include the demurraged value of the Circles transferred.
+     * @param operator Operator who called safeTransferFrom.
+     * @param from Address from which the Circles have been transferred.
+     * @param to Address to which the Circles have been transferred.
+     * @param id Circles identifier for which the Circles have been transferred.
+     * @param value Demurraged value of the Circles transferred.
+     * @param inflationaryValue Inflationary amount of Circles transferred.
+     */
+    event DemurragedTransferSingle(
+        address indexed operator,
+        address indexed from,
+        address indexed to,
+        uint256 id,
+        uint256 value,
+        uint256 inflationaryValue
+    );
+
+    /**
+     * @dev Emitted when Circles are transferred in addition to TransferBatch event,
+     * to include the demurraged values of the Circles transferred.
+     * @param operator Operator who called safeBatchTransferFrom.
+     * @param from Address from which the Circles have been transferred.
+     * @param to Address to which the Circles have been transferred.
+     * @param ids Array of Circles identifiers for which the Circles have been transferred.
+     * @param values Array of demurraged values of the Circles transferred.
+     * @param inflationaryValues Array of inflationary amounts of Circles transferred.
+     */
+    event DemurragedTransferBatch(
+        address indexed operator,
+        address indexed from,
+        address indexed to,
+        uint256[] ids,
+        uint256[] values,
+        uint256[] inflationaryValues
+    );
+
     // Constructor
 
     constructor(uint256 _demurrage_day_zero, string memory _uri) ERC1155(_uri) {
@@ -129,6 +169,166 @@ contract Circles is ERC1155 {
     // External functions
 
     // Public functions
+
+    /**
+     * @notice BalanceOf returns the demurraged balance for a requested Circles identifier.
+     * @param _account Address of the account for which to view the demurraged balance.
+     * @param _id Cirlces identifier for which to the check the balance.
+     */
+    function balanceOf(address _account, uint256 _id) public view override returns (uint256) {
+        uint256 inflationaryBalance = super.balanceOf(_account, _id);
+        // todo: similarly, cache this daily factor upon transfer (keep balanceOf a view function)
+        int128 demurrageFactor = Math64x64.pow(GAMMA_64x64, _day(block.timestamp));
+        uint256 demurrageBalance = Math64x64.mulu(demurrageFactor, inflationaryBalance);
+        return demurrageBalance;
+    }
+
+    /**
+     * @notice BalanceOfBatch returns the balances of a batch request for given accounts and Circles identifiers.
+     * @param _accounts Batch of addreses of the accounts for which to view the demurraged balances.
+     * @param _ids Batch of Circles identifiers for which to check the balances.
+     */
+    function balanceOfBatch(address[] memory _accounts, uint256[] memory _ids)
+        public
+        view
+        override
+        returns (uint256[] memory)
+    {
+        // ERC1155.sol already checks for equal lenght of arrays
+        // get the inflationary balances as a batch
+        uint256[] memory batchBalances = super.balanceOfBatch(_accounts, _ids);
+        int128 demurrageFactor = Math64x64.pow(GAMMA_64x64, _day(block.timestamp));
+        for (uint256 i = 0; i < _accounts.length; i++) {
+            // convert from inflationary balances to demurraged balances
+            // mutate the balances in place to save memory
+            batchBalances[i] = Math64x64.mulu(demurrageFactor, batchBalances[i]);
+        }
+        return batchBalances;
+    }
+
+    /**
+     * @notice safeTransferFrom transfers Circles from one address to another in demurrage units.
+     * @param _from Address from which the Circles are transferred.
+     * @param _to Address to which the Circles are transferred.
+     * @param _id Circles indentifier for which the Circles are transferred.
+     * @param _value Demurraged value of the Circles transferred.
+     * @param _data Data to pass to the receiver.
+     */
+    function safeTransferFrom(address _from, address _to, uint256 _id, uint256 _value, bytes memory _data)
+        public
+        override
+    {
+        // the `value` parameter is expressed in demurraged units,
+        // so it needs to be converted to inflationary units first
+        // todo: again, cache this daily factor upon transfer
+        int128 inflationaryFactor = Math64x64.pow(BETA_64x64, _day(block.timestamp));
+        uint256 inflationaryValue = Math64x64.mulu(inflationaryFactor, _value);
+        super.safeTransferFrom(_from, _to, _id, inflationaryValue, _data);
+
+        emit DemurragedTransferSingle(msg.sender, _from, _to, _id, _value, inflationaryValue);
+    }
+
+    /**
+     * @notice safeBatchTransferFrom transfers Circles from one address to another in demurrage units.
+     * @param _from Address from which the Circles are transferred.
+     * @param _to Address to which the Circles are transferred.
+     * @param _ids Batch of Circles identifiers for which the Circles are transferred.
+     * @param _values Batch of demurraged values of the Circles transferred.
+     * @param _data Data to pass to the receiver.
+     */
+    function safeBatchTransferFrom(
+        address _from,
+        address _to,
+        uint256[] memory _ids,
+        uint256[] memory _values,
+        bytes memory _data
+    ) public override {
+        // the `_values` parameter is expressed in demurraged units,
+        // so it needs to be converted to inflationary units first
+        int128 inflationaryFactor = Math64x64.pow(BETA_64x64, _day(block.timestamp));
+        uint256[] memory inflationaryValues = new uint256[](_values.length);
+        for (uint256 i = 0; i < _values.length; i++) {
+            inflationaryValues[i] = Math64x64.mulu(inflationaryFactor, _values[i]);
+        }
+        super.safeBatchTransferFrom(_from, _to, _ids, inflationaryValues, _data);
+
+        emit DemurragedTransferBatch(msg.sender, _from, _to, _ids, _values, inflationaryValues);
+    }
+
+    /**
+     * @notice inflationarySafeTransferFrom transfers Circles from one address to another in inflationary units.
+     * @param _from Address from which the Circles are transferred.
+     * @param _to Address to which the Circles are transferred.
+     * @param _id Circles indentifier for which the Circles are transferred.
+     * @param _value Inflationary value of the Circles transferred.
+     * @param _data Data to pass to the receiver.
+     */
+    function inflationarySafeTransferFrom(address _from, address _to, uint256 _id, uint256 _value, bytes memory _data)
+        public
+    {
+        super.safeTransferFrom(_from, _to, _id, _value, _data);
+    }
+
+    /**
+     * @notice inflationarySafeBatchTransferFrom transfers Circles from one address to another in inflationary units.
+     * @param _from Address from which the Circles are transferred.
+     * @param _to Address to which the Circles are transferred.
+     * @param _ids Batch of Circles identifiers for which the Circles are transferred.
+     * @param _values Batch of inflationary values of the Circles transferred.
+     * @param _data Data to pass to the receiver.
+     */
+    function inflationarySafeBatchTransferFrom(
+        address _from,
+        address _to,
+        uint256[] memory _ids,
+        uint256[] memory _values,
+        bytes memory _data
+    ) public {
+        super.safeBatchTransferFrom(_from, _to, _ids, _values, _data);
+    }
+
+    /**
+     * @notice Burn Circles in demurrage units.
+     * @param _id Circles identifier for which to burn the Circles.
+     * @param _value Demurraged value of the Circles to burn.
+     */
+    function burn(uint256 _id, uint256 _value) public {
+        int128 inflationaryFactor = Math64x64.pow(BETA_64x64, _day(block.timestamp));
+        uint256 inflationaryValue = Math64x64.mulu(inflationaryFactor, _value);
+        super._burn(msg.sender, _id, inflationaryValue);
+    }
+
+    /**
+     * @notice Burn a batch of Circles in demurrage units.
+     * @param _ids Batch of Circles identifiers for which to burn the Circles.
+     * @param _values Batch of demurraged values of the Circles to burn.
+     */
+    function burnBatch(uint256[] memory _ids, uint256[] memory _values) public {
+        int128 inflationaryFactor = Math64x64.pow(BETA_64x64, _day(block.timestamp));
+        uint256[] memory inflationaryValues = new uint256[](_values.length);
+        for (uint256 i = 0; i < _values.length; i++) {
+            inflationaryValues[i] = Math64x64.mulu(inflationaryFactor, _values[i]);
+        }
+        super._burnBatch(msg.sender, _ids, inflationaryValues);
+    }
+
+    /**
+     * @notice Burn Circles in inflationary units.
+     * @param _id Circles identifier for which to burn the Circles.
+     * @param _value Value of the Circles to burn in inflationary units.
+     */
+    function inflationaryBurn(uint256 _id, uint256 _value) public {
+        super._burn(msg.sender, _id, _value);
+    }
+
+    /**
+     * @notice Burn a batch of Circles in inflationary units.
+     * @param _ids Batch of Circles identifiers for which to burn the Circles.
+     * @param _values Batch of values of the Circles to burn in inflationary units.
+     */
+    function inflationaryBurnBatch(uint256[] memory _ids, uint256[] memory _values) public {
+        super._burnBatch(msg.sender, _ids, _values);
+    }
 
     /**
      * @notice Calculate the issuance for a human's avatar.
@@ -177,8 +377,8 @@ contract Circles is ERC1155 {
             // first calculate the full issuance over the complete days [dA, dB]
             // using the geometric sum:
             //   SUM_i=dA..dB (Beta^i) = (Beta^(dB + 1) - 1) / (Beta^dA - 1)
-            int128 term1 = iB1.sub(ONE_64x64);
-            int128 term2 = iA.sub(ONE_64x64);
+            int128 term1 = Math64x64.sub(iB1, ONE_64x64);
+            int128 term2 = Math64x64.sub(iA, ONE_64x64);
             int128 geometricSum = Math64x64.div(term1, term2);
             // 24 hours * 1 CRC/hour * EXA * geometricSum
             fullIssuance = Math64x64.mulu(geometricSum, 24 * EXA);
