@@ -1,0 +1,26 @@
+{
+  "name": "@circles/circles-contracts-v2",
+  "version": "0.2.1",
+  "contributors": [
+    "Benjamin Bollen <https://github.com/benjaminbollen>",
+    "Martin Köppelmann <https://github.com/koeppelmann>",
+    "Daniel Janz <https://github.com/jaensen>",
+    "Ingo Collatz <https://github.com/ingoCollatz>"
+  ],
+  "license": "AGPL-3.0",
+  "scripts": {
+    "build": "forge build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CirclesUBI/circles-contracts-v2.git"
+  },
+  "bugs": {
+    "url": "https://github.com/CirclesUBI/circles-contracts-v2/issues"
+  },
+  "homepage": "https://github.com/CirclesUBI/circles-contracts-v2",
+  "devDependencies": {
+  },
+  "dependencies": {
+  }
+}
