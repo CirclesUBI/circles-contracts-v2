@@ -228,6 +228,14 @@ contract Circles is ERC1155 {
         emit DemurragedTransferSingle(msg.sender, _from, _to, _id, _value, inflationaryValue);
     }
 
+    /**
+     * @notice safeBatchTransferFrom transfers Circles from one address to another in demurrage units.
+     * @param _from Address from which the Circles are transferred.
+     * @param _to Address to which the Circles are transferred.
+     * @param _ids Batch of Circles identifiers for which the Circles are transferred.
+     * @param _values Batch of demurraged values of the Circles transferred.
+     * @param _data Data to pass to the receiver.
+     */
     function safeBatchTransferFrom(
         address _from,
         address _to,
@@ -245,6 +253,38 @@ contract Circles is ERC1155 {
         super.safeBatchTransferFrom(_from, _to, _ids, inflationaryValues, _data);
 
         emit DemurragedTransferBatch(msg.sender, _from, _to, _ids, _values, inflationaryValues);
+    }
+
+    /**
+     * @notice inflationarySafeTransferFrom transfers Circles from one address to another in inflationary units.
+     * @param _from Address from which the Circles are transferred.
+     * @param _to Address to which the Circles are transferred.
+     * @param _id Circles indentifier for which the Circles are transferred.
+     * @param _value Inflationary value of the Circles transferred.
+     * @param _data Data to pass to the receiver.
+     */
+    function inflationarySafeTransferFrom(address _from, address _to, uint256 _id, uint256 _value, bytes memory _data)
+        public
+    {
+        super.safeTransferFrom(_from, _to, _id, _value, _data);
+    }
+
+    /**
+     * @notice inflationarySafeBatchTransferFrom transfers Circles from one address to another in inflationary units.
+     * @param _from Address from which the Circles are transferred.
+     * @param _to Address to which the Circles are transferred.
+     * @param _ids Batch of Circles identifiers for which the Circles are transferred.
+     * @param _values Batch of inflationary values of the Circles transferred.
+     * @param _data Data to pass to the receiver.
+     */
+    function inflationarySafeBatchTransferFrom(
+        address _from,
+        address _to,
+        uint256[] memory _ids,
+        uint256[] memory _values,
+        bytes memory _data
+    ) public {
+        super.safeBatchTransferFrom(_from, _to, _ids, _values, _data);
     }
 
     /**
