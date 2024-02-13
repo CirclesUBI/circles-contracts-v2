@@ -156,7 +156,7 @@ contract Hub is Circles {
         // store the Hub v1 contract address
         hubV1 = _hubV1;
 
-        // store the standard treasury contract address for registerGrouo()
+        // store the standard treasury contract address for registerGroup()
         standardTreasury = _standardTreasury;
 
         // invitation-only period starts after the bootstrap time has passed since deployment
