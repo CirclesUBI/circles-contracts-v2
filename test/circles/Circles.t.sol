@@ -25,6 +25,7 @@ contract CirclesTest is Test, TimeSetup {
         // set time to 15th October 2020
         _setUpTime(DEMURRAGE_DAY_ZERO + 1);
 
+        // 23 january 2024 12:01 am UTC
         _forwardTime(3 * 365 days + 100 days);
 
         circles = new MockCircles(DEMURRAGE_DAY_ZERO);
