@@ -230,7 +230,7 @@ contract Circles is ERC1155 {
     function balanceOf(address _account, uint256 _id) public view override returns (uint256) {
         uint256 inflationaryBalance = super.balanceOf(_account, _id);
         // todo: similarly, cache this daily factor upon transfer (keep balanceOf a view function)
-        int128 demurrageFactor = Math64x64.pow(GAMMA_64x64, _day(block.timestamp));
+        int128 demurrageFactor = Math64x64.pow(GAMMA_64x64, day(block.timestamp));
         uint256 demurrageBalance = Math64x64.mulu(demurrageFactor, inflationaryBalance);
         return demurrageBalance;
     }
@@ -249,7 +249,7 @@ contract Circles is ERC1155 {
         // ERC1155.sol already checks for equal lenght of arrays
         // get the inflationary balances as a batch
         uint256[] memory batchBalances = super.balanceOfBatch(_accounts, _ids);
-        int128 demurrageFactor = Math64x64.pow(GAMMA_64x64, _day(block.timestamp));
+        int128 demurrageFactor = Math64x64.pow(GAMMA_64x64, day(block.timestamp));
         for (uint256 i = 0; i < _accounts.length; i++) {
             // convert from inflationary balances to demurraged balances
             // mutate the balances in place to save memory
@@ -273,7 +273,7 @@ contract Circles is ERC1155 {
         // the `value` parameter is expressed in demurraged units,
         // so it needs to be converted to inflationary units first
         // todo: again, cache this daily factor upon transfer
-        int128 inflationaryFactor = Math64x64.pow(BETA_64x64, _day(block.timestamp));
+        (int128 inflationaryFactor, ) = updateTodaysInflationFactor();
         uint256 inflationaryValue = Math64x64.mulu(inflationaryFactor, _value);
         super.safeTransferFrom(_from, _to, _id, inflationaryValue, _data);
 
@@ -297,7 +297,7 @@ contract Circles is ERC1155 {
     ) public override {
         // the `_values` parameter is expressed in demurraged units,
         // so it needs to be converted to inflationary units first
-        int128 inflationaryFactor = Math64x64.pow(BETA_64x64, _day(block.timestamp));
+        (int128 inflationaryFactor, ) = updateTodaysInflationFactor();
         uint256[] memory inflationaryValues = new uint256[](_values.length);
         for (uint256 i = 0; i < _values.length; i++) {
             inflationaryValues[i] = Math64x64.mulu(inflationaryFactor, _values[i]);
@@ -345,7 +345,7 @@ contract Circles is ERC1155 {
      * @param _value Demurraged value of the Circles to burn.
      */
     function burn(uint256 _id, uint256 _value) public {
-        int128 inflationaryFactor = Math64x64.pow(BETA_64x64, _day(block.timestamp));
+        (int128 inflationaryFactor, ) = updateTodaysInflationFactor();
         uint256 inflationaryValue = Math64x64.mulu(inflationaryFactor, _value);
         super._burn(msg.sender, _id, inflationaryValue);
     }
@@ -356,7 +356,7 @@ contract Circles is ERC1155 {
      * @param _values Batch of demurraged values of the Circles to burn.
      */
     function burnBatch(uint256[] memory _ids, uint256[] memory _values) public {
-        int128 inflationaryFactor = Math64x64.pow(BETA_64x64, _day(block.timestamp));
+        (int128 inflationaryFactor, ) = updateTodaysInflationFactor();
         uint256[] memory inflationaryValues = new uint256[](_values.length);
         for (uint256 i = 0; i < _values.length; i++) {
             inflationaryValues[i] = Math64x64.mulu(inflationaryFactor, _values[i]);
@@ -387,15 +387,89 @@ contract Circles is ERC1155 {
      * @param _human Address of the human's avatar to calculate the issuance for.
      */
     function calculateIssuance(address _human) public view returns (uint256) {
+        uint256 inflationaryIssuance = _calculateInflationaryIssuance(_human);
+        // todo: similarly, cache this daily factor upon transfer (keep balanceOf a view function)
+        int128 demurrageFactor = Math64x64.pow(GAMMA_64x64, day(block.timestamp));
+        uint256 demurragedIssuance = Math64x64.mulu(demurrageFactor, inflationaryIssuance);
+        return demurragedIssuance;
+    }
+
+    /**
+     * @notice Get today's inflation factor.
+     * @return Returns the inflation factor
+     * @return Returns the day number since day zero for the current day.
+     */
+    function todaysInflationFactor() public view returns (int128, uint256) {
+        uint256 today = day(block.timestamp);
+        assert(today > 0);
+        if (cacheInflationFactorDay == today) {
+            return (cacheInflationFactor, today);
+        } else {
+            // calculate the inflation factor for today if not cached
+            int128 inflationFactor = Math64x64.pow(BETA_64x64, today);
+            // but don't update the cache because we want to preserve the `view` function
+            return (inflationFactor, today);
+        }
+    }
+
+    /**
+     * @notice update the inflation factor for today if not already cached
+     */
+    function updateTodaysInflationFactor() public returns (int128, uint256){
+        uint256 today = day(block.timestamp);
+        assert(today > 0);
+        if (cacheInflationFactorDay == today) {
+            return (cacheInflationFactor, today);
+        } else {
+            int128 inflationFactor = Math64x64.pow(BETA_64x64, today);
+            cacheInflationFactor = inflationFactor;
+            cacheInflationFactorDay = today;
+            return (inflationFactor, today);
+        }
+    }
+
+    /**
+     * @notice Calculate the day since demurrage_day_zero for a given timestamp.
+     * @param _timestamp Timestamp for which to calculate the day since
+     * demurrage_day_zero.
+     */
+    function day(uint256 _timestamp) public view returns (uint256) {
+        // calculate which day the timestamp is in, rounding down
+        return (_timestamp - demurrage_day_zero) / DEMURRAGE_WINDOW;
+    }
+
+    // Internal functions
+
+    /**
+     * @notice Claim issuance for a human's avatar and update the last mint time.
+     * @param _human Address of the human's avatar to claim the issuance for.
+     */
+    function _claimIssuance(address _human) internal {
+        // update the inflation factor for today if not already cached
+        updateTodaysInflationFactor();
+        uint256 issuance = _calculateInflationaryIssuance(_human);
+        require(issuance > 0, "No issuance to claim.");
+        // mint personal Circles to the human
+        _mint(_human, _toTokenId(_human), issuance, "");
+
+        // update the last mint time
+        mintTimes[_human].lastMintTime = uint96(block.timestamp);
+    }
+       
+    /**
+     * @notice Calculate the inflationary issuance for a human's avatar.
+     * @param _human Address of the human's avatar to calculate the issuance for.
+     */
+    function _calculateInflationaryIssuance(address _human) public view returns (uint256) {
         MintTime storage mintTime = mintTimes[_human];
         require(
             mintTime.mintV1Status == address(0) || mintTime.mintV1Status == CIRCLES_STOPPED_V1,
             "Circles v1 contract cannot be active."
         );
 
-        if (uint256(mintTime.lastMintTime) + 1 hours >= block.timestamp) {
+        if (uint256(mintTime.lastMintTime) + 10 > block.timestamp) {
             // Mint time is set to indefinite future for stopped mints in v2
-            // and wait at least one hour for a minimal mint issuance
+            // and wait at least 10 seconds between mints
             return 0;
         }
 
@@ -403,7 +477,7 @@ contract Circles is ERC1155 {
         uint256 startMint = _max(block.timestamp - MAX_CLAIM_DURATION, mintTime.lastMintTime);
 
         // day of start of mint, dA
-        uint256 dA = _day(startMint);
+        uint256 dA = day(startMint);
         // day of end of mint (now), dB and the inflation factor iB
         (int128 iB, uint256 dB) = todaysInflationFactor();
 
@@ -426,68 +500,6 @@ contract Circles is ERC1155 {
 
         // convert the issuance to uint256 CRC units
         return Math64x64.mulu(issuance64x64, EXA);
-    }
-
-    /**
-     * @notice Get today's inflation factor.
-     * @return Returns the inflation factor
-     * @return Returns the day number since day zero for the current day.
-     */
-    function todaysInflationFactor() public view returns (int128, uint256) {
-        uint256 today = _day(block.timestamp);
-        assert(today > 0);
-        if (cacheInflationFactorDay == today) {
-            return (cacheInflationFactor, today);
-        } else {
-            // calculate the inflation factor for today if not cached
-            int128 inflationFactor = Math64x64.pow(BETA_64x64, today);
-            // but don't update the cache because we want to preserve the `view` function
-            return (inflationFactor, today);
-        }
-    }
-
-    /**
-     * @notice update the inflation factor for today if not already cached
-     */
-    function updateTodaysInflationFactor() public {
-        uint256 today = _day(block.timestamp);
-        assert(today > 0);
-        if (cacheInflationFactorDay == today) {
-            return;
-        } else {
-            int128 inflationFactor = Math64x64.pow(BETA_64x64, today);
-            cacheInflationFactor = inflationFactor;
-            cacheInflationFactorDay = today;
-            return;
-        }
-    }
-
-    // Internal functions
-
-    /**
-     * @notice Claim issuance for a human's avatar and update the last mint time.
-     * @param _human Address of the human's avatar to claim the issuance for.
-     */
-    function _claimIssuance(address _human) internal {
-        // update the inflation factor for today if not already cached
-        updateTodaysInflationFactor();
-        uint256 issuance = calculateIssuance(_human);
-        require(issuance > 0, "No issuance to claim.");
-        // mint personal Circles to the human
-        _mint(_human, _toTokenId(_human), issuance, "");
-
-        // update the last mint time
-        mintTimes[_human].lastMintTime = uint96(block.timestamp);
-    }
-
-    /**
-     * @dev Calculate the day since demurrage_day_zero for a given timestamp.
-     * @param _timestamp Timestamp for which to calculate the day since
-     * demurrage_day_zero.
-     */
-    function _day(uint256 _timestamp) internal view returns (uint256) {
-        // calculate which day the timestamp is in, rounding down
-        return (_timestamp - demurrage_day_zero) / DEMURRAGE_WINDOW;
     }
 
     /**

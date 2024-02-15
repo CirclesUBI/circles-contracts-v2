@@ -12,6 +12,8 @@ contract CirclesTest is Test, TimeSetup {
 
     uint256 public constant N = 4;
 
+    uint256 public constant DAY0 = (3 * 365 days + 100 days) / 1 days;
+
     // State variables
 
     MockCircles public circles;
@@ -26,7 +28,7 @@ contract CirclesTest is Test, TimeSetup {
         _setUpTime(DEMURRAGE_DAY_ZERO + 1);
 
         // 23 january 2024 12:01 am UTC
-        _forwardTime(3 * 365 days + 100 days);
+        _forwardTime(DAY0 * 1 days);
 
         circles = new MockCircles(DEMURRAGE_DAY_ZERO);
 
@@ -36,11 +38,25 @@ contract CirclesTest is Test, TimeSetup {
         }
     }
 
-    function testBlocktimestamp() public view {
-        console.log("block.timestamp: %d", block.timestamp);
+    function testCalculateIssuance() public {
+        circles.updateTodaysInflationFactor();
+        uint256 day = circles.day(block.timestamp);
+        assertEq(day, DAY0);
+        uint256 issuance = circles.calculateIssuance(addresses[0]);
+        assertEq(issuance, 0);
+
+        _forwardTime(30 minutes);
+        // still the same day
+        assertEq(circles.day(block.timestamp), DAY0);
+        issuance = circles.calculateIssuance(addresses[0]);
+        assertEq(issuance, 0);
+
+        _forwardTime(31 minutes);
+        issuance = circles.calculateIssuance(addresses[0]);
+        assertEq(issuance, 999999999999999979);
     }
 
-    // Private function
+    // Private functions
 
     function _setUpTime(uint256 _time) internal {
         vm.warp(_time);
