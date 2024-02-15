@@ -164,6 +164,14 @@ contract Circles is ERC1155 {
         int128(18395503389519647372)
     ];
 
+    /**
+     * @dev Cache computation of inflation factor and demurrage factor
+     */
+    int128 private cacheInflationFactor;
+    int128 private cacheDemurrageFactor;
+    uint256 private cacheInflationFactorDay;
+    uint256 private cacheDemurrageFactorDay;
+
     // Events
 
     /**
@@ -396,50 +404,62 @@ contract Circles is ERC1155 {
 
         // day of start of mint, dA
         uint256 dA = _day(startMint);
-        // day of end of mint (now), dB
-        uint256 dB = _day(block.timestamp);
+        // day of end of mint (now), dB and the inflation factor iB
+        (int128 iB, uint256 dB) = todaysInflationFactor();
 
-        // todo: later cache these computations, as they roll through a window of 15 days/values
-        // because there is a max claimable window, and once filled, only once per day we need to calculate
-        // a new value in the cache for all mints.
+        // the difference of days between dB and dA used for the table lookups
+        uint256 n = dB - dA;
 
-        // iA = Beta^dA
-        int128 iA = Math64x64.pow(BETA_64x64, dA);
-        // iB = Beta^dB
-        int128 iB = 0;
-        if (dA == dB) {
-            // if the start and end day are the same, then the issuance factor is the same
-            iB = iA;
+        // calculate the number of seconds in day A until `startMint`, and adjust for hours
+        int128 k = Math64x64.fromUInt((startMint - (dA * 1 days + demurrage_day_zero)) / 1 hours);
+
+        // Calculate the number of seconds remaining in day B after current timestamp
+        int128 l = Math64x64.fromUInt(((dB + 1) * 1 days + demurrage_day_zero - block.timestamp) / 1 hours + 1);
+
+        // calculate the overcounted (demurraged k in day A) hours
+        int128 overcount = Math64x64.add(Math64x64.mul(R[n], k), l);
+
+        // calculate the issuance for the period by counting full days and subtracting the overcount
+        // and apply todays inflation factor
+        // for details see ./specifications/TCIP009-demurrage.md
+        int128 issuance64x64 = Math64x64.mul(iB, Math64x64.sub(T[n], overcount));
+
+        // convert the issuance to uint256 CRC units
+        return Math64x64.mulu(issuance64x64, EXA);
+    }
+
+    /**
+     * @notice Get today's inflation factor.
+     * @return Returns the inflation factor 
+     * @return Returns the day number since day zero for the current day.
+     */
+    function todaysInflationFactor() public view returns (int128, uint256) {
+        uint256 today = _day(block.timestamp);
+        assert(today > 0);
+        if (cacheInflationFactorDay == today) {
+            return (cacheInflationFactor, today);
         } else {
-            iB = Math64x64.pow(BETA_64x64, dB);
+            // calculate the inflation factor for today if not cached
+            int128 inflationFactor = Math64x64.pow(BETA_64x64, today);
+            // but don't update the cache because we want to preserve the `view` function
+            return (inflationFactor, today);
         }
-        uint256 fullIssuance = 0;
-        {
-            // for the geometric sum we need Beta^(dB + 1) = iB1
-            int128 iB1 = Math64x64.mul(iB, BETA_64x64);
+    }
 
-            // first calculate the full issuance over the complete days [dA, dB]
-            // using the geometric sum:
-            //   SUM_i=dA..dB (Beta^i) = (Beta^(dB + 1) - 1) / (Beta^dA - 1)
-            int128 term1 = Math64x64.sub(iB1, ONE_64x64);
-            int128 term2 = Math64x64.sub(iA, ONE_64x64);
-            int128 geometricSum = Math64x64.div(term1, term2);
-            // 24 hours * 1 CRC/hour * EXA * geometricSum
-            fullIssuance = Math64x64.mulu(geometricSum, 24 * EXA);
+    /**
+     * @notice update the inflation factor for today if not already cached
+     */
+    function updateTodaysInflationFactor() public  {
+        uint256 today = _day(block.timestamp);
+        assert(today > 0);
+        if (cacheInflationFactorDay == today) {
+            return;
+        } else {
+            int128 inflationFactor = Math64x64.pow(BETA_64x64, today);
+            cacheInflationFactor = inflationFactor;
+            cacheInflationFactorDay = today;
+            return;
         }
-
-        // But now we overcounted, as we start day A at startMint
-        // and end day B at block.timestamp, so we need to adjust
-        uint256 overcountA = startMint - (dA * 1 days + demurrage_day_zero);
-        uint256 overcountB = (dB + 1) * 1 days + demurrage_day_zero - block.timestamp;
-
-        uint256 overIssuanceA = Math64x64.mulu(iA, overcountA * ISSUANCE_PER_SECOND);
-        uint256 overIssuanceB = Math64x64.mulu(iB, overcountB * ISSUANCE_PER_SECOND);
-
-        // subtract the overcounted issuance
-        uint256 issuance = fullIssuance - overIssuanceA - overIssuanceB;
-
-        return issuance;
     }
 
     // Internal functions
@@ -449,6 +469,8 @@ contract Circles is ERC1155 {
      * @param _human Address of the human's avatar to claim the issuance for.
      */
     function _claimIssuance(address _human) internal {
+        // update the inflation factor for today if not already cached
+        updateTodaysInflationFactor();
         uint256 issuance = calculateIssuance(_human);
         require(issuance > 0, "No issuance to claim.");
         // mint personal Circles to the human

@@ -230,3 +230,16 @@ n    R(n) = Beta^(-n)                        64x64 Fixed (20 or 21 digits)
 13   0.9974203924500335967334437             18399158713424712450          
 14   0.9972222369440831089539514             18395503389519647372 
 ```
+
+To convert this to attoCRC we can either allocate 1 CRC per completed (clock's) hour, which would result from
+the integer division `/ 3600` as mentioned above. In that case we simply have to multiply our previous result
+times `EXA = 10**18`. The extra hour gets subtracted because of the integer division to hours, to not overcount
+the current incomplete hour:
+
+    β^d * (T(n) - R(n) * k / 3600 - l / 3600 - 1) * EXA
+
+Or we can issue mint accurate up to the second of claiming and then we'd write
+
+    β^d * T(n) * EXA - β^d * (R(n) * k + l ) * EXA / 3600
+
+To reinforce that per hour everyone receives one Circle, we opt for the first implementation.
