@@ -416,7 +416,7 @@ contract Circles is ERC1155 {
         // Calculate the number of seconds remaining in day B after current timestamp
         int128 l = Math64x64.fromUInt(((dB + 1) * 1 days + demurrage_day_zero - block.timestamp) / 1 hours + 1);
 
-        // calculate the overcounted (demurraged k in day A) hours
+        // calculate the overcounted (demurraged) k (in day A) and l (in day B) hours
         int128 overcount = Math64x64.add(Math64x64.mul(R[n], k), l);
 
         // calculate the issuance for the period by counting full days and subtracting the overcount
@@ -430,7 +430,7 @@ contract Circles is ERC1155 {
 
     /**
      * @notice Get today's inflation factor.
-     * @return Returns the inflation factor 
+     * @return Returns the inflation factor
      * @return Returns the day number since day zero for the current day.
      */
     function todaysInflationFactor() public view returns (int128, uint256) {
@@ -449,7 +449,7 @@ contract Circles is ERC1155 {
     /**
      * @notice update the inflation factor for today if not already cached
      */
-    function updateTodaysInflationFactor() public  {
+    function updateTodaysInflationFactor() public {
         uint256 today = _day(block.timestamp);
         assert(today > 0);
         if (cacheInflationFactorDay == today) {
