@@ -273,7 +273,7 @@ contract Circles is ERC1155 {
         // the `value` parameter is expressed in demurraged units,
         // so it needs to be converted to inflationary units first
         // todo: again, cache this daily factor upon transfer
-        (int128 inflationaryFactor, ) = updateTodaysInflationFactor();
+        (int128 inflationaryFactor,) = updateTodaysInflationFactor();
         uint256 inflationaryValue = Math64x64.mulu(inflationaryFactor, _value);
         super.safeTransferFrom(_from, _to, _id, inflationaryValue, _data);
 
@@ -297,7 +297,7 @@ contract Circles is ERC1155 {
     ) public override {
         // the `_values` parameter is expressed in demurraged units,
         // so it needs to be converted to inflationary units first
-        (int128 inflationaryFactor, ) = updateTodaysInflationFactor();
+        (int128 inflationaryFactor,) = updateTodaysInflationFactor();
         uint256[] memory inflationaryValues = new uint256[](_values.length);
         for (uint256 i = 0; i < _values.length; i++) {
             inflationaryValues[i] = Math64x64.mulu(inflationaryFactor, _values[i]);
@@ -345,7 +345,7 @@ contract Circles is ERC1155 {
      * @param _value Demurraged value of the Circles to burn.
      */
     function burn(uint256 _id, uint256 _value) public {
-        (int128 inflationaryFactor, ) = updateTodaysInflationFactor();
+        (int128 inflationaryFactor,) = updateTodaysInflationFactor();
         uint256 inflationaryValue = Math64x64.mulu(inflationaryFactor, _value);
         super._burn(msg.sender, _id, inflationaryValue);
     }
@@ -356,7 +356,7 @@ contract Circles is ERC1155 {
      * @param _values Batch of demurraged values of the Circles to burn.
      */
     function burnBatch(uint256[] memory _ids, uint256[] memory _values) public {
-        (int128 inflationaryFactor, ) = updateTodaysInflationFactor();
+        (int128 inflationaryFactor,) = updateTodaysInflationFactor();
         uint256[] memory inflationaryValues = new uint256[](_values.length);
         for (uint256 i = 0; i < _values.length; i++) {
             inflationaryValues[i] = Math64x64.mulu(inflationaryFactor, _values[i]);
@@ -383,7 +383,7 @@ contract Circles is ERC1155 {
     }
 
     /**
-     * @notice Calculate the issuance for a human's avatar.
+     * @notice Calculate the issuance for a human's avatar in demurraged units.
      * @param _human Address of the human's avatar to calculate the issuance for.
      */
     function calculateIssuance(address _human) public view returns (uint256) {
@@ -392,6 +392,11 @@ contract Circles is ERC1155 {
         int128 demurrageFactor = Math64x64.pow(GAMMA_64x64, day(block.timestamp));
         uint256 demurragedIssuance = Math64x64.mulu(demurrageFactor, inflationaryIssuance);
         return demurragedIssuance;
+    }
+
+    function calculateIssuanceDisplay(address _human) public view returns (uint256) {
+        uint256 exactDemurrageIssuance = Math64x64.mulu(_calculateExactIssuance(_human), EXA);
+        return exactDemurrageIssuance;
     }
 
     /**
@@ -415,7 +420,7 @@ contract Circles is ERC1155 {
     /**
      * @notice update the inflation factor for today if not already cached
      */
-    function updateTodaysInflationFactor() public returns (int128, uint256){
+    function updateTodaysInflationFactor() public returns (int128, uint256) {
         uint256 today = day(block.timestamp);
         assert(today > 0);
         if (cacheInflationFactorDay == today) {
@@ -455,12 +460,20 @@ contract Circles is ERC1155 {
         // update the last mint time
         mintTimes[_human].lastMintTime = uint96(block.timestamp);
     }
-       
+
+    function _calculateInflationaryIssuance(address _human) internal view returns (uint256) {
+        // convert the exact issuance to inflationary units
+        (int128 iB,) = todaysInflationFactor();
+        int128 exactIssuance64x64 = _calculateExactIssuance(_human);
+        uint256 inflationaryIssuance = Math64x64.mulu(Math64x64.mul(iB, exactIssuance64x64), EXA);
+        return inflationaryIssuance;
+    }
+
     /**
-     * @notice Calculate the inflationary issuance for a human's avatar.
+     * @notice Calculate the exact issuance as 64x64 for a human's avatar.
      * @param _human Address of the human's avatar to calculate the issuance for.
      */
-    function _calculateInflationaryIssuance(address _human) public view returns (uint256) {
+    function _calculateExactIssuance(address _human) public view returns (int128) {
         MintTime storage mintTime = mintTimes[_human];
         require(
             mintTime.mintV1Status == address(0) || mintTime.mintV1Status == CIRCLES_STOPPED_V1,
@@ -478,8 +491,9 @@ contract Circles is ERC1155 {
 
         // day of start of mint, dA
         uint256 dA = day(startMint);
-        // day of end of mint (now), dB and the inflation factor iB
-        (int128 iB, uint256 dB) = todaysInflationFactor();
+
+        // day of current block, dB
+        uint256 dB = day(block.timestamp);
 
         // the difference of days between dB and dA used for the table lookups
         uint256 n = dB - dA;
@@ -496,10 +510,11 @@ contract Circles is ERC1155 {
         // calculate the issuance for the period by counting full days and subtracting the overcount
         // and apply todays inflation factor
         // for details see ./specifications/TCIP009-demurrage.md
-        int128 issuance64x64 = Math64x64.mul(iB, Math64x64.sub(T[n], overcount));
+        // int128 issuance64x64 = Math64x64.mul(iB, Math64x64.sub(T[n], overcount));
 
-        // convert the issuance to uint256 CRC units
-        return Math64x64.mulu(issuance64x64, EXA);
+        int128 issuanceExact64x64 = Math64x64.sub(T[n], overcount);
+
+        return issuanceExact64x64;
     }
 
     /**

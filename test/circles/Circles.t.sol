@@ -54,6 +54,9 @@ contract CirclesTest is Test, TimeSetup {
         _forwardTime(31 minutes);
         issuance = circles.calculateIssuance(addresses[0]);
         assertEq(issuance, 999999999999999979);
+
+        uint256 exactIssuance = circles.calculateIssuanceDisplay(addresses[0]);
+        assertEq(exactIssuance, 10 ** 18);
     }
 
     // Private functions
