@@ -177,7 +177,7 @@ contract Hub is Circles {
         require(v1CirclesStatus == CIRCLES_STOPPED_V1, "Avatar must have stopped v1 Circles contract.");
 
         // store the IPFS CIDv0 digest for the avatar metadata
-        tokenIdToCidV0Digest[_toTokenId(msg.sender)] = _cidV0Digest;
+        tokenIdToCidV0Digest[toTokenId(msg.sender)] = _cidV0Digest;
 
         emit RegisterHuman(msg.sender);
 
@@ -198,10 +198,10 @@ contract Hub is Circles {
         _registerHuman(_human);
 
         // inviter must burn twice the welcome bonus of their own Circles
-        _burn(msg.sender, _toTokenId(msg.sender), 2 * WELCOME_BONUS);
+        _burn(msg.sender, toTokenId(msg.sender), 2 * WELCOME_BONUS);
 
         // invited receives the welcome bonus in their personal Circles
-        _mint(_human, _toTokenId(_human), WELCOME_BONUS, "");
+        _mint(_human, toTokenId(_human), WELCOME_BONUS, "");
 
         // set trust to indefinite future, but avatar can edit this later
         _trust(msg.sender, _human, INDEFINITE_FUTURE);
@@ -228,7 +228,7 @@ contract Hub is Circles {
         _trust(msg.sender, _human, uint96(block.timestamp + 365 days));
 
         // invited receives the welcome bonus in their personal Circles
-        _mint(_human, _toTokenId(_human), WELCOME_BONUS, "");
+        _mint(_human, toTokenId(_human), WELCOME_BONUS, "");
 
         // send the donation to the donation receiver but with minimal gas
         // to avoid reentrancy attacks
@@ -250,7 +250,7 @@ contract Hub is Circles {
         _registerGroup(msg.sender, _mint, standardTreasury, _name, _symbol);
 
         // store the IPFS CIDv0 digest for the group metadata
-        tokenIdToCidV0Digest[_toTokenId(msg.sender)] = _cidV0Digest;
+        tokenIdToCidV0Digest[toTokenId(msg.sender)] = _cidV0Digest;
 
         emit RegisterGroup(msg.sender, _mint, standardTreasury, _name, _symbol);
 
@@ -275,7 +275,7 @@ contract Hub is Circles {
         _registerGroup(msg.sender, _mint, _treasury, _name, _symbol);
 
         // store the IPFS CIDv0 digest for the group metadata
-        tokenIdToCidV0Digest[_toTokenId(msg.sender)] = _cidV0Digest;
+        tokenIdToCidV0Digest[toTokenId(msg.sender)] = _cidV0Digest;
 
         emit RegisterGroup(msg.sender, _mint, _treasury, _name, _symbol);
 
@@ -295,7 +295,7 @@ contract Hub is Circles {
         names[msg.sender] = _name;
 
         // store the IPFS CIDv0 digest for the organization metadata
-        tokenIdToCidV0Digest[_toTokenId(msg.sender)] = _cidV0Digest;
+        tokenIdToCidV0Digest[toTokenId(msg.sender)] = _cidV0Digest;
 
         emit RegisterOrganization(msg.sender, _name);
 
@@ -354,7 +354,7 @@ contract Hub is Circles {
         uint256 sumAmounts;
         // TODO sum up amounts
         sumAmounts = _amounts[0];
-        _mint(msg.sender, _toTokenId(_group), sumAmounts, "");
+        _mint(msg.sender, toTokenId(_group), sumAmounts, "");
     }
 
     function stop() external {
@@ -434,7 +434,7 @@ contract Hub is Circles {
     function setIpfsCidV0(bytes32 _ipfsCid) external {
         require(avatars[msg.sender] != address(0), "Avatar must be registered.");
         // todo: we should charge in CRC, but better done later through a storage market
-        tokenIdToCidV0Digest[_toTokenId(msg.sender)] = _ipfsCid;
+        tokenIdToCidV0Digest[toTokenId(msg.sender)] = _ipfsCid;
 
         emit CidV0(msg.sender, _ipfsCid);
     }

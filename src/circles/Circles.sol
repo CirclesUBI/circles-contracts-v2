@@ -258,6 +258,18 @@ contract Circles is ERC1155 {
         return batchBalances;
     }
 
+    function inflationaryBalanceOf(address _account, uint256 _id) public view returns (uint256) {
+        return super.balanceOf(_account, _id);
+    }
+
+    function inflationaryBalanceOfBatch(address[] memory _accounts, uint256[] memory _ids)
+        public
+        view
+        returns (uint256[] memory)
+    {
+        return super.balanceOfBatch(_accounts, _ids);
+    }
+
     /**
      * @notice safeTransferFrom transfers Circles from one address to another in demurrage units.
      * @param _from Address from which the Circles are transferred.
@@ -443,6 +455,14 @@ contract Circles is ERC1155 {
         return (_timestamp - demurrage_day_zero) / DEMURRAGE_WINDOW;
     }
 
+    /**
+     * @dev Casts an avatar address to a tokenId uint256.
+     * @param _avatar avatar address to convert to tokenId
+     */
+    function toTokenId(address _avatar) public pure returns (uint256) {
+        return uint256(uint160(_avatar));
+    }
+
     // Internal functions
 
     /**
@@ -455,7 +475,7 @@ contract Circles is ERC1155 {
         uint256 issuance = _calculateInflationaryIssuance(_human);
         require(issuance > 0, "No issuance to claim.");
         // mint personal Circles to the human
-        _mint(_human, _toTokenId(_human), issuance, "");
+        _mint(_human, toTokenId(_human), issuance, "");
 
         // update the last mint time
         mintTimes[_human].lastMintTime = uint96(block.timestamp);
@@ -515,14 +535,6 @@ contract Circles is ERC1155 {
         int128 issuanceExact64x64 = Math64x64.sub(T[n], overcount);
 
         return issuanceExact64x64;
-    }
-
-    /**
-     * @dev Casts an avatar address to a tokenId uint256.
-     * @param _avatar avatar address to convert to tokenId
-     */
-    function _toTokenId(address _avatar) internal pure returns (uint256) {
-        return uint256(uint160(_avatar));
     }
 
     // Private functions
