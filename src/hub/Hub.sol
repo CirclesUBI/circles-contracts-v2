@@ -337,6 +337,23 @@ contract Hub is Circles {
         _claimIssuance(msg.sender);
     }
 
+
+    /**
+     * @notice allows to mint v2 tokens from v1 tokens
+     * tokens are expected to be send to v2 hub contract upfront and are forwarded to a burn address
+     */
+    function mintFromv1(address[] memory tokenIDs) external {
+        for (uint i = 0; i < tokenIDs.length; i++) {
+
+            address circlesV1 = hubV1.userToToken(tokenIDs[i]);
+            ITokenV1 token = ITokenV1(circlesV1);
+            uint256 balance = token.balanceOf(address(this));    
+            require(token.transfer(SENTINEL, balance), "Transfer failed");
+            // Amount *3 because in v1 the issuance started a 8 instead of 24 per day
+            _mint(msg.sender, uint256(uint160(tokenIDs[i]) * 3), balance, "");
+        }
+    }
+
     // graph transfers SHOULD allow personal -> group conversion en route
 
     // msg.sender holds collateral, and MUST be accepted by group
