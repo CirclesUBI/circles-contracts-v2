@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity >=0.8.13;
 
-import "openzeppelin-contracts/contracts/token/ERC1155/ERC1155.sol";
-import "openzeppelin-contracts/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import "./erc1155/erc1155.sol";
+import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "../lib/Math64x64.sol";
 
 contract Circles is ERC1155 {
@@ -41,43 +41,6 @@ contract Circles is ERC1155 {
     uint256 public constant MAX_CLAIM_DURATION = 2 weeks;
 
     /**
-     * @notice Demurrage window reduces the resolution for calculating
-     * the demurrage of balances from once per second (block.timestamp)
-     * to once per day.
-     */
-    uint256 public constant DEMURRAGE_WINDOW = 1 days;
-
-    /**
-     * @notice Reduction factor GAMMA for applying demurrage to balances
-     *   demurrage_balance(d) = GAMMA^d * inflationary_balance
-     * where 'd' is expressed in days (DEMURRAGE_WINDOW) since demurrage_day_zero,
-     * and GAMMA < 1.
-     * GAMMA_64x64 stores the numerator for the signed 128bit 64.64
-     * fixed decimal point expression:
-     *   GAMMA = GAMMA_64x64 / 2**64.
-     * To obtain GAMMA for a daily accounting of 7% p.a. demurrage
-     *   => GAMMA = (0.93)^(1/365.25)
-     *            = 0.99980133200859895743...
-     * and expressed in 64.64 fixed point representation:
-     *   => GAMMA_64x64 = 18443079296116538654
-     * For more details, see ./specifications/TCIP009-demurrage.md
-     */
-    int128 public constant GAMMA_64x64 = int128(18443079296116538654);
-
-    /**
-     * @notice For calculating the inflationary mint amount on day `d`
-     * since demurrage_day_zero, a person can mint
-     *   (1/GAMMA)^d CRC / hour
-     * As GAMMA is a constant, to save gas costs store the inverse
-     * as BETA = 1 / GAMMA.
-     * BETA_64x64 is the 64.64 fixed point representation:
-     *   BETA_64x64 = 2**64 / ((0.93)^(1/365.25))
-     *              = 18450409579521241655
-     * For more details, see ./specifications/TCIP009-demurrage.md
-     */
-    int128 public constant BETA_64x64 = int128(18450409579521241655);
-
-    /**
      * @dev Address used to indicate that the associated v1 Circles contract has been stopped.
      */
     address public constant CIRCLES_STOPPED_V1 = address(0x1);
@@ -87,37 +50,7 @@ contract Circles is ERC1155 {
      */
     uint96 public constant INDEFINITE_FUTURE = type(uint96).max;
 
-    /**
-     * @dev ERC1155 tokens MUST be 18 decimals.
-     */
-    uint8 public constant DECIMALS = uint8(18);
-
-    /**
-     * @dev EXA factor as 10^18
-     */
-    uint256 internal constant EXA = uint256(10 ** DECIMALS);
-
-    /**
-     * @dev Store the signed 128-bit 64.64 representation of 1 as a constant
-     */
-    int128 internal constant ONE_64x64 = int128(2 ** 64);
-
-    /**
-     * @dev Store all amounts privately with an additional precision by left
-     * shifting by 14 bits.
-     */
-    uint256 private constant EXTRA_PRECISION = uint256(14);
-
     // State variables
-
-    /**
-     * @notice Demurrage day zero stores the start of the global demurrage curve
-     * As Circles Hub v1 was deployed on Thursday 15th October 2020 at 6:25:30 pm UTC,
-     * or 1602786330 unix time, in production this value MUST be set to 1602720000 unix time,
-     * or midnight prior of the same day of deployment, marking the start of the first day
-     * where there was no inflation on one CRC per hour.
-     */
-    uint256 public immutable demurrage_day_zero;
 
     /**
      * @notice The mapping of avatar addresses to the last mint time,
@@ -125,58 +58,6 @@ contract Circles is ERC1155 {
      * @dev This is used to store the last mint time for each avatar.
      */
     mapping(address => MintTime) public mintTimes;
-
-    /**
-     * @dev Store a lookup table T(n) for computing issuance.
-     * See ../../specifications/TCIP009-demurrage.md for more details.
-     */
-    int128[15] private T = [
-        int128(442721857769029238784),
-        int128(885355760875826166476),
-        int128(1327901726794166863126),
-        int128(1770359772994355928788),
-        int128(2212729916943227173193),
-        int128(2655012176104144305282),
-        int128(3097206567937001622606),
-        int128(3539313109898224700583),
-        int128(3981331819440771081628),
-        int128(4423262714014130964135),
-        int128(4865105811064327891331),
-        int128(5306861128033919439986),
-        int128(5748528682361997908993),
-        int128(6190108491484191007805),
-        int128(6631600572832662544739)
-    ];
-
-    /**
-     * @dev Store a lookup table R(n) for computing issuance.
-     * See ../../specifications/TCIP009-demurrage.md for more details.
-     */
-    int128[15] private R = [
-        int128(18446744073709551616),
-        int128(18443079296116538654),
-        int128(18439415246597529027),
-        int128(18435751925007877736),
-        int128(18432089331202968517),
-        int128(18428427465038213837),
-        int128(18424766326369054888),
-        int128(18421105915050961582),
-        int128(18417446230939432544),
-        int128(18413787273889995104),
-        int128(18410129043758205300),
-        int128(18406471540399647861),
-        int128(18402814763669936209),
-        int128(18399158713424712450),
-        int128(18395503389519647372)
-    ];
-
-    /**
-     * @dev Cache computation of inflation factor and demurrage factor
-     */
-    int128 private cacheInflationFactor;
-    int128 private cacheDemurrageFactor;
-    uint256 private cacheInflationFactorDay;
-    uint256 private cacheDemurrageFactorDay;
 
     // Events
 
@@ -220,26 +101,20 @@ contract Circles is ERC1155 {
 
     // Constructor
 
-    constructor(uint256 _demurrage_day_zero, string memory _uri) ERC1155(_uri) {
-        demurrage_day_zero = _demurrage_day_zero;
-    }
+    constructor(uint256 _demurrage_day_zero, string memory _uri) ERC1155(_uri) Balances(_demurrage_day_zero) {}
 
     // External functions
 
     // Public functions
 
-    /**
-     * @notice BalanceOf returns the demurraged balance for a requested Circles identifier.
-     * @param _account Address of the account for which to view the demurraged balance.
-     * @param _id Cirlces identifier for which to the check the balance.
-     */
-    function balanceOf(address _account, uint256 _id) public view override returns (uint256) {
-        uint256 inflationaryBalance = super.balanceOf(_account, _id);
-        // todo: similarly, cache this daily factor upon transfer (keep balanceOf a view function)
-        int128 demurrageFactor = Math64x64.pow(GAMMA_64x64, day(block.timestamp));
-        uint256 demurrageBalance = Math64x64.mulu(demurrageFactor, inflationaryBalance);
-        return demurrageBalance;
-    }
+    // /**
+    //  * @notice BalanceOf returns the demurraged balance for a requested Circles identifier.
+    //  * @param _account Address of the account for which to view the demurraged balance.
+    //  * @param _id Cirlces identifier for which to the check the balance.
+    //  */
+    // function balanceOf(address _account, uint256 _id) public view override returns (uint256) {
+    //     super.balanceOf(_account, _id);
+    // }
 
     /**
      * @notice BalanceOfBatch returns the balances of a batch request for given accounts and Circles identifiers.
@@ -255,7 +130,7 @@ contract Circles is ERC1155 {
         // ERC1155.sol already checks for equal lenght of arrays
         // get the inflationary balances as a batch
         uint256[] memory batchBalances = super.balanceOfBatch(_accounts, _ids);
-        int128 demurrageFactor = Math64x64.pow(GAMMA_64x64, day(block.timestamp));
+        int128 demurrageFactor = Math64x64.pow(GAMMA_64x64, super.day(block.timestamp));
         for (uint256 i = 0; i < _accounts.length; i++) {
             // convert from inflationary balances to demurraged balances
             // mutate the balances in place to save memory
@@ -291,7 +166,7 @@ contract Circles is ERC1155 {
         // the `value` parameter is expressed in demurraged units,
         // so it needs to be converted to inflationary units first
         // todo: again, cache this daily factor upon transfer
-        (int128 inflationaryFactor,) = updateTodaysInflationFactor();
+        (int128 inflationaryFactor,) = super.updateTodaysInflationFactor();
         uint256 inflationaryValue = Math64x64.mulu(inflationaryFactor, _value);
         super.safeTransferFrom(_from, _to, _id, inflationaryValue, _data);
 
@@ -315,7 +190,7 @@ contract Circles is ERC1155 {
     ) public override {
         // the `_values` parameter is expressed in demurraged units,
         // so it needs to be converted to inflationary units first
-        (int128 inflationaryFactor,) = updateTodaysInflationFactor();
+        (int128 inflationaryFactor,) = super.updateTodaysInflationFactor();
         uint256[] memory inflationaryValues = new uint256[](_values.length);
         for (uint256 i = 0; i < _values.length; i++) {
             inflationaryValues[i] = Math64x64.mulu(inflationaryFactor, _values[i]);
@@ -363,7 +238,7 @@ contract Circles is ERC1155 {
      * @param _value Demurraged value of the Circles to burn.
      */
     function burn(uint256 _id, uint256 _value) public {
-        (int128 inflationaryFactor,) = updateTodaysInflationFactor();
+        (int128 inflationaryFactor,) = super.updateTodaysInflationFactor();
         uint256 inflationaryValue = Math64x64.mulu(inflationaryFactor, _value);
         super._burn(msg.sender, _id, inflationaryValue);
     }
@@ -374,7 +249,7 @@ contract Circles is ERC1155 {
      * @param _values Batch of demurraged values of the Circles to burn.
      */
     function burnBatch(uint256[] memory _ids, uint256[] memory _values) public {
-        (int128 inflationaryFactor,) = updateTodaysInflationFactor();
+        (int128 inflationaryFactor,) = super.updateTodaysInflationFactor();
         uint256[] memory inflationaryValues = new uint256[](_values.length);
         for (uint256 i = 0; i < _values.length; i++) {
             inflationaryValues[i] = Math64x64.mulu(inflationaryFactor, _values[i]);
@@ -407,7 +282,7 @@ contract Circles is ERC1155 {
     function calculateIssuance(address _human) public view returns (uint256) {
         uint256 inflationaryIssuance = _calculateInflationaryIssuance(_human);
         // todo: similarly, cache this daily factor upon transfer (keep balanceOf a view function)
-        int128 demurrageFactor = Math64x64.pow(GAMMA_64x64, day(block.timestamp));
+        int128 demurrageFactor = Math64x64.pow(GAMMA_64x64, super.day(block.timestamp));
         uint256 demurragedIssuance = Math64x64.mulu(demurrageFactor, inflationaryIssuance);
         return demurragedIssuance;
     }
@@ -415,58 +290,6 @@ contract Circles is ERC1155 {
     function calculateIssuanceDisplay(address _human) public view returns (uint256) {
         uint256 exactDemurrageIssuance = Math64x64.mulu(_calculateExactIssuance(_human), EXA);
         return exactDemurrageIssuance;
-    }
-
-    /**
-     * @notice Get today's inflation factor.
-     * @return Returns the inflation factor
-     * @return Returns the day number since day zero for the current day.
-     */
-    function todaysInflationFactor() public view returns (int128, uint256) {
-        uint256 today = day(block.timestamp);
-        assert(today > 0);
-        if (cacheInflationFactorDay == today) {
-            return (cacheInflationFactor, today);
-        } else {
-            // calculate the inflation factor for today if not cached
-            int128 inflationFactor = Math64x64.pow(BETA_64x64, today);
-            // but don't update the cache because we want to preserve the `view` function
-            return (inflationFactor, today);
-        }
-    }
-
-    /**
-     * @notice update the inflation factor for today if not already cached
-     */
-    function updateTodaysInflationFactor() public returns (int128, uint256) {
-        uint256 today = day(block.timestamp);
-        assert(today > 0);
-        if (cacheInflationFactorDay == today) {
-            return (cacheInflationFactor, today);
-        } else {
-            int128 inflationFactor = Math64x64.pow(BETA_64x64, today);
-            cacheInflationFactor = inflationFactor;
-            cacheInflationFactorDay = today;
-            return (inflationFactor, today);
-        }
-    }
-
-    /**
-     * @notice Calculate the day since demurrage_day_zero for a given timestamp.
-     * @param _timestamp Timestamp for which to calculate the day since
-     * demurrage_day_zero.
-     */
-    function day(uint256 _timestamp) public view returns (uint256) {
-        // calculate which day the timestamp is in, rounding down
-        return (_timestamp - demurrage_day_zero) / DEMURRAGE_WINDOW;
-    }
-
-    /**
-     * @dev Casts an avatar address to a tokenId uint256.
-     * @param _avatar avatar address to convert to tokenId
-     */
-    function toTokenId(address _avatar) public pure returns (uint256) {
-        return uint256(uint160(_avatar));
     }
 
     // Internal functions
@@ -477,11 +300,11 @@ contract Circles is ERC1155 {
      */
     function _claimIssuance(address _human) internal {
         // update the inflation factor for today if not already cached
-        updateTodaysInflationFactor();
+        super.updateTodaysInflationFactor();
         uint256 issuance = _calculateInflationaryIssuance(_human);
         require(issuance > 0, "No issuance to claim.");
         // mint personal Circles to the human
-        _mint(_human, toTokenId(_human), issuance, "");
+        _mint(_human, super.toTokenId(_human), issuance, "");
 
         // update the last mint time
         mintTimes[_human].lastMintTime = uint96(block.timestamp);
@@ -489,7 +312,7 @@ contract Circles is ERC1155 {
 
     function _calculateInflationaryIssuance(address _human) internal view returns (uint256) {
         // convert the exact issuance to inflationary units
-        (int128 iB,) = todaysInflationFactor();
+        (int128 iB,) = super.todaysInflationFactor();
         int128 exactIssuance64x64 = _calculateExactIssuance(_human);
         uint256 inflationaryIssuance = Math64x64.mulu(Math64x64.mul(iB, exactIssuance64x64), EXA);
         return inflationaryIssuance;
@@ -516,10 +339,10 @@ contract Circles is ERC1155 {
         uint256 startMint = _max(block.timestamp - MAX_CLAIM_DURATION, mintTime.lastMintTime);
 
         // day of start of mint, dA
-        uint256 dA = day(startMint);
+        uint256 dA = super.day(startMint);
 
         // day of current block, dB
-        uint256 dB = day(block.timestamp);
+        uint256 dB = super.day(block.timestamp);
 
         // the difference of days between dB and dA used for the table lookups
         uint256 n = dB - dA;
