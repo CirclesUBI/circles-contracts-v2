@@ -98,9 +98,15 @@ contract Circles is ERC1155 {
     uint256 internal constant EXA = uint256(10 ** DECIMALS);
 
     /**
-     * Store the signed 128-bit 64.64 representation of 1 as a constant
+     * @dev Store the signed 128-bit 64.64 representation of 1 as a constant
      */
     int128 internal constant ONE_64x64 = int128(2 ** 64);
+
+    /**
+     * @dev Store all amounts privately with an additional precision by left
+     * shifting by 14 bits.
+     */
+    uint256 private constant EXTRA_PRECISION = uint256(14);
 
     // State variables
 

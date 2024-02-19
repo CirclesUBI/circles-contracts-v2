@@ -62,14 +62,6 @@ contract CirclesTest is Test, TimeSetup {
     }
 
     function testDemurragedTransfer() public {
-        // // copy storage into memory
-        // address[] memory a = new address[](N);
-        // uint256[] memory b = new uint256[](N);
-        // for (uint256 i = 0; i < N; i++) {
-        //     a[i] = addresses[i];
-        //     b[i] = circlesIdentifiers[i];
-        // }
-
         _forwardTime(12 * 24 hours + 1 minutes);
         circles.updateTodaysInflationFactor();
 

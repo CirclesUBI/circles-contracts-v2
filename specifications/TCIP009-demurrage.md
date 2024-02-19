@@ -243,3 +243,6 @@ Or we can issue mint accurate up to the second of claiming and then we'd write
     β^d * T(n) * EXA - β^d * (R(n) * k + l ) * EXA / 3600
 
 To reinforce that per hour everyone receives one Circle, we opt for the first implementation.
+
+## Numerical accuracy
+
