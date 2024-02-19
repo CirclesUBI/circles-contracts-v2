@@ -73,12 +73,7 @@ abstract contract ERC1155 is Balances, Context, ERC165, IERC1155, IERC1155Metada
      *
      * - `accounts` and `ids` must have the same length.
      */
-    function balanceOfBatch(address[] memory accounts, uint256[] memory ids)
-        public
-        view
-        virtual
-        returns (uint256[] memory)
-    {
+    function balanceOfBatch(address[] memory accounts, uint256[] memory ids) public view returns (uint256[] memory) {
         if (accounts.length != ids.length) {
             revert ERC1155InvalidArrayLength(ids.length, accounts.length);
         }
@@ -86,7 +81,7 @@ abstract contract ERC1155 is Balances, Context, ERC165, IERC1155, IERC1155Metada
         uint256[] memory batchBalances = new uint256[](accounts.length);
 
         for (uint256 i = 0; i < accounts.length; ++i) {
-            batchBalances[i] = balanceOf(accounts.unsafeMemoryAccess(i), ids.unsafeMemoryAccess(i));
+            batchBalances[i] = super._balanceOf(accounts.unsafeMemoryAccess(i), ids.unsafeMemoryAccess(i));
         }
 
         return batchBalances;
@@ -95,21 +90,21 @@ abstract contract ERC1155 is Balances, Context, ERC165, IERC1155, IERC1155Metada
     /**
      * @dev See {IERC1155-setApprovalForAll}.
      */
-    function setApprovalForAll(address operator, bool approved) public virtual {
+    function setApprovalForAll(address operator, bool approved) public {
         _setApprovalForAll(_msgSender(), operator, approved);
     }
 
     /**
      * @dev See {IERC1155-isApprovedForAll}.
      */
-    function isApprovedForAll(address account, address operator) public view virtual returns (bool) {
+    function isApprovedForAll(address account, address operator) public view returns (bool) {
         return _operatorApprovals[account][operator];
     }
 
     /**
      * @dev See {IERC1155-safeTransferFrom}.
      */
-    function safeTransferFrom(address from, address to, uint256 id, uint256 value, bytes memory data) public virtual {
+    function safeTransferFrom(address from, address to, uint256 id, uint256 value, bytes memory data) public {
         address sender = _msgSender();
         if (from != sender && !isApprovedForAll(from, sender)) {
             revert ERC1155MissingApprovalForAll(sender, from);
@@ -160,7 +155,7 @@ abstract contract ERC1155 is Balances, Context, ERC165, IERC1155, IERC1155Metada
             uint256 value = values.unsafeMemoryAccess(i);
 
             if (from != address(0)) {
-                uint256 fromBalance = _balances[id][from];
+                uint256 fromBalance = super._balanceOf(from, id);
                 if (fromBalance < value) {
                     revert ERC1155InsufficientBalance(from, fromBalance, value, id);
                 }

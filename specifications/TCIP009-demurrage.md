@@ -246,3 +246,5 @@ To reinforce that per hour everyone receives one Circle, we opt for the first im
 
 ## Numerical accuracy
 
+When we store the inflationary value of an demurraged amount, we have to divide the demurraged amount
+by `Γ^i`

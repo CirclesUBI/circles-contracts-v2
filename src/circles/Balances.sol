@@ -60,9 +60,11 @@ contract Balances {
 
     /**
      * @dev Store all amounts privately with an additional precision by left
-     * shifting by 14 bits.
+     * shifting by 14 bits (2**14 = 16.384).
      */
     uint256 private constant EXTRA_PRECISION = uint256(14);
+
+    uint256 private constant MAX_VALUE = uint256(2 ** 242 - 1);
 
     // State variables
 
@@ -187,7 +189,7 @@ contract Balances {
     }
 
     /**
-     * @dev Casts an avatar address to a tokenId uint256.
+     * @notice Casts an avatar address to a tokenId uint256.
      * @param _avatar avatar address to convert to tokenId
      */
     function toTokenId(address _avatar) public pure returns (uint256) {
@@ -197,15 +199,25 @@ contract Balances {
     // Internal functions
 
     /**
-     * @notice BalanceOf returns the demurraged balance for a requested Circles identifier.
+     * @dev BalanceOf returns the demurraged balance for a requested Circles identifier.
      * @param _account Address of the account for which to view the demurraged balance.
      * @param _id Cirlces identifier for which to the check the balance.
      */
     function _balanceOf(address _account, uint256 _id) internal view returns (uint256) {
-        uint256 inflationaryBalance = balances[_id][_account];
+        uint256 inflationaryShiftedBalance = balances[_id][_account];
         // todo: similarly, cache this daily factor upon transfer (keep balanceOf a view function)
         int128 demurrageFactor = Math64x64.pow(GAMMA_64x64, day(block.timestamp));
-        uint256 demurrageBalance = Math64x64.mulu(demurrageFactor, inflationaryBalance);
-        return demurrageBalance;
+        uint256 demurrageShiftedBalance = Math64x64.mulu(demurrageFactor, inflationaryShiftedBalance);
+        // shift back to normal precision
+        return demurrageShiftedBalance >> EXTRA_PRECISION;
+    }
+
+    function _updateBalance(address _account, uint256 _id, uint256 _value) internal {
+        require(_value < MAX_VALUE, "Balances: value exceeds maximum value of uint242");
+        // shift value for extra precision
+        uint256 shiftedValue = _value << EXTRA_PRECISION;
+        int128 inverseInflationaryFactor = Math64x64.pow(BETA_64x64, day(block.timestamp));
+        uint256 inflationaryShiftedValue = Math64x64.mulu(inverseInflationaryFactor, shiftedValue);
+        balances[_id][_account] = inflationaryShiftedValue;
     }
 }

@@ -116,28 +116,28 @@ contract Circles is ERC1155 {
     //     super.balanceOf(_account, _id);
     // }
 
-    /**
-     * @notice BalanceOfBatch returns the balances of a batch request for given accounts and Circles identifiers.
-     * @param _accounts Batch of addreses of the accounts for which to view the demurraged balances.
-     * @param _ids Batch of Circles identifiers for which to check the balances.
-     */
-    function balanceOfBatch(address[] memory _accounts, uint256[] memory _ids)
-        public
-        view
-        override
-        returns (uint256[] memory)
-    {
-        // ERC1155.sol already checks for equal lenght of arrays
-        // get the inflationary balances as a batch
-        uint256[] memory batchBalances = super.balanceOfBatch(_accounts, _ids);
-        int128 demurrageFactor = Math64x64.pow(GAMMA_64x64, super.day(block.timestamp));
-        for (uint256 i = 0; i < _accounts.length; i++) {
-            // convert from inflationary balances to demurraged balances
-            // mutate the balances in place to save memory
-            batchBalances[i] = Math64x64.mulu(demurrageFactor, batchBalances[i]);
-        }
-        return batchBalances;
-    }
+    // /**
+    //  * @notice BalanceOfBatch returns the balances of a batch request for given accounts and Circles identifiers.
+    //  * @param _accounts Batch of addreses of the accounts for which to view the demurraged balances.
+    //  * @param _ids Batch of Circles identifiers for which to check the balances.
+    //  */
+    // function balanceOfBatch(address[] memory _accounts, uint256[] memory _ids)
+    //     public
+    //     view
+    //     override
+    //     returns (uint256[] memory)
+    // {
+    //     // ERC1155.sol already checks for equal lenght of arrays
+    //     // get the inflationary balances as a batch
+    //     uint256[] memory batchBalances = super.balanceOfBatch(_accounts, _ids);
+    //     int128 demurrageFactor = Math64x64.pow(GAMMA_64x64, super.day(block.timestamp));
+    //     for (uint256 i = 0; i < _accounts.length; i++) {
+    //         // convert from inflationary balances to demurraged balances
+    //         // mutate the balances in place to save memory
+    //         batchBalances[i] = Math64x64.mulu(demurrageFactor, batchBalances[i]);
+    //     }
+    //     return batchBalances;
+    // }
 
     function inflationaryBalanceOf(address _account, uint256 _id) public view returns (uint256) {
         return super.balanceOf(_account, _id);
