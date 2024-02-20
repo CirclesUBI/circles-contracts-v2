@@ -101,7 +101,7 @@ contract Circles is ERC1155 {
 
     // Constructor
 
-    constructor(uint256 _demurrage_day_zero, string memory _uri) ERC1155(_uri) Balances(_demurrage_day_zero) {}
+    constructor(uint256 _demurrage_day_zero, string memory _uri) ERC1155(_uri) InflationaryBalances(_demurrage_day_zero) {}
 
     // External functions
 

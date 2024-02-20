@@ -3,7 +3,8 @@ pragma solidity >=0.8.13;
 
 import "../lib/Math64x64.sol";
 
-contract Balances {
+// todo: this contract is incomplete, deprecated and will be removed. It was useful to determine that storing the inflationary balances is not the right approach.
+contract InflationaryBalances {
     // Constants
 
     /**

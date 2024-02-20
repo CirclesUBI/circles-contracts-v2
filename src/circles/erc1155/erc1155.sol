@@ -11,7 +11,7 @@ import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import {IERC165, ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {Arrays} from "@openzeppelin/contracts/utils/Arrays.sol";
 import {IERC1155Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
-import {Balances} from "../Balances.sol";
+import {InflationaryBalances} from "../InflationaryBalances.sol";
 
 /**
  * @dev Implementation of the basic standard multi-token for demurraged and inflationary balances.
@@ -19,7 +19,7 @@ import {Balances} from "../Balances.sol";
  * This code is modified from the open-zeppelin implementation v5.0.0
  * Originally based on code by Enjin: https://github.com/enjin/erc-1155
  */
-abstract contract ERC1155 is Balances, Context, ERC165, IERC1155, IERC1155MetadataURI, IERC1155Errors {
+abstract contract ERC1155 is InflationaryBalances, Context, ERC165, IERC1155, IERC1155MetadataURI, IERC1155Errors {
     using Arrays for uint256[];
     using Arrays for address[];
 
