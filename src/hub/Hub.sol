@@ -131,7 +131,7 @@ contract Hub is Circles {
     /**
      * @notice Constructor for the Hub contract.
      * @param _hubV1 address of the Hub v1 contract
-     * @param _demurrage_day_zero timestamp of the start of the global demurrage curve.
+     * @param _inflation_day_zero timestamp of the start of the global inflation curve.
      * For deployment on Gnosis Chain this parameter should be set to midnight 15 October 2020,
      * or in unix time 1602786330 (deployment at 6:25:30 pm UTC) - 66330 (offset to midnight) = 1602720000.
      * @param _standardTreasury address of the standard treasury contract
@@ -141,11 +141,11 @@ contract Hub is Circles {
      */
     constructor(
         IHubV1 _hubV1,
-        uint256 _demurrage_day_zero,
+        uint256 _inflation_day_zero,
         address _standardTreasury,
         uint256 _bootstrapTime,
         string memory _fallbackUri
-    ) Circles(_demurrage_day_zero, _fallbackUri) {
+    ) Circles(_inflation_day_zero, _fallbackUri) {
         require(address(_hubV1) != address(0), "Hub v1 address can not be zero.");
         require(_standardTreasury != address(0), "Standard treasury address can not be zero.");
 
@@ -442,7 +442,7 @@ contract Hub is Circles {
         // timestamp should be "stepfunction" the timestamp
         // todo: ask where the best time step is
 
-        if (_timestamp < demurrage_day_zero) _timestamp = block.timestamp;
+        if (_timestamp < inflation_day_zero) _timestamp = block.timestamp;
 
         // uint256 durationSinceStart = _time - hubV1start;
         // do conversion

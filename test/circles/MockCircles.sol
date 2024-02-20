@@ -26,7 +26,7 @@ contract MockCircles is Circles {
         _claimIssuance(msg.sender);
     }
 
-    function calculateInflationaryIssuance(address _human) external view returns (uint256) {
-        return _calculateInflationaryIssuance(_human);
-    }
+    // function calculateInflationaryIssuance(address _human) external view returns (uint256) {
+    //     return _calculateInflationaryIssuance(_human);
+    // }
 }

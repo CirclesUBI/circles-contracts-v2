@@ -11,7 +11,7 @@ import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import {IERC165, ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {Arrays} from "@openzeppelin/contracts/utils/Arrays.sol";
 import {IERC1155Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
-import {InflationaryBalances} from "../InflationaryBalances.sol";
+import {DiscountedBalances} from "./DiscountedBalances.sol";
 
 /**
  * @dev Implementation of the basic standard multi-token for demurraged and inflationary balances.
@@ -19,11 +19,11 @@ import {InflationaryBalances} from "../InflationaryBalances.sol";
  * This code is modified from the open-zeppelin implementation v5.0.0
  * Originally based on code by Enjin: https://github.com/enjin/erc-1155
  */
-abstract contract ERC1155 is InflationaryBalances, Context, ERC165, IERC1155, IERC1155MetadataURI, IERC1155Errors {
+abstract contract ERC1155 is DiscountedBalances, Context, ERC165, IERC1155, IERC1155MetadataURI, IERC1155Errors {
     using Arrays for uint256[];
     using Arrays for address[];
 
-    mapping(uint256 id => mapping(address account => uint256)) private _balances;
+    // mapping(uint256 id => mapping(address account => uint256)) private _balances;
 
     mapping(address account => mapping(address operator => bool)) private _operatorApprovals;
 
@@ -63,7 +63,7 @@ abstract contract ERC1155 is InflationaryBalances, Context, ERC165, IERC1155, IE
      * @dev See {IERC1155-balanceOf}.
      */
     function balanceOf(address account, uint256 id) public view returns (uint256) {
-        return super._balanceOf(account, id);
+        return balanceOfOnDay(account, id, uint64(day(block.timestamp)));
     }
 
     /**
@@ -78,10 +78,12 @@ abstract contract ERC1155 is InflationaryBalances, Context, ERC165, IERC1155, IE
             revert ERC1155InvalidArrayLength(ids.length, accounts.length);
         }
 
+        uint64 today = uint64(day(block.timestamp));
+
         uint256[] memory batchBalances = new uint256[](accounts.length);
 
         for (uint256 i = 0; i < accounts.length; ++i) {
-            batchBalances[i] = super._balanceOf(accounts.unsafeMemoryAccess(i), ids.unsafeMemoryAccess(i));
+            batchBalances[i] = balanceOfOnDay(accounts.unsafeMemoryAccess(i), ids.unsafeMemoryAccess(i), today);
         }
 
         return batchBalances;
@@ -150,23 +152,25 @@ abstract contract ERC1155 is InflationaryBalances, Context, ERC165, IERC1155, IE
 
         address operator = _msgSender();
 
+        uint64 today = uint64(day(block.timestamp));
+
         for (uint256 i = 0; i < ids.length; ++i) {
             uint256 id = ids.unsafeMemoryAccess(i);
             uint256 value = values.unsafeMemoryAccess(i);
 
             if (from != address(0)) {
-                uint256 fromBalance = super._balanceOf(from, id);
+                uint256 fromBalance = balanceOfOnDay(from, id, today);
                 if (fromBalance < value) {
                     revert ERC1155InsufficientBalance(from, fromBalance, value, id);
                 }
                 unchecked {
                     // Overflow not possible: value <= fromBalance
-                    _balances[id][from] = fromBalance - value;
+                    _updateBalance(from, id, fromBalance - value, today);
                 }
             }
 
             if (to != address(0)) {
-                _balances[id][to] += value;
+                _discountAndAddToBalance(to, id, value, today);
             }
         }
 
