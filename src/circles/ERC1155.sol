@@ -62,8 +62,8 @@ abstract contract ERC1155 is DiscountedBalances, Context, ERC165, IERC1155, IERC
     /**
      * @dev See {IERC1155-balanceOf}.
      */
-    function balanceOf(address account, uint256 id) public view returns (uint256) {
-        return balanceOfOnDay(account, id, uint64(day(block.timestamp)));
+    function balanceOf(address _account, uint256 _id) public view returns (uint256) {
+        return balanceOfOnDay(_account, _id, uint64(day(block.timestamp)));
     }
 
     /**
@@ -73,17 +73,39 @@ abstract contract ERC1155 is DiscountedBalances, Context, ERC165, IERC1155, IERC
      *
      * - `accounts` and `ids` must have the same length.
      */
-    function balanceOfBatch(address[] memory accounts, uint256[] memory ids) public view returns (uint256[] memory) {
-        if (accounts.length != ids.length) {
-            revert ERC1155InvalidArrayLength(ids.length, accounts.length);
+    function balanceOfBatch(address[] memory _accounts, uint256[] memory _ids) public view returns (uint256[] memory) {
+        if (_accounts.length != _ids.length) {
+            revert ERC1155InvalidArrayLength(_ids.length, _accounts.length);
         }
 
         uint64 today = uint64(day(block.timestamp));
 
-        uint256[] memory batchBalances = new uint256[](accounts.length);
+        uint256[] memory batchBalances = new uint256[](_accounts.length);
 
-        for (uint256 i = 0; i < accounts.length; ++i) {
-            batchBalances[i] = balanceOfOnDay(accounts.unsafeMemoryAccess(i), ids.unsafeMemoryAccess(i), today);
+        for (uint256 i = 0; i < _accounts.length; ++i) {
+            batchBalances[i] = balanceOfOnDay(_accounts.unsafeMemoryAccess(i), _ids.unsafeMemoryAccess(i), today);
+        }
+
+        return batchBalances;
+    }
+
+    function inflationaryBalanceOf(address _account, uint256 _id) public view returns (uint256) {
+        return _inflationaryBalanceOf(_account, _id);
+    }
+
+    function inflationaryBalanceOfBatch(address[] memory _accounts, uint256[] memory _ids)
+        public
+        view
+        returns (uint256[] memory)
+    {
+        if (_accounts.length != _ids.length) {
+            revert ERC1155InvalidArrayLength(_ids.length, _accounts.length);
+        }
+
+        uint256[] memory batchBalances = new uint256[](_accounts.length);
+
+        for (uint256 i = 0; i < _accounts.length; ++i) {
+            batchBalances[i] = _inflationaryBalanceOf(_accounts.unsafeMemoryAccess(i), _ids.unsafeMemoryAccess(i));
         }
 
         return batchBalances;

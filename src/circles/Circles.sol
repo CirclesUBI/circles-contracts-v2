@@ -115,20 +115,6 @@ contract Circles is ERC1155 {
 
     // Public functions
 
-    function inflationaryBalanceOf(address _account, uint256 _id) public view returns (uint256) {
-        assert(false);
-        return 0;
-    }
-
-    function inflationaryBalanceOfBatch(address[] memory _accounts, uint256[] memory _ids)
-        public
-        view
-        returns (uint256[] memory)
-    {
-        assert(false);
-        return new uint256[](_accounts.length);
-    }
-
     /**
      * @notice inflationarySafeTransferFrom transfers Circles from one address to another in inflationary units.
      * @param _from Address from which the Circles are transferred.

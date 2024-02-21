@@ -176,6 +176,13 @@ contract DiscountedBalances {
         return _calculateDiscountedBalance(discountedBalance.balance, _day - discountedBalance.lastUpdatedDay);
     }
 
+    // Internal functions
+
+    function _inflationaryBalanceOf(address _account, uint256 _id) internal view returns (uint256) {
+        DiscountedBalance memory discountedBalance = discountedBalances[_id][_account];
+        return _calculateInflationaryBalance(discountedBalance.balance, discountedBalance.lastUpdatedDay);
+    }
+
     function _updateBalance(address _account, uint256 _id, uint256 _balance, uint64 _day) internal {
         require(_balance <= MAX_VALUE, "DiscountedBalances: balance exceeds maximum value");
         DiscountedBalance storage discountedBalance = discountedBalances[_id][_account];
@@ -209,5 +216,13 @@ contract DiscountedBalances {
             int128 r = Math64x64.pow(GAMMA_64x64, _daysDifference);
             return Math64x64.mulu(r, _balance);
         }
+    }
+
+    function _calculateInflationaryBalance(uint256 _balance, uint256 _dayUpdated) private pure returns (uint256) {
+        // calculate the inflationary balance by dividing the balance by GAMMA^days
+        // note: GAMMA < 1, so dividing by a power of it, returns a bigger number,
+        //       so the numerical inprecision is in the least significant bits.
+        int128 i = Math64x64.pow(BETA_64x64, _dayUpdated);
+        return Math64x64.mulu(i, _balance);
     }
 }
