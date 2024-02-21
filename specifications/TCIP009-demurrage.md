@@ -263,3 +263,6 @@ for the full mint:
     = H ( SUM_{i=0..n-1} Γ^i + Γ^n ) 
     = H ( (Γ^n - 1)/(Γ - 1) θ(n>0) + Γ^n )    (*)
 
+And then to account for the overcounting
+
+    - Γ^i * k
