@@ -246,5 +246,20 @@ To reinforce that per hour everyone receives one Circle, we opt for the first im
 
 ## Numerical accuracy
 
-When we store the inflationary value of an demurraged amount, we have to divide the demurraged amount
-by `Γ^i`
+When we store the inflationary value of a demurraged amount,
+we have to divide the demurraged amountby `Γ^i` (which is smaller than one)
+so we incur numerical inaccuracies in the stored value.
+
+Todo: write out the full list of arguments why we revert to storing demurraged amounts. But in the interest of time, first complete the code
+
+## Calculating issuance in demurraged units.
+
+We follow the same logic as before, and same naming conventions, so we write
+for the full mint:
+
+    H SUM_{i=A..B} M(i)
+    = H SUM_{i=A..B} Γ^(B-i)
+    = H SUM_{i=0..n} Γ^i
+    = H ( SUM_{i=0..n-1} Γ^i + Γ^n ) 
+    = H ( (Γ^n - 1)/(Γ - 1) θ(n>0) + Γ^n )    (*)
+

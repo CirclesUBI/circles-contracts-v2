@@ -115,41 +115,43 @@ contract Circles is ERC1155 {
 
     // Public functions
 
-    /**
-     * @notice Burn Circles in demurrage units.
-     * @param _id Circles identifier for which to burn the Circles.
-     * @param _value Demurraged value of the Circles to burn.
-     */
-    function burn(uint256 _id, uint256 _value) public {
-        assert(false);
-    }
+    // todo: do personalBurn from hub only, don't burn group Circles; they must be redeemed first
 
-    /**
-     * @notice Burn a batch of Circles in demurrage units.
-     * @param _ids Batch of Circles identifiers for which to burn the Circles.
-     * @param _values Batch of demurraged values of the Circles to burn.
-     */
-    function burnBatch(uint256[] memory _ids, uint256[] memory _values) public {
-        assert(false);
-    }
+    // /**
+    //  * @notice Burn Circles in demurrage units.
+    //  * @param _id Circles identifier for which to burn the Circles.
+    //  * @param _value Demurraged value of the Circles to burn.
+    //  */
+    // function burn(uint256 _id, uint256 _value) public {
+    //     assert(false);
+    // }
 
-    /**
-     * @notice Burn Circles in inflationary units.
-     * @param _id Circles identifier for which to burn the Circles.
-     * @param _value Value of the Circles to burn in inflationary units.
-     */
-    function inflationaryBurn(uint256 _id, uint256 _value) public {
-        assert(false);
-    }
+    // /**
+    //  * @notice Burn a batch of Circles in demurrage units.
+    //  * @param _ids Batch of Circles identifiers for which to burn the Circles.
+    //  * @param _values Batch of demurraged values of the Circles to burn.
+    //  */
+    // function burnBatch(uint256[] memory _ids, uint256[] memory _values) public {
+    //     assert(false);
+    // }
 
-    /**
-     * @notice Burn a batch of Circles in inflationary units.
-     * @param _ids Batch of Circles identifiers for which to burn the Circles.
-     * @param _values Batch of values of the Circles to burn in inflationary units.
-     */
-    function inflationaryBurnBatch(uint256[] memory _ids, uint256[] memory _values) public {
-        assert(false);
-    }
+    // /**
+    //  * @notice Burn Circles in inflationary units.
+    //  * @param _id Circles identifier for which to burn the Circles.
+    //  * @param _value Value of the Circles to burn in inflationary units.
+    //  */
+    // function inflationaryBurn(uint256 _id, uint256 _value) public {
+    //     assert(false);
+    // }
+
+    // /**
+    //  * @notice Burn a batch of Circles in inflationary units.
+    //  * @param _ids Batch of Circles identifiers for which to burn the Circles.
+    //  * @param _values Batch of values of the Circles to burn in inflationary units.
+    //  */
+    // function inflationaryBurnBatch(uint256[] memory _ids, uint256[] memory _values) public {
+    //     assert(false);
+    // }
 
     /**
      * @notice Calculate the issuance for a human's avatar in demurraged units.
@@ -198,7 +200,7 @@ contract Circles is ERC1155 {
      * @notice Calculate the exact issuance as 64x64 for a human's avatar.
      * @param _human Address of the human's avatar to calculate the issuance for.
      */
-    function _calculateExactIssuance(address _human) public view returns (int128) {
+    function _calculateDemurrageIssuance(address _human) public view returns (int128) {
         MintTime storage mintTime = mintTimes[_human];
         require(
             mintTime.mintV1Status == address(0) || mintTime.mintV1Status == CIRCLES_STOPPED_V1,
@@ -215,18 +217,18 @@ contract Circles is ERC1155 {
         uint256 startMint = _max(block.timestamp - MAX_CLAIM_DURATION, mintTime.lastMintTime);
 
         // day of start of mint, dA
-        uint256 dA = super.day(startMint);
+        uint256 dA = uint256(day(startMint));
 
         // day of current block, dB
-        uint256 dB = super.day(block.timestamp);
+        uint256 dB = uint256(day(block.timestamp));
 
         // the difference of days between dB and dA used for the table lookups
         uint256 n = dB - dA;
 
-        // calculate the number of seconds in day A until `startMint`, and adjust for hours
+        // calculate the number of completed hours in day A until `startMint`
         int128 k = Math64x64.fromUInt((startMint - (dA * 1 days + inflation_day_zero)) / 1 hours);
 
-        // Calculate the number of seconds remaining in day B after current timestamp
+        // Calculate the number of incompleted hours remaining in day B from current timestamp
         int128 l = Math64x64.fromUInt(((dB + 1) * 1 days + inflation_day_zero - block.timestamp) / 1 hours + 1);
 
         // calculate the overcounted (demurraged) k (in day A) and l (in day B) hours
