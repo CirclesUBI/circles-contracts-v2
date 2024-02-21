@@ -154,42 +154,10 @@ contract Circles is ERC1155 {
     // }
 
     /**
-     * @notice Calculate the issuance for a human's avatar in demurraged units.
-     * @param _human Address of the human's avatar to calculate the issuance for.
-     */
-    // function calculateIssuance(address _human) public view returns (uint256) {
-    //     uint256 inflationaryIssuance = _calculateInflationaryIssuance(_human);
-    //     // todo: similarly, cache this daily factor upon transfer (keep balanceOf a view function)
-    //     int128 demurrageFactor = Math64x64.pow(GAMMA_64x64, super.day(block.timestamp));
-    //     uint256 demurragedIssuance = Math64x64.mulu(demurrageFactor, inflationaryIssuance);
-    //     return demurragedIssuance;
-    // }
-
-    // function calculateIssuanceDisplay(address _human) public view returns (uint256) {
-    //     uint256 exactDemurrageIssuance = Math64x64.mulu(_calculateExactIssuance(_human), EXA);
-    //     return exactDemurrageIssuance;
-    // }
-
-    // Internal functions
-
-    /**
-     * @notice Claim issuance for a human's avatar and update the last mint time.
-     * @param _human Address of the human's avatar to claim the issuance for.
-     */
-    function _claimIssuance(address _human) internal {
-        uint256 issuance = _calculateDemurrageIssuance(_human);
-        require(issuance > 0, "No issuance to claim.");
-        // mint personal Circles to the human
-        _mint(_human, super.toTokenId(_human), issuance, "");
-        // update the last mint time
-        mintTimes[_human].lastMintTime = uint96(block.timestamp);
-    }
-
-    /**
      * @notice Calculate the demurraged issuance for a human's avatar.
      * @param _human Address of the human's avatar to calculate the issuance for.
      */
-    function _calculateDemurrageIssuance(address _human) public view returns (uint256) {
+    function calculateIssuance(address _human) public view returns (uint256) {
         MintTime storage mintTime = mintTimes[_human];
         require(
             mintTime.mintV1Status == address(0) || mintTime.mintV1Status == CIRCLES_STOPPED_V1,
@@ -225,6 +193,21 @@ contract Circles is ERC1155 {
 
         // subtract the overcount from the total issuance, and convert to attoCircles
         return Math64x64.mulu(Math64x64.sub(T[n], overcount), EXA);
+    }
+
+    // Internal functions
+
+    /**
+     * @notice Claim issuance for a human's avatar and update the last mint time.
+     * @param _human Address of the human's avatar to claim the issuance for.
+     */
+    function _claimIssuance(address _human) internal {
+        uint256 issuance = calculateIssuance(_human);
+        require(issuance > 0, "No issuance to claim.");
+        // mint personal Circles to the human
+        _mint(_human, super.toTokenId(_human), issuance, "");
+        // update the last mint time
+        mintTimes[_human].lastMintTime = uint96(block.timestamp);
     }
 
     // Private functions
