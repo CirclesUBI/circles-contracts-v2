@@ -20,10 +20,12 @@ import {DiscountedBalances} from "./DiscountedBalances.sol";
  * Originally based on code by Enjin: https://github.com/enjin/erc-1155
  */
 abstract contract ERC1155 is DiscountedBalances, Context, ERC165, IERC1155, IERC1155MetadataURI, IERC1155Errors {
+    // Type declarations
+
     using Arrays for uint256[];
     using Arrays for address[];
 
-    // mapping(uint256 id => mapping(address account => uint256)) private _balances;
+    // State variables
 
     mapping(address account => mapping(address operator => bool)) private _operatorApprovals;
 
@@ -39,16 +41,16 @@ abstract contract ERC1155 is DiscountedBalances, Context, ERC165, IERC1155, IERC
     /**
      * @dev See {_setURI}.
      */
-    constructor(string memory uri_) {
-        _setURI(uri_);
+    constructor(string memory _newuri) {
+        _setURI(_newuri);
     }
 
     /**
      * @dev See {IERC165-supportsInterface}.
      */
-    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165, IERC165) returns (bool) {
-        return interfaceId == type(IERC1155).interfaceId || interfaceId == type(IERC1155MetadataURI).interfaceId
-            || super.supportsInterface(interfaceId);
+    function supportsInterface(bytes4 _interfaceId) public view virtual override(ERC165, IERC165) returns (bool) {
+        return _interfaceId == type(IERC1155).interfaceId || _interfaceId == type(IERC1155MetadataURI).interfaceId
+            || super.supportsInterface(_interfaceId);
     }
 
     /**
@@ -120,47 +122,47 @@ abstract contract ERC1155 is DiscountedBalances, Context, ERC165, IERC1155, IERC
     /**
      * @dev See {IERC1155-setApprovalForAll}.
      */
-    function setApprovalForAll(address operator, bool approved) public {
-        _setApprovalForAll(_msgSender(), operator, approved);
+    function setApprovalForAll(address _operator, bool _approved) public {
+        _setApprovalForAll(_msgSender(), _operator, _approved);
     }
 
     /**
      * @dev See {IERC1155-isApprovedForAll}.
      */
-    function isApprovedForAll(address account, address operator) public view returns (bool) {
-        return _operatorApprovals[account][operator];
+    function isApprovedForAll(address _account, address _operator) public view returns (bool) {
+        return _operatorApprovals[_account][_operator];
     }
 
     /**
      * @dev See {IERC1155-safeTransferFrom}.
      */
-    function safeTransferFrom(address from, address to, uint256 id, uint256 value, bytes memory data) public {
+    function safeTransferFrom(address _from, address _to, uint256 _id, uint256 _value, bytes memory _data) public {
         address sender = _msgSender();
-        if (from != sender && !isApprovedForAll(from, sender)) {
-            revert ERC1155MissingApprovalForAll(sender, from);
+        if (_from != sender && !isApprovedForAll(_from, sender)) {
+            revert ERC1155MissingApprovalForAll(sender, _from);
         }
-        _safeTransferFrom(from, to, id, value, data);
+        _safeTransferFrom(_from, _to, _id, _value, _data);
     }
 
     /**
      * @dev See {IERC1155-safeBatchTransferFrom}.
      */
     function safeBatchTransferFrom(
-        address from,
-        address to,
-        uint256[] memory ids,
-        uint256[] memory values,
-        bytes memory data
+        address _from,
+        address _to,
+        uint256[] memory _ids,
+        uint256[] memory _values,
+        bytes memory _data
     ) public virtual {
         address sender = _msgSender();
-        if (from != sender && !isApprovedForAll(from, sender)) {
-            revert ERC1155MissingApprovalForAll(sender, from);
+        if (_from != sender && !isApprovedForAll(_from, sender)) {
+            revert ERC1155MissingApprovalForAll(sender, _from);
         }
-        _safeBatchTransferFrom(from, to, ids, values, data);
+        _safeBatchTransferFrom(_from, _to, _ids, _values, _data);
     }
 
     /**
-     * @notice safeInflationaryTransferFrom transfers Circles from one address to another in inflationary units.
+     * @notice safeInflationaryTransferFrom transfers Circles from one address to another by specifying inflationary units.
      * @param _from Address from which the Circles are transferred.
      * @param _to Address to which the Circles are transferred.
      * @param _id Circles indentifier for which the Circles are transferred.
@@ -184,7 +186,7 @@ abstract contract ERC1155 is DiscountedBalances, Context, ERC165, IERC1155, IERC
     }
 
     /**
-     * @notice inflationarySafeBatchTransferFrom transfers Circles from one address to another in inflationary units.
+     * @notice safeInflationaryBatchTransferFrom transfers Circles from one address to another by specifying inflationary units.
      * @param _from Address from which the Circles are transferred.
      * @param _to Address to which the Circles are transferred.
      * @param _ids Batch of Circles identifiers for which the Circles are transferred.
@@ -203,10 +205,7 @@ abstract contract ERC1155 is DiscountedBalances, Context, ERC165, IERC1155, IERC
             revert ERC1155MissingApprovalForAll(sender, _from);
         }
         uint64 today = day(block.timestamp);
-        uint256[] memory values = new uint256[](_inflationaryValues.length);
-        for (uint256 i = 0; i < _inflationaryValues.length; ++i) {
-            values[i] = convertInflationaryToDemurrageValue(_inflationaryValues[i], today);
-        }
+        uint256[] memory values = convertBatchInflationaryToDemurrageValues(_inflationaryValues, today);
         _safeBatchTransferFrom(_from, _to, _ids, values, _data);
     }
 
@@ -360,8 +359,8 @@ abstract contract ERC1155 is DiscountedBalances, Context, ERC165, IERC1155, IERC
      * Because these URIs cannot be meaningfully represented by the {URI} event,
      * this function emits no events.
      */
-    function _setURI(string memory newuri) internal virtual {
-        _uri = newuri;
+    function _setURI(string memory _newuri) internal virtual {
+        _uri = _newuri;
     }
 
     /**

@@ -116,38 +116,6 @@ contract Circles is ERC1155 {
     // Public functions
 
     /**
-     * @notice inflationarySafeTransferFrom transfers Circles from one address to another in inflationary units.
-     * @param _from Address from which the Circles are transferred.
-     * @param _to Address to which the Circles are transferred.
-     * @param _id Circles indentifier for which the Circles are transferred.
-     * @param _value Inflationary value of the Circles transferred.
-     * @param _data Data to pass to the receiver.
-     */
-    function inflationarySafeTransferFrom(address _from, address _to, uint256 _id, uint256 _value, bytes memory _data)
-        public
-    {
-        assert(false);
-    }
-
-    /**
-     * @notice inflationarySafeBatchTransferFrom transfers Circles from one address to another in inflationary units.
-     * @param _from Address from which the Circles are transferred.
-     * @param _to Address to which the Circles are transferred.
-     * @param _ids Batch of Circles identifiers for which the Circles are transferred.
-     * @param _values Batch of inflationary values of the Circles transferred.
-     * @param _data Data to pass to the receiver.
-     */
-    function inflationarySafeBatchTransferFrom(
-        address _from,
-        address _to,
-        uint256[] memory _ids,
-        uint256[] memory _values,
-        bytes memory _data
-    ) public {
-        assert(false);
-    }
-
-    /**
      * @notice Burn Circles in demurrage units.
      * @param _id Circles identifier for which to burn the Circles.
      * @param _value Demurraged value of the Circles to burn.

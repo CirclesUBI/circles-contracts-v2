@@ -182,7 +182,27 @@ contract DiscountedBalances {
         pure
         returns (uint256)
     {
-        return _calculateDemurrageValue(_inflationaryValue, _day);
+        // calculate the demurrage value by multiplying the value by GAMMA^days
+        // note: GAMMA < 1, so multiplying by a power of it, returns a smaller number,
+        //       so we lose the least significant bits, but our ground truth is the demurrage value,
+        //       and the inflationary value the numerical approximation.
+        int128 r = Math64x64.pow(GAMMA_64x64, uint256(_day));
+        return Math64x64.mulu(r, _inflationaryValue);
+    }
+
+    function convertBatchInflationaryToDemurrageValues(uint256[] memory _inflationaryValues, uint64 _day)
+        public
+        pure
+        returns (uint256[] memory)
+    {
+        // calculate the demurrage value by multiplying the value by GAMMA^days
+        // note: same remark on precision as in convertInflationaryToDemurrageValue
+        int128 r = Math64x64.pow(GAMMA_64x64, uint256(_day));
+        uint256[] memory demurrageValues = new uint256[](_inflationaryValues.length);
+        for (uint256 i = 0; i < _inflationaryValues.length; i++) {
+            demurrageValues[i] = Math64x64.mulu(r, _inflationaryValues[i]);
+        }
+        return demurrageValues;
     }
 
     // Internal functions
@@ -233,14 +253,7 @@ contract DiscountedBalances {
      * @param _value Inflationary value to calculate the demurrage value of
      * @param _day Absolute day since inflation_day_zero
      */
-    function _calculateDemurrageValue(uint256 _value, uint64 _day) private pure returns (uint256) {
-        // calculate the demurrage value by multiplying the value by GAMMA^days
-        // note: GAMMA < 1, so multiplying by a power of it, returns a smaller number,
-        //       so we lose the least significant bits, but our ground truth is the demurrage value,
-        //       and the inflationary value the numerical approximation.
-        int128 r = Math64x64.pow(GAMMA_64x64, uint256(_day));
-        return Math64x64.mulu(r, _value);
-    }
+    function _calculateDemurrageValue(uint256 _value, uint64 _day) private pure returns (uint256) {}
 
     /**
      * Calculate the inflationary balance of a demurraged balance
