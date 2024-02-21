@@ -16,7 +16,8 @@ import {DiscountedBalances} from "./DiscountedBalances.sol";
 /**
  * @dev Implementation of the basic standard multi-token for demurraged and inflationary balances.
  * See https://eips.ethereum.org/EIPS/eip-1155
- * This code is modified from the open-zeppelin implementation v5.0.0
+ * This code is modified from the open-zeppelin implementation v5.0.0:
+ * https://github.com/OpenZeppelin/openzeppelin-contracts/
  * Originally based on code by Enjin: https://github.com/enjin/erc-1155
  */
 abstract contract ERC1155 is DiscountedBalances, Context, ERC165, IERC1155, IERC1155MetadataURI, IERC1155Errors {
@@ -44,6 +45,8 @@ abstract contract ERC1155 is DiscountedBalances, Context, ERC165, IERC1155, IERC
     constructor(string memory _newuri) {
         _setURI(_newuri);
     }
+
+    // Public functions
 
     /**
      * @dev See {IERC165-supportsInterface}.
@@ -218,6 +221,8 @@ abstract contract ERC1155 is DiscountedBalances, Context, ERC165, IERC1155, IERC
         uint256[] memory values = convertBatchInflationaryToDemurrageValues(_inflationaryValues, today);
         _safeBatchTransferFrom(_from, _to, _ids, values, _data);
     }
+
+    // Internal functions
 
     /**
      * @dev Transfers a `value` amount of tokens of type `id` from `from` to `to`. Will mint (or burn) if `from`
@@ -463,6 +468,8 @@ abstract contract ERC1155 is DiscountedBalances, Context, ERC165, IERC1155, IERC
         _operatorApprovals[owner][operator] = approved;
         emit ApprovalForAll(owner, operator, approved);
     }
+
+    // Private functions
 
     /**
      * @dev Performs an acceptance check by calling {IERC1155-onERC1155Received} on the `to` address

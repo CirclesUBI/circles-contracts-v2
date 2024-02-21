@@ -6,13 +6,18 @@ import {StdCheats} from "forge-std/StdCheats.sol";
 import "forge-std/console.sol";
 import "./MockCircles.sol";
 import "../setup/TimeSetup.sol";
+import "../utils/Approximation.sol";
 
-contract CirclesTest is Test, TimeSetup {
+contract CirclesTest is Test, TimeSetup, Approximation {
     // Constants
 
     uint256 public constant N = 4;
 
     uint256 public constant DAY0 = (3 * 365 days + 100 days) / 1 days;
+
+    uint256 public constant EPS = 10 ** (18 - 2);
+
+    uint256 public constant CRC = 10 ** 18;
 
     // State variables
 
@@ -40,57 +45,65 @@ contract CirclesTest is Test, TimeSetup {
         }
     }
 
-    // function testCalculateIssuance() public {
-    //     circles.updateTodaysInflationFactor();
-    //     uint256 day = circles.day(block.timestamp);
-    //     assertEq(day, DAY0);
-    //     uint256 issuance = circles.calculateIssuance(addresses[0]);
-    //     assertEq(issuance, 0);
+    function testCalculateIssuance() public {
+        uint256 day = circles.day(block.timestamp);
+        assertEq(day, DAY0);
+        uint256 issuance = circles.calculateIssuance(addresses[0]);
+        assertEq(issuance, 0);
 
-    //     _forwardTime(30 minutes);
-    //     // still the same day
-    //     assertEq(circles.day(block.timestamp), DAY0);
-    //     issuance = circles.calculateIssuance(addresses[0]);
-    //     assertEq(issuance, 0);
+        _forwardTime(30 minutes);
+        // still the same day
+        assertEq(circles.day(block.timestamp), DAY0);
+        issuance = circles.calculateIssuance(addresses[0]);
+        assertEq(issuance, 0);
 
-    //     _forwardTime(31 minutes);
-    //     issuance = circles.calculateIssuance(addresses[0]);
-    //     assertEq(issuance, 999999999999999979);
+        _forwardTime(31 minutes);
+        issuance = circles.calculateIssuance(addresses[0]);
+        assertEq(issuance, 1 * CRC);
 
-    //     uint256 exactIssuance = circles.calculateIssuanceDisplay(addresses[0]);
-    //     assertEq(exactIssuance, 10 ** 18);
-    // }
+        _forwardTime(1 days + 2 hours + 15 minutes);
+        issuance = circles.calculateIssuance(addresses[0]);
+        assertTrue(approximatelyEqual(issuance, 27 * CRC, EPS));
 
-    // function testDemurragedTransfer() public {
-    //     _forwardTime(12 * 24 hours + 1 minutes);
-    //     circles.updateTodaysInflationFactor();
+        _forwardTime(1 hours + 40 minutes);
+        issuance = circles.calculateIssuance(addresses[0]);
+        assertTrue(approximatelyEqual(issuance, 28 * CRC, EPS));
 
-    //     for (uint256 i = 0; i < N; i++) {
-    //         uint256 expectedIssuance = circles.calculateIssuance(addresses[i]);
-    //         vm.prank(addresses[i]);
-    //         circles.claimIssuance();
-    //         uint256 balance = circles.balanceOf(addresses[i], circlesIdentifiers[i]);
-    //         assertEq(balance, expectedIssuance);
-    //     }
+        vm.prank(addresses[0]);
+        circles.claimIssuance();
+        uint256 balance = circles.balanceOf(addresses[0], circlesIdentifiers[0]);
+        assertTrue(approximatelyEqual(balance, 28 * CRC, EPS));
+    }
 
-    //     // send 5 tokens from alice to bob
-    //     uint256 aliceDemurrageBalance = circles.balanceOf(addresses[0], circlesIdentifiers[0]);
-    //     uint256 bobDemurrageBalance = circles.balanceOf(addresses[1], circlesIdentifiers[0]);
-    //     uint256 aliceInflationaryBalance = circles.inflationaryBalanceOf(addresses[0], circlesIdentifiers[0]);
-    //     uint256 bobInflationaryBalance = circles.inflationaryBalanceOf(addresses[1], circlesIdentifiers[0]);
-    //     vm.prank(addresses[0]);
-    //     circles.safeTransferFrom(addresses[0], addresses[1], circlesIdentifiers[0], 5 * 10 ** 18, "");
-    //     uint256 aliceDemurrageBalanceAfter = circles.balanceOf(addresses[0], circlesIdentifiers[0]);
-    //     uint256 bobDemurrageBalanceAfter = circles.balanceOf(addresses[1], circlesIdentifiers[0]);
-    //     uint256 aliceInflationaryBalanceAfter = circles.inflationaryBalanceOf(addresses[0], circlesIdentifiers[0]);
-    //     uint256 bobInflationaryBalanceAfter = circles.inflationaryBalanceOf(addresses[1], circlesIdentifiers[0]);
-    //     assertEq(aliceDemurrageBalance - 5 * 10 ** 18, aliceDemurrageBalanceAfter);
-    //     assertEq(bobDemurrageBalance + 5 * 10 ** 18, bobDemurrageBalanceAfter);
-    //     assertEq(
-    //         aliceInflationaryBalance - aliceInflationaryBalanceAfter,
-    //         bobInflationaryBalanceAfter - bobInflationaryBalance
-    //     );
-    // }
+    function testDemurragedTransfer() public {
+        _forwardTime(12 * 24 hours + 1 minutes);
+
+        for (uint256 i = 0; i < 2; i++) {
+            uint256 expectedIssuance = circles.calculateIssuance(addresses[i]);
+            vm.prank(addresses[i]);
+            circles.claimIssuance();
+            uint256 balance = circles.balanceOf(addresses[i], circlesIdentifiers[i]);
+            assertEq(balance, expectedIssuance);
+        }
+
+        // send 5 CRC from alice to bob
+        uint256 aliceBalance = circles.balanceOf(addresses[0], circlesIdentifiers[0]);
+        uint256 bobBalance = circles.balanceOf(addresses[1], circlesIdentifiers[0]);
+        uint256 aliceInflationaryBalance = circles.inflationaryBalanceOf(addresses[0], circlesIdentifiers[0]);
+        uint256 bobInflationaryBalance = circles.inflationaryBalanceOf(addresses[1], circlesIdentifiers[0]);
+        vm.prank(addresses[0]);
+        circles.safeTransferFrom(addresses[0], addresses[1], circlesIdentifiers[0], 5 * CRC, "");
+        uint256 aliceBalanceAfter = circles.balanceOf(addresses[0], circlesIdentifiers[0]);
+        uint256 bobBalanceAfter = circles.balanceOf(addresses[1], circlesIdentifiers[0]);
+        uint256 aliceInflationaryBalanceAfter = circles.inflationaryBalanceOf(addresses[0], circlesIdentifiers[0]);
+        uint256 bobInflationaryBalanceAfter = circles.inflationaryBalanceOf(addresses[1], circlesIdentifiers[0]);
+        assertEq(aliceBalance - 5 * CRC, aliceBalanceAfter);
+        assertEq(bobBalance + 5 * CRC, bobBalanceAfter);
+        assertEq(
+            aliceInflationaryBalance - aliceInflationaryBalanceAfter,
+            bobInflationaryBalanceAfter - bobInflationaryBalance
+        );
+    }
 
     // Private functions
 

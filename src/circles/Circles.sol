@@ -2,7 +2,6 @@
 pragma solidity >=0.8.13;
 
 import "./ERC1155.sol";
-import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "../lib/Math64x64.sol";
 
 contract Circles is ERC1155 {
