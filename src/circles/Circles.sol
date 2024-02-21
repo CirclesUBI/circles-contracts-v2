@@ -177,30 +177,19 @@ contract Circles is ERC1155 {
      * @param _human Address of the human's avatar to claim the issuance for.
      */
     function _claimIssuance(address _human) internal {
-        //     // update the inflation factor for today if not already cached
-        //     super.updateTodaysInflationFactor();
-        //     uint256 issuance = _calculateInflationaryIssuance(_human);
-        //     require(issuance > 0, "No issuance to claim.");
-        //     // mint personal Circles to the human
-        //     _mint(_human, super.toTokenId(_human), issuance, "");
-
-        //     // update the last mint time
-        //     mintTimes[_human].lastMintTime = uint96(block.timestamp);
+        uint256 issuance = _calculateDemurrageIssuance(_human);
+        require(issuance > 0, "No issuance to claim.");
+        // mint personal Circles to the human
+        _mint(_human, super.toTokenId(_human), issuance, "");
+        // update the last mint time
+        mintTimes[_human].lastMintTime = uint96(block.timestamp);
     }
 
-    // function _calculateInflationaryIssuance(address _human) internal view returns (uint256) {
-    //     // convert the exact issuance to inflationary units
-    //     (int128 iB,) = super.todaysInflationFactor();
-    //     int128 exactIssuance64x64 = _calculateExactIssuance(_human);
-    //     uint256 inflationaryIssuance = Math64x64.mulu(Math64x64.mul(iB, exactIssuance64x64), EXA);
-    //     return inflationaryIssuance;
-    // }
-
     /**
-     * @notice Calculate the exact issuance as 64x64 for a human's avatar.
+     * @notice Calculate the demurraged issuance for a human's avatar.
      * @param _human Address of the human's avatar to calculate the issuance for.
      */
-    function _calculateDemurrageIssuance(address _human) public view returns (int128) {
+    function _calculateDemurrageIssuance(address _human) public view returns (uint256) {
         MintTime storage mintTime = mintTimes[_human];
         require(
             mintTime.mintV1Status == address(0) || mintTime.mintV1Status == CIRCLES_STOPPED_V1,
@@ -234,14 +223,8 @@ contract Circles is ERC1155 {
         // calculate the overcounted (demurraged) k (in day A) and l (in day B) hours
         int128 overcount = Math64x64.add(Math64x64.mul(R[n], k), l);
 
-        // calculate the issuance for the period by counting full days and subtracting the overcount
-        // and apply todays inflation factor
-        // for details see ./specifications/TCIP009-demurrage.md
-        // int128 issuance64x64 = Math64x64.mul(iB, Math64x64.sub(T[n], overcount));
-
-        int128 issuanceExact64x64 = Math64x64.sub(T[n], overcount);
-
-        return issuanceExact64x64;
+        // subtract the overcount from the total issuance, and convert to attoCircles
+        return Math64x64.mulu(Math64x64.sub(T[n], overcount), EXA);
     }
 
     // Private functions
