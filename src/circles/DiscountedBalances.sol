@@ -172,11 +172,22 @@ contract DiscountedBalances {
         return uint256(uint160(_avatar));
     }
 
+    /**
+     * @notice Balance of a Circles identifier for a given account on a (future) day.
+     * @param _account Address of the account to calculate the balance of
+     * @param _id Circles identifier for which to calculate the balance
+     * @param _day Day since inflation_day_zero to calculate the balance for
+     */
     function balanceOfOnDay(address _account, uint256 _id, uint64 _day) public view returns (uint256) {
         DiscountedBalance memory discountedBalance = discountedBalances[_id][_account];
         return _calculateDiscountedBalance(discountedBalance.balance, _day - discountedBalance.lastUpdatedDay);
     }
 
+    /**
+     * @notice Converts an inflationary value to a demurrage value for a given day since inflation_day_zero.
+     * @param _inflationaryValue Inflationary value to convert to demurrage value.
+     * @param _day Day since inflation_day_zero to convert the inflationary value to a demurrage value.
+     */
     function convertInflationaryToDemurrageValue(uint256 _inflationaryValue, uint64 _day)
         public
         pure
@@ -190,6 +201,11 @@ contract DiscountedBalances {
         return Math64x64.mulu(r, _inflationaryValue);
     }
 
+    /**
+     * @notice Converts a batch of inflationary values to demurrage values for a given day since inflation_day_zero.
+     * @param _inflationaryValues Batch of inflationary values to convert to demurrage values.
+     * @param _day Day since inflation_day_zero to convert the inflationary values to demurrage values.
+     */
     function convertBatchInflationaryToDemurrageValues(uint256[] memory _inflationaryValues, uint64 _day)
         public
         pure
@@ -207,11 +223,23 @@ contract DiscountedBalances {
 
     // Internal functions
 
+    /**
+     * @dev Calculate the inflationary balance of a discounted balance
+     * @param _account Address of the account to calculate the balance of
+     * @param _id Circles identifier for which to calculate the balance
+     */
     function _inflationaryBalanceOf(address _account, uint256 _id) internal view returns (uint256) {
         DiscountedBalance memory discountedBalance = discountedBalances[_id][_account];
         return _calculateInflationaryBalance(discountedBalance.balance, discountedBalance.lastUpdatedDay);
     }
 
+    /**
+     * @dev Update the balance of an account for a given Circles identifier
+     * @param _account Address of the account to update the balance of
+     * @param _id Circles identifier for which to update the balance
+     * @param _balance New balance to set
+     * @param _day Day since inflation_day_zero to set as last updated day
+     */
     function _updateBalance(address _account, uint256 _id, uint256 _balance, uint64 _day) internal {
         require(_balance <= MAX_VALUE, "DiscountedBalances: balance exceeds maximum value");
         DiscountedBalance storage discountedBalance = discountedBalances[_id][_account];
@@ -219,6 +247,13 @@ contract DiscountedBalances {
         discountedBalance.lastUpdatedDay = _day;
     }
 
+    /**
+     * @dev Discount to the given day and add to the balance of an account for a given Circles identifier
+     * @param _account Address of the account to update the balance of
+     * @param _id Circles identifier for which to update the balance
+     * @param _value Value to add to the discounted balance
+     * @param _day Day since inflation_day_zero to discount the balance to
+     */
     function _discountAndAddToBalance(address _account, uint256 _id, uint256 _value, uint64 _day) internal {
         DiscountedBalance storage discountedBalance = discountedBalances[_id][_account];
         uint256 discountedBalanceValue =

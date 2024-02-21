@@ -97,10 +97,20 @@ abstract contract ERC1155 is DiscountedBalances, Context, ERC165, IERC1155, IERC
         return batchBalances;
     }
 
+    /**
+     * Inflationary balance of an account for a Circles identifier.
+     * @param _account Address for which the balance is queried.
+     * @param _id Circles identifier for which the balance is queried.
+     */
     function inflationaryBalanceOf(address _account, uint256 _id) public view returns (uint256) {
         return _inflationaryBalanceOf(_account, _id);
     }
 
+    /**
+     * Inflationary balance of a batch of accounts and Circles identifiers.
+     * @param _accounts Batch of addresses for which the balances are queried.
+     * @param _ids Batch of Circles identifiers for which the balances are queried.
+     */
     function inflationaryBalanceOfBatch(address[] memory _accounts, uint256[] memory _ids)
         public
         view
