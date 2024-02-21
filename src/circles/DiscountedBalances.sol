@@ -158,9 +158,10 @@ contract DiscountedBalances {
      * @notice Calculate the day since inflation_day_zero for a given timestamp.
      * @param _timestamp Timestamp for which to calculate the day since inflation_day_zero.
      */
-    function day(uint256 _timestamp) public view returns (uint256) {
+    function day(uint256 _timestamp) public view returns (uint64) {
         // calculate which day the timestamp is in, rounding down
-        return (_timestamp - inflation_day_zero) / DEMURRAGE_WINDOW;
+        // note: max uint64 is 2^64 - 1, so we can safely cast the result
+        return uint64((_timestamp - inflation_day_zero) / DEMURRAGE_WINDOW);
     }
 
     /**
@@ -174,6 +175,14 @@ contract DiscountedBalances {
     function balanceOfOnDay(address _account, uint256 _id, uint64 _day) public view returns (uint256) {
         DiscountedBalance memory discountedBalance = discountedBalances[_id][_account];
         return _calculateDiscountedBalance(discountedBalance.balance, _day - discountedBalance.lastUpdatedDay);
+    }
+
+    function convertInflationaryToDemurrageValue(uint256 _inflationaryValue, uint64 _day)
+        public
+        pure
+        returns (uint256)
+    {
+        return _calculateDemurrageValue(_inflationaryValue, _day);
     }
 
     // Internal functions
@@ -218,6 +227,26 @@ contract DiscountedBalances {
         }
     }
 
+    /**
+     * @dev Calculates the demurrage value from an inflationaey value and the absolute
+     * day since inflation_day_zero.
+     * @param _value Inflationary value to calculate the demurrage value of
+     * @param _day Absolute day since inflation_day_zero
+     */
+    function _calculateDemurrageValue(uint256 _value, uint64 _day) private pure returns (uint256) {
+        // calculate the demurrage value by multiplying the value by GAMMA^days
+        // note: GAMMA < 1, so multiplying by a power of it, returns a smaller number,
+        //       so we lose the least significant bits, but our ground truth is the demurrage value,
+        //       and the inflationary value the numerical approximation.
+        int128 r = Math64x64.pow(GAMMA_64x64, uint256(_day));
+        return Math64x64.mulu(r, _value);
+    }
+
+    /**
+     * Calculate the inflationary balance of a demurraged balance
+     * @param _balance Demurraged balance to calculate the inflationary balance of
+     * @param _dayUpdated The day the balance was last updated
+     */
     function _calculateInflationaryBalance(uint256 _balance, uint256 _dayUpdated) private pure returns (uint256) {
         // calculate the inflationary balance by dividing the balance by GAMMA^days
         // note: GAMMA < 1, so dividing by a power of it, returns a bigger number,
