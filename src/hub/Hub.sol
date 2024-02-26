@@ -7,6 +7,7 @@ import "openzeppelin-contracts/contracts/utils/Create2.sol";
 import "../migration/IHub.sol";
 import "../migration/IToken.sol";
 import "../circles/Circles.sol";
+import "../groups/IMintPolicy.sol";
 
 /**
  * @title Hub v2 contract for Circles
@@ -209,34 +210,6 @@ contract Hub is Circles {
     }
 
     /**
-     * @notice Invite human as organization allows to register a human avatar as an organization.
-     * @param _human address of the human to invite
-     * @param _donationReceiver address of where to send the donation to with 2300 gas (using transfer)
-     */
-    function inviteHumanAsOrganization(address _human, address payable _donationReceiver) external payable {
-        require(msg.value > MINIMUM_DONATION, "Donation must be at least 0.1 xDai.");
-        // The donation is understood to be a reputational requirement for the organization.
-        // It is obvious that one can send to self over a different address, but that is reputationally worthless.
-        // Nonetheless, we require to not directly send to self, mostly to avoid "plausible denial" arguments.
-        require(_donationReceiver != msg.sender, "Donation receiver cannot be the caller.");
-        require(isOrganization(msg.sender), "Only organizations can invite.");
-
-        _registerHuman(_human);
-
-        // set trust for a year, but organization can edit this later
-        _trust(msg.sender, _human, uint96(block.timestamp + 365 days));
-
-        // invited receives the welcome bonus in their personal Circles
-        _mint(_human, toTokenId(_human), WELCOME_BONUS, "");
-
-        // send the donation to the donation receiver but with minimal gas
-        // to avoid reentrancy attacks
-        _donationReceiver.transfer(msg.value);
-
-        emit InviteHuman(msg.sender, _human);
-    }
-
-    /**
      * @notice Register group allows to register a group avatar.
      * @param _mint mint address will be called before minting group circles
      * @param _name immutable name of the group Circles
@@ -287,7 +260,7 @@ contract Hub is Circles {
      * @param _cidV0Digest IPFS CIDv0 digest for the organization metadata
      */
     function registerOrganization(string calldata _name, bytes32 _cidV0Digest) external {
-        require(_isValidName(_name), "Invalid organization name.");
+        require(isValidName(_name), "Invalid organization name.");
         _insertAvatar(msg.sender);
 
         // store the name for the organization
@@ -338,22 +311,45 @@ contract Hub is Circles {
 
     // graph transfers SHOULD allow personal -> group conversion en route
 
-    // msg.sender holds collateral, and MUST be accepted by group
-    // maybe less
-    function groupMint(address _group, uint256[] calldata _collateral, uint256[] calldata _amounts) external {
-        // check group and collateral exist
-        // de-demurrage amounts
-        // loop over collateral
+    /**
+     * @notice Group mint allows to mint group Circles by providing the required collateral.
+     * @param _group address of the group avatar to mint Circles of
+     * @param _collateral array of (personal or group) avatar addresses to be used as collateral
+     * @param _amounts array of amounts of collateral to be used for minting
+     * @param _data (optional) additional data to be passed to the treasury and minter
+     */
+    function groupMint(
+        address _group,
+        address[] calldata _collateral,
+        uint256[] calldata _amounts,
+        bytes calldata _data
+    ) external {
+        require(_collateral.length == _amounts.length, "Collateral and amount arrays must have equal length");
+        require(_collateral.length > 0, "At least one collateral must be provided");
+        require(isGroup(_group), "Group is not registered as an avatar.");
 
-        //require(
-        //mintPolicies[_group].beforeMintPolicy(msg.sender, _group, _collateral, _amounts), "");
+        // note: we don't need to check whether collateral circle ids are registered,
+        // because only for registered collateral do non-zero balances exist to transfer,
+        // so it suffices to check that all amounts are non-zero during summing.
+        uint256 sumAmounts = 0;
+        uint256[] memory collateralCirclesIds = new uint256[](_collateral.length);
+        for (uint256 i = 0; i < _amounts.length; i++) {
+            require(isTrusted(_group, _collateral[i]), "Collateral must be trusted");
+            require(_amounts[i] > 0, "Non-zero collateral must be provided.");
+            sumAmounts += _amounts[i];
+            collateralCirclesIds[i] = toTokenId(_collateral[i]);
+        }
 
-        safeBatchTransferFrom(msg.sender, treasuries[_group], _collateral, _amounts, ""); // treasury.on1155Received should only implement but nothing protocol related
+        // Rely on the mint policy to determine whether the collateral is valid for minting
+        require(
+            IMintPolicy(mintPolicies[_group]).beforeMintPolicy(msg.sender, _group, _collateral, _amounts, _data),
+            "Mint policy rejected mint."
+        );
 
-        uint256 sumAmounts;
-        // TODO sum up amounts
-        sumAmounts = _amounts[0];
-        _mint(msg.sender, toTokenId(_group), sumAmounts, "");
+        // note: treasury.on1155Received must implement but no further requirements
+        safeBatchTransferFrom(msg.sender, treasuries[_group], collateralCirclesIds, _amounts, _data);
+
+        _mint(msg.sender, toTokenId(_group), sumAmounts, _data);
     }
 
     function stop() external {
@@ -388,6 +384,8 @@ contract Hub is Circles {
         // msg.sender = oeprator
         //require("nett sources have approved operator");
     }
+
+    // Public functions
 
     function getDeterministicAddress(uint256 _tokenId, bytes32 _bytecodeHash) public view returns (address) {
         return Create2.computeAddress(keccak256(abi.encodePacked(_tokenId)), _bytecodeHash);
@@ -469,12 +467,22 @@ contract Hub is Circles {
     }
 
     /**
-     * Checks if an avatar is registered as an organization.
+     * @notice Checks if an avatar is registered as an organization.
      * @param _organization address of the organization to check
      */
     function isOrganization(address _organization) public view returns (bool) {
         return avatars[_organization] != address(0) && mintPolicies[_organization] == address(0)
             && mintTimes[_organization].lastMintTime == uint256(0);
+    }
+
+    /**
+     * @notice Returns true if the truster trusts the trustee.
+     * @param _truster Address of the trusting account
+     * @param _trustee Address of the trusted account
+     */
+    function isTrusted(address _truster, address _trustee) public view returns (bool) {
+        // trust up until expiry timestamp
+        return uint256(trustMarkers[_truster][_trustee].expiry) > block.timestamp;
     }
 
     /**
@@ -500,7 +508,7 @@ contract Hub is Circles {
      * should provide the full display name with unicode characters.
      * Names are not checked for uniqueness.
      */
-    function _isValidName(string memory _name) public pure returns (bool) {
+    function isValidName(string memory _name) public pure returns (bool) {
         bytes memory nameBytes = bytes(_name);
         if (nameBytes.length > 32 || nameBytes.length == 0) return false; // Check length
 
@@ -529,7 +537,7 @@ contract Hub is Circles {
      * the length as max 16 bytes and the allowed characters: 0-9, A-Z, a-z,
      * hyphen, underscore.
      */
-    function _isValidSymbol(string memory _symbol) public pure returns (bool) {
+    function isValidSymbol(string memory _symbol) public pure returns (bool) {
         bytes memory symbolBytes = bytes(_symbol);
         if (symbolBytes.length == 0 || symbolBytes.length > 16) {
             return false; // Check length is within range
@@ -595,9 +603,9 @@ contract Hub is Circles {
         // todo: same check treasury is an ERC1155Receiver for receiving collateral
         require(_treasury != address(0), "Treasury address can not be zero.");
         // name must be ASCII alphanumeric and some special characters
-        require(_isValidName(_name), "Invalid group name.");
+        require(isValidName(_name), "Invalid group name.");
         // symbol must be ASCII alphanumeric and some special characters
-        require(_isValidSymbol(_symbol), "Invalid group symbol.");
+        require(isValidSymbol(_symbol), "Invalid group symbol.");
 
         // insert avatar into linked list; reverts if it already exists
         _insertAvatar(_avatar);

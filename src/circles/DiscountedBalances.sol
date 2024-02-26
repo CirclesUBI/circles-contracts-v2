@@ -95,8 +95,9 @@ contract DiscountedBalances {
 
     /**
      * @dev stores the discounted balances of the accounts privately.
+     * Mapping from Circles identifiers to accounts to the discounted balance.
      */
-    mapping(uint256 id => mapping(address account => DiscountedBalance)) private discountedBalances;
+    mapping(uint256 => mapping(address => DiscountedBalance)) private discountedBalances;
 
     /**
      * @dev Store a lookup table T(n) for computing issuance.
