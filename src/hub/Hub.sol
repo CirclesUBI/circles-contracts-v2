@@ -316,7 +316,7 @@ contract Hub is Circles {
      * @param _group address of the group avatar to mint Circles of
      * @param _collateral array of (personal or group) avatar addresses to be used as collateral
      * @param _amounts array of amounts of collateral to be used for minting
-     * @param _data (optional) additional data to be passed to the treasury and minter
+     * @param _data (optional) additional data to be passed to the mint policy, treasury and minter
      */
     function groupMint(
         address _group,

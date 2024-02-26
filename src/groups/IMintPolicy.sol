@@ -7,6 +7,6 @@ interface IMintPolicy {
         address group,
         address[] calldata collateral,
         uint256[] calldata amounts,
-        bytes calldata _data
+        bytes calldata data
     ) external returns (bool);
 }
