@@ -8,10 +8,18 @@ contract TimeSetup is Test {
     // must match circles/TemporalDiscount.sol/ZERO_TIME
     uint256 internal constant ZERO_TIME = uint256(1639094400);
 
+    // Start of day zero on Gnosis Chain is midgnight 15th Octorer 2020
+    uint256 internal constant DEMURRAGE_DAY_ZERO = uint256(1602720000);
+
     function startTime() public {
-        // Earliest sensib;e start time is ZERO_TIME plus one second
+        // Earliest sensible start time is ZERO_TIME plus one second
         vm.warp(ZERO_TIME + 1);
     }
+
+    // function startDemurrageTime() public {
+    //     // Earliest sensible start time is DEMURRAGE_DAY_ZERO plus one second
+    //     vm.warp(DEMURRAGE_DAY_ZERO + 1);
+    // }
 
     // vm.skip was not working, so just do it manually
     // todo: figure foundry test issues out with vm.skip

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity >=0.8.13;
 
-import "openzeppelin-contracts/contracts/token/ERC1155/ERC1155.sol";
 import "openzeppelin-contracts/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import "openzeppelin-contracts/contracts/utils/Create2.sol";
@@ -132,7 +131,7 @@ contract Hub is Circles {
     /**
      * @notice Constructor for the Hub contract.
      * @param _hubV1 address of the Hub v1 contract
-     * @param _demurrage_day_zero timestamp of the start of the global demurrage curve.
+     * @param _inflation_day_zero timestamp of the start of the global inflation curve.
      * For deployment on Gnosis Chain this parameter should be set to midnight 15 October 2020,
      * or in unix time 1602786330 (deployment at 6:25:30 pm UTC) - 66330 (offset to midnight) = 1602720000.
      * @param _standardTreasury address of the standard treasury contract
@@ -142,11 +141,11 @@ contract Hub is Circles {
      */
     constructor(
         IHubV1 _hubV1,
-        uint256 _demurrage_day_zero,
+        uint256 _inflation_day_zero,
         address _standardTreasury,
         uint256 _bootstrapTime,
         string memory _fallbackUri
-    ) Circles(_demurrage_day_zero, _fallbackUri) {
+    ) Circles(_inflation_day_zero, _fallbackUri) {
         require(address(_hubV1) != address(0), "Hub v1 address can not be zero.");
         require(_standardTreasury != address(0), "Standard treasury address can not be zero.");
 
@@ -156,7 +155,7 @@ contract Hub is Circles {
         // store the Hub v1 contract address
         hubV1 = _hubV1;
 
-        // store the standard treasury contract address for registerGrouo()
+        // store the standard treasury contract address for registerGroup()
         standardTreasury = _standardTreasury;
 
         // invitation-only period starts after the bootstrap time has passed since deployment
@@ -177,7 +176,7 @@ contract Hub is Circles {
         require(v1CirclesStatus == CIRCLES_STOPPED_V1, "Avatar must have stopped v1 Circles contract.");
 
         // store the IPFS CIDv0 digest for the avatar metadata
-        tokenIdToCidV0Digest[_toTokenId(msg.sender)] = _cidV0Digest;
+        tokenIdToCidV0Digest[toTokenId(msg.sender)] = _cidV0Digest;
 
         emit RegisterHuman(msg.sender);
 
@@ -198,10 +197,10 @@ contract Hub is Circles {
         _registerHuman(_human);
 
         // inviter must burn twice the welcome bonus of their own Circles
-        _burn(msg.sender, _toTokenId(msg.sender), 2 * WELCOME_BONUS);
+        _burn(msg.sender, toTokenId(msg.sender), 2 * WELCOME_BONUS);
 
         // invited receives the welcome bonus in their personal Circles
-        _mint(_human, _toTokenId(_human), WELCOME_BONUS, "");
+        _mint(_human, toTokenId(_human), WELCOME_BONUS, "");
 
         // set trust to indefinite future, but avatar can edit this later
         _trust(msg.sender, _human, INDEFINITE_FUTURE);
@@ -228,7 +227,7 @@ contract Hub is Circles {
         _trust(msg.sender, _human, uint96(block.timestamp + 365 days));
 
         // invited receives the welcome bonus in their personal Circles
-        _mint(_human, _toTokenId(_human), WELCOME_BONUS, "");
+        _mint(_human, toTokenId(_human), WELCOME_BONUS, "");
 
         // send the donation to the donation receiver but with minimal gas
         // to avoid reentrancy attacks
@@ -250,7 +249,7 @@ contract Hub is Circles {
         _registerGroup(msg.sender, _mint, standardTreasury, _name, _symbol);
 
         // store the IPFS CIDv0 digest for the group metadata
-        tokenIdToCidV0Digest[_toTokenId(msg.sender)] = _cidV0Digest;
+        tokenIdToCidV0Digest[toTokenId(msg.sender)] = _cidV0Digest;
 
         emit RegisterGroup(msg.sender, _mint, standardTreasury, _name, _symbol);
 
@@ -275,7 +274,7 @@ contract Hub is Circles {
         _registerGroup(msg.sender, _mint, _treasury, _name, _symbol);
 
         // store the IPFS CIDv0 digest for the group metadata
-        tokenIdToCidV0Digest[_toTokenId(msg.sender)] = _cidV0Digest;
+        tokenIdToCidV0Digest[toTokenId(msg.sender)] = _cidV0Digest;
 
         emit RegisterGroup(msg.sender, _mint, _treasury, _name, _symbol);
 
@@ -295,7 +294,7 @@ contract Hub is Circles {
         names[msg.sender] = _name;
 
         // store the IPFS CIDv0 digest for the organization metadata
-        tokenIdToCidV0Digest[_toTokenId(msg.sender)] = _cidV0Digest;
+        tokenIdToCidV0Digest[toTokenId(msg.sender)] = _cidV0Digest;
 
         emit RegisterOrganization(msg.sender, _name);
 
@@ -354,7 +353,7 @@ contract Hub is Circles {
         uint256 sumAmounts;
         // TODO sum up amounts
         sumAmounts = _amounts[0];
-        _mint(msg.sender, _toTokenId(_group), sumAmounts, "");
+        _mint(msg.sender, toTokenId(_group), sumAmounts, "");
     }
 
     function stop() external {
@@ -434,7 +433,7 @@ contract Hub is Circles {
     function setIpfsCidV0(bytes32 _ipfsCid) external {
         require(avatars[msg.sender] != address(0), "Avatar must be registered.");
         // todo: we should charge in CRC, but better done later through a storage market
-        tokenIdToCidV0Digest[_toTokenId(msg.sender)] = _ipfsCid;
+        tokenIdToCidV0Digest[toTokenId(msg.sender)] = _ipfsCid;
 
         emit CidV0(msg.sender, _ipfsCid);
     }
@@ -443,7 +442,7 @@ contract Hub is Circles {
         // timestamp should be "stepfunction" the timestamp
         // todo: ask where the best time step is
 
-        if (_timestamp < demurrage_day_zero) _timestamp = block.timestamp;
+        if (_timestamp < inflation_day_zero) _timestamp = block.timestamp;
 
         // uint256 durationSinceStart = _time - hubV1start;
         // do conversion
