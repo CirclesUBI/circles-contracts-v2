@@ -9,6 +9,7 @@ import "../migration/IToken.sol";
 import "../circles/Circles.sol";
 import "../groups/IMintPolicy.sol";
 import "./IHub.sol";
+import "./MetadataDefinitions.sol";
 
 /**
  * @title Hub v2 contract for Circles
@@ -35,16 +36,6 @@ contract Hub is Circles, IHubV2 {
         uint96 expiry;
     }
 
-    struct Metadata {
-        MetadataType metadataType;
-        bytes metadata;
-        bytes erc1155UserData;
-    }
-
-    struct GroupMintMetadata {
-        address group;
-    }
-
     // Constants
 
     /**
@@ -63,13 +54,6 @@ contract Hub is Circles, IHubV2 {
      * @dev The address used as the first element of the linked list of avatars.
      */
     address public constant SENTINEL = address(0x1);
-
-    // Enums
-
-    enum MetadataType {
-        NoMetadata,
-        GroupMint // safeTransferFrom initiated from group mint, appends GroupMintMetadata
-    }
 
     // State variables
 
@@ -365,9 +349,13 @@ contract Hub is Circles, IHubV2 {
         );
 
         // abi encode the group address into the data to send onwards to the treasury
-        bytes memory metadataGroup = abi.encode(GroupMintMetadata({group: _group}));
+        bytes memory metadataGroup = abi.encode(MetadataDefinitions.GroupMintMetadata({group: _group}));
         bytes memory dataWithGroup = abi.encode(
-            Metadata({metadataType: MetadataType.GroupMint, metadata: metadataGroup, erc1155UserData: _data})
+            MetadataDefinitions.Metadata({
+                metadataType: MetadataDefinitions.MetadataType.GroupMint,
+                metadata: metadataGroup,
+                erc1155UserData: _data
+            })
         );
 
         // note: treasury.on1155Received must implement and unpack the GroupMintMetadata to know the group
