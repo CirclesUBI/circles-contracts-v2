@@ -5,10 +5,29 @@ import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "../proxy/ProxyFactory.sol";
 
 contract standardTreasury is ERC1155Holder, ProxyFactory {
+    // State variables
+
+    address public immutable hub;
+
+    // modifier
+
+    modifier onlyHub() {
+        require(msg.sender == hub, "Treasury: caller is not the hub");
+        _;
+    }
+
+    // Constructor
+
+    constructor(address _hub) {
+        require(_hub != address(0), "Hub address cannot be 0");
+        hub = _hub;
+    }
+
     function onERC1155Received(address, address, uint256, uint256, bytes memory)
         public
         virtual
         override
+        onlyHub
         returns (bytes4)
     {
         return this.onERC1155Received.selector;
@@ -18,6 +37,7 @@ contract standardTreasury is ERC1155Holder, ProxyFactory {
         public
         virtual
         override
+        onlyHub
         returns (bytes4)
     {
         return this.onERC1155BatchReceived.selector;
