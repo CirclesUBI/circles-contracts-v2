@@ -16,7 +16,7 @@ contract standardTreasury is ERC165, IERC1155Receiver, ProxyFactory {
     /**
      * @dev The call prefix for the setup function on the vault contract
      */
-    bytes4 public constant STANDARD_VAULT_SETUP_CALLPREFIX = bytes4(keccak256("setup()"));
+    bytes4 public constant STANDARD_VAULT_SETUP_CALLPREFIX = bytes4(keccak256("setup(address)"));
 
     // State variables
 
@@ -145,7 +145,7 @@ contract standardTreasury is ERC165, IERC1155Receiver, ProxyFactory {
 
     // todo: this could be done with deterministic deployment, but same comment, not worth it
     function _deployVault() internal returns (IStandardVault) {
-        bytes memory vaultSetupData = abi.encodeWithSelector(STANDARD_VAULT_SETUP_CALLPREFIX);
+        bytes memory vaultSetupData = abi.encodeWithSelector(STANDARD_VAULT_SETUP_CALLPREFIX, hub);
         IStandardVault vault = IStandardVault(address(_createProxy(mastercopyStandardVault, vaultSetupData)));
         return vault;
     }
