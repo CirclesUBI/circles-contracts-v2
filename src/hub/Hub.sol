@@ -379,6 +379,22 @@ contract Hub is Circles, IHubV2 {
         return (mintTime.lastMintTime == INDEFINITE_FUTURE);
     }
 
+    function burn(uint256 _id, uint256 _amount) external {
+        // todo: by construction we can not have an id with non-zero balance,
+        // that was not converted from a group address.
+        // for now, do a redundant check that the id is identical to the recovered address
+        address group = address(uint160(_id));
+        require(uint256(uint160(group)) == _id, "Invalid Circles identifier.");
+
+        IMintPolicy policy = IMintPolicy(mintPolicies[group]);
+        if (address(policy) != address(0) && treasuries[group] != msg.sender) {
+            // if Circles are a group Circles and if the burner is not the associated treasury,
+            // then the mint policy must approve the burn
+            require(policy.beforeBurnPolicy(msg.sender, group, _amount, ""), "Burn policy rejected burn.");
+        }
+        _burn(msg.sender, _id, _amount);
+    }
+
     // check if path transfer can be fully ERC1155 compatible
     // note: matrix math needs to consider mints, otherwise it won't add up
 

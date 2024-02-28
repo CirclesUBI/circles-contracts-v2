@@ -14,7 +14,7 @@ contract ProxyFactory {
     ///      execute a message call to the new proxy within one transaction.
     /// @param masterCopy Address of master copy.
     /// @param data Payload for message call sent to new proxy contract.
-    function createProxy(address masterCopy, bytes memory data) internal returns (Proxy proxy) {
+    function _createProxy(address masterCopy, bytes memory data) internal returns (Proxy proxy) {
         proxy = new Proxy(masterCopy);
         if (data.length > 0) {
             // solhint-disable-next-line no-inline-assembly

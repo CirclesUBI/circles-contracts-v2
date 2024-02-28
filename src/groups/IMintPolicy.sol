@@ -9,4 +9,12 @@ interface IMintPolicy {
         uint256[] calldata amounts,
         bytes calldata data
     ) external returns (bool);
+
+    function beforeRedeemPolicy(address operator, address redeemer, address group, uint256 value, bytes calldata data)
+        external
+        returns (uint256[] memory ids, uint256[] memory values);
+
+    function beforeBurnPolicy(address burner, address group, uint256 value, bytes calldata data)
+        external
+        returns (bool);
 }

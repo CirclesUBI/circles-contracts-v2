@@ -3,11 +3,22 @@ pragma solidity >=0.8.13;
 
 import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
+import "../hub/IHub.sol";
+import "./IStandardVault.sol";
 
-contract standardVault is ERC165, IERC1155Receiver {
+contract standardVault is ERC165, IERC1155Receiver, IStandardVault {
     // State variables
 
     address public standardTreasury;
+
+    IHubV2 public hub;
+
+    // Modifiers
+
+    modifier onlyTreasury() {
+        require(msg.sender == standardTreasury, "Vault: caller is not the treasury");
+        _;
+    }
 
     // Constructor
 
@@ -17,10 +28,22 @@ contract standardVault is ERC165, IERC1155Receiver {
 
     // External functions
 
-    function setup(address _standardTreasury) external {
-        require(standardTreasury == address(0), "Vault contract has already been setup.");
-        require(_standardTreasury != address(0), "Treasury address must not be zero address");
-        standardTreasury = _standardTreasury;
+    function setup(IHubV2 _hub) external {
+        require(address(hub) == address(0), "Vault: already initialized");
+        standardTreasury = msg.sender;
+        hub = _hub;
+    }
+
+    function returnCollateral(
+        address _receiver,
+        uint256[] calldata _ids,
+        uint256[] calldata _values,
+        bytes calldata _data
+    ) external onlyTreasury {
+        require(_receiver != address(0), "Vault: receiver cannot be 0 address");
+
+        // return the collateral to the receiver
+        hub.safeBatchTransferFrom(address(this), _receiver, _ids, _values, _data);
     }
 
     // Public functions
@@ -49,6 +72,7 @@ contract standardVault is ERC165, IERC1155Receiver {
         uint256[] memory, /*_values*/
         bytes memory /*_data*/
     ) public virtual override returns (bytes4) {
+        // todo: register which collateral is stored in this vault?
         return this.onERC1155BatchReceived.selector;
     }
 }
