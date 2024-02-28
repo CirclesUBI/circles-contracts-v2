@@ -18,6 +18,6 @@ contract MetadataDefinitions {
 
     enum MetadataType {
         NoMetadata,
-        GroupMint // safeTransferFrom initiated from group mint, appends GroupMintMetadata
+        GroupMint
     }
 }
