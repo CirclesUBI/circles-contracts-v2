@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity >=0.8.13;
 
-import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
+import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "../hub/IHub.sol";
 import "./IStandardVault.sol";
 
-contract standardVault is ERC165, IERC1155Receiver, IStandardVault {
+contract standardVault is ERC1155Holder, IStandardVault {
     // State variables
 
     address public standardTreasury;
@@ -22,18 +21,33 @@ contract standardVault is ERC165, IERC1155Receiver, IStandardVault {
 
     // Constructor
 
+    /**
+     * @notice Constructor to create a standard vault master copy.
+     */
     constructor() {
+        // set the standard treasury to a blocked address for the master copy deployment
         standardTreasury = address(1);
     }
 
     // External functions
 
+    /**
+     * @notice Setup the vault
+     * @param _hub Address of the hub contract
+     */
     function setup(IHubV2 _hub) external {
         require(address(hub) == address(0), "Vault: already initialized");
         standardTreasury = msg.sender;
         hub = _hub;
     }
 
+    /**
+     * Return the collateral to the receiver can only be called by the treasury
+     * @param _receiver Receivere address of the collateral
+     * @param _ids Circles identifiers of the collateral
+     * @param _values Values of the collateral to be returned
+     * @param _data Optional data bytes passed to the receiver
+     */
     function returnCollateral(
         address _receiver,
         uint256[] calldata _ids,
@@ -46,33 +60,17 @@ contract standardVault is ERC165, IERC1155Receiver, IStandardVault {
         hub.safeBatchTransferFrom(address(this), _receiver, _ids, _values, _data);
     }
 
-    // Public functions
-
     /**
-     * @dev See {IERC165-supportsInterface}.
+     * @notice Burn collateral from the vault can only ve called by the treasury
+     * @param _ids Circles identifiers of the collateral
+     * @param _values Values of the collateral to be burnt
      */
-    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165, IERC165) returns (bool) {
-        return interfaceId == type(IERC1155Receiver).interfaceId || super.supportsInterface(interfaceId);
-    }
+    function burnCollateral(uint256[] calldata _ids, uint256[] calldata _values) external onlyTreasury {
+        require(_ids.length == _values.length, "Vault: ids and values length mismatch");
 
-    function onERC1155Received(
-        address, /*_operator*/
-        address, /*_from*/
-        uint256, /*_id*/
-        uint256, /*_value*/
-        bytes memory /*_data*/
-    ) public virtual override returns (bytes4) {
-        return this.onERC1155Received.selector;
-    }
-
-    function onERC1155BatchReceived(
-        address, /*_operator*/
-        address, /*_from*/
-        uint256[] memory, /*_ids*/
-        uint256[] memory, /*_values*/
-        bytes memory /*_data*/
-    ) public virtual override returns (bytes4) {
-        // todo: register which collateral is stored in this vault?
-        return this.onERC1155BatchReceived.selector;
+        // burn the collateral from the vault
+        for (uint256 i = 0; i < _ids.length; i++) {
+            hub.burn(_ids[i], _values[i]);
+        }
     }
 }

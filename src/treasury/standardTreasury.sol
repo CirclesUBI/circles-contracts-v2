@@ -85,12 +85,18 @@ contract standardTreasury is ERC165, IERC1155Receiver, ProxyFactory {
         // query the mint policy for the redemption values
         uint256[] memory redemptionIds;
         uint256[] memory redemptionValues;
-        (redemptionIds, redemptionValues) = policy.beforeRedeemPolicy(_operator, _from, group, _value, _data);
+        uint256[] memory burnIds;
+        uint256[] memory burnValues;
+        (redemptionIds, redemptionValues, burnIds, burnValues) =
+            policy.beforeRedeemPolicy(_operator, _from, group, _value, _data);
 
         // ensure the redemption values sum up to the correct amount
         uint256 sum = 0;
         for (uint256 i = 0; i < redemptionValues.length; i++) {
             sum += redemptionValues[i];
+        }
+        for (uint256 i = 0; i < burnValues.length; i++) {
+            sum += burnValues[i];
         }
         require(sum == _value, "Treasury: Invalid redemption values from policy");
 
@@ -100,6 +106,10 @@ contract standardTreasury is ERC165, IERC1155Receiver, ProxyFactory {
         // return collateral Circles to the redeemer of group Circles
         vault.returnCollateral(_from, redemptionIds, redemptionValues, _data);
 
+        // burn the collateral Circles from the vault
+        vault.burnCollateral(burnIds, burnValues);
+
+        // return the ERC1155 selector for acceptance of the (redeemed) group Circles
         return this.onERC1155Received.selector;
     }
 

@@ -4,4 +4,6 @@ pragma solidity >=0.8.13;
 interface IStandardVault {
     function returnCollateral(address receiver, uint256[] calldata ids, uint256[] calldata values, bytes calldata data)
         external;
+
+    function burnCollateral(uint256[] calldata ids, uint256[] calldata values) external;
 }
