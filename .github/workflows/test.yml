@@ -25,7 +25,7 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: nightly-5b7e4cb3c882b28f3c32ba580de27ce7381f415a
+          version: nightly
 
       - name: Check Code Formatting
         run: |
@@ -35,7 +35,7 @@ jobs:
       - name: Run Forge build
         run: |
           forge --version
-          forge build --sizes --use 0.8.21
+          forge build
         id: build
 
       - name: Run Forge tests
