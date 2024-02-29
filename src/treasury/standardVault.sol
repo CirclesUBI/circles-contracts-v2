@@ -8,12 +8,21 @@ import "./IStandardVault.sol";
 contract standardVault is ERC1155Holder, IStandardVault {
     // State variables
 
+    /**
+     * @notice Address of the standard treasury
+     */
     address public standardTreasury;
 
+    /**
+     * @notice Address of the hub contract
+     */
     IHubV2 public hub;
 
     // Modifiers
 
+    /**
+     * @notice Ensure the caller is the standard treasury
+     */
     modifier onlyTreasury() {
         require(msg.sender == standardTreasury, "Vault: caller is not the treasury");
         _;
@@ -64,13 +73,17 @@ contract standardVault is ERC1155Holder, IStandardVault {
      * @notice Burn collateral from the vault can only ve called by the treasury
      * @param _ids Circles identifiers of the collateral
      * @param _values Values of the collateral to be burnt
+     * @param _data Optional data bytes passed to the hub and policy for burning
      */
-    function burnCollateral(uint256[] calldata _ids, uint256[] calldata _values) external onlyTreasury {
+    function burnCollateral(uint256[] calldata _ids, uint256[] calldata _values, bytes calldata _data)
+        external
+        onlyTreasury
+    {
         require(_ids.length == _values.length, "Vault: ids and values length mismatch");
 
         // burn the collateral from the vault
         for (uint256 i = 0; i < _ids.length; i++) {
-            hub.burn(_ids[i], _values[i]);
+            hub.burn(_ids[i], _values[i], _data);
         }
     }
 }

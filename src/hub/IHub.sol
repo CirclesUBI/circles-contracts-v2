@@ -6,5 +6,5 @@ import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 interface IHubV2 is IERC1155 {
     function avatars(address avatar) external view returns (address);
     function mintPolicies(address avatar) external view returns (address);
-    function burn(uint256 id, uint256 amount) external;
+    function burn(uint256 id, uint256 amount, bytes calldata data) external;
 }

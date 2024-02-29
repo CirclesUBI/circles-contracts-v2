@@ -41,6 +41,9 @@ contract standardTreasury is ERC165, IERC1155Receiver, ProxyFactory {
 
     // Modifiers
 
+    /**
+     * @notice Ensure the caller is the hub
+     */
     modifier onlyHub() {
         require(msg.sender == address(hub), "Treasury: caller is not the hub");
         _;
@@ -48,6 +51,11 @@ contract standardTreasury is ERC165, IERC1155Receiver, ProxyFactory {
 
     // Constructor
 
+    /**
+     * @notice Constructor to create a standard treasury
+     * @param _hub Address of the hub contract
+     * @param _mastercopyStandardVault Address of the mastercopy standard vault contract
+     */
     constructor(IHubV2 _hub, address _mastercopyStandardVault) {
         require(address(_hub) != address(0), "Hub address cannot be 0");
         require(_mastercopyStandardVault != address(0), "Mastercopy standard vault address cannot be 0");
@@ -101,13 +109,13 @@ contract standardTreasury is ERC165, IERC1155Receiver, ProxyFactory {
         require(sum == _value, "Treasury: Invalid redemption values from policy");
 
         // burn the group Circles
-        hub.burn(_id, _value);
+        hub.burn(_id, _value, _data);
 
         // return collateral Circles to the redeemer of group Circles
         vault.returnCollateral(_from, redemptionIds, redemptionValues, _data);
 
         // burn the collateral Circles from the vault
-        vault.burnCollateral(burnIds, burnValues);
+        vault.burnCollateral(burnIds, burnValues, _data);
 
         // return the ERC1155 selector for acceptance of the (redeemed) group Circles
         return this.onERC1155Received.selector;
@@ -119,7 +127,7 @@ contract standardTreasury is ERC165, IERC1155Receiver, ProxyFactory {
      */
     function onERC1155BatchReceived(
         address, /*_operator*/
-        address _from,
+        address, /*_from*/
         uint256[] memory _ids,
         uint256[] memory _values,
         bytes memory _data
@@ -138,12 +146,22 @@ contract standardTreasury is ERC165, IERC1155Receiver, ProxyFactory {
 
     // Internal functions
 
+    /**
+     * @dev Validate the Circles id to group address
+     * @param _id Circles identifier
+     * @return group Address of the group
+     */
     function _validateCirclesIdToGroup(uint256 _id) internal pure returns (address) {
         address group = address(uint160(_id));
         require(uint256(uint160(group)) == _id, "Treasury: Invalid group Circles id");
         return group;
     }
 
+    /**
+     * @dev Ensure the vault exists for the group, and if not deploy it
+     * @param _group Address of the group
+     * @return vault Address of the vault
+     */
     function _ensureVault(address _group) internal returns (IStandardVault) {
         IStandardVault vault = vaults[_group];
         if (address(vault) == address(0)) {
@@ -154,6 +172,10 @@ contract standardTreasury is ERC165, IERC1155Receiver, ProxyFactory {
     }
 
     // todo: this could be done with deterministic deployment, but same comment, not worth it
+    /**
+     * @dev Deploy the vault
+     * @return vault Address of the vault
+     */
     function _deployVault() internal returns (IStandardVault) {
         bytes memory vaultSetupData = abi.encodeWithSelector(STANDARD_VAULT_SETUP_CALLPREFIX, hub);
         IStandardVault vault = IStandardVault(address(_createProxy(mastercopyStandardVault, vaultSetupData)));

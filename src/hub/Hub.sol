@@ -365,6 +365,10 @@ contract Hub is Circles, IHubV2 {
         _mint(msg.sender, toTokenId(_group), sumAmounts, _data);
     }
 
+    /**
+     * @notice Stop allows to stop future mints of personal Circles for this avatar.
+     * Must be called by the avatar itself. This action is irreversible.
+     */
     function stop() external {
         require(isHuman(msg.sender), "Only human can call stop.");
         MintTime storage mintTime = mintTimes[msg.sender];
@@ -373,13 +377,23 @@ contract Hub is Circles, IHubV2 {
         mintTime.lastMintTime = INDEFINITE_FUTURE;
     }
 
+    /**
+     * Stopped checks whether the avatar has stopped future mints of personal Circles.
+     * @param _human address of avatar of the human to check whether it is stopped
+     */
     function stopped(address _human) external view returns (bool) {
         require(isHuman(_human), "Only personal Circles can stopped or not stopped.");
         MintTime storage mintTime = mintTimes[msg.sender];
         return (mintTime.lastMintTime == INDEFINITE_FUTURE);
     }
 
-    function burn(uint256 _id, uint256 _amount) external {
+    /**
+     * @notice Burn allows to burn Circles owned by the caller.
+     * @param _id Circles identifier of the Circles to burn
+     * @param _amount amount of Circles to burn
+     * @param _data (optional) additional data to be passed to the burn policy if they are group Circles
+     */
+    function burn(uint256 _id, uint256 _amount, bytes calldata _data) external {
         // todo: by construction we can not have an id with non-zero balance,
         // that was not converted from a group address.
         // for now, do a redundant check that the id is identical to the recovered address
@@ -390,7 +404,7 @@ contract Hub is Circles, IHubV2 {
         if (address(policy) != address(0) && treasuries[group] != msg.sender) {
             // if Circles are a group Circles and if the burner is not the associated treasury,
             // then the mint policy must approve the burn
-            require(policy.beforeBurnPolicy(msg.sender, group, _amount, ""), "Burn policy rejected burn.");
+            require(policy.beforeBurnPolicy(msg.sender, group, _amount, _data), "Burn policy rejected burn.");
         }
         _burn(msg.sender, _id, _amount);
     }

@@ -5,38 +5,37 @@ import "./IMintPolicy.sol";
 import "./Definitions.sol";
 
 abstract contract MintPolicy is IMintPolicy {
+    // External functions
+
     /**
      * @notice Simple mint policy that always returns true
-     * @param _minter Address of the minter
-     * @param _group Address of the group
-     * @param _collateral Array of collateral addresses
-     * @param _amounts Array of collateral amounts
-     * @param _data Optional data bytes passed to mint policy
      */
     function beforeMintPolicy(
-        address _minter,
-        address _group,
-        address[] calldata _collateral,
-        uint256[] calldata _amounts,
-        bytes calldata _data
+        address, /*_minter*/
+        address, /*_group*/
+        address[] calldata, /*_collateral*/
+        uint256[] calldata, /*_amounts*/
+        bytes calldata /*_data*/
     ) external virtual override returns (bool) {
         return true;
     }
 
-    function beforeBurnPolicy(address _burner, address _group, uint256 _value, bytes calldata _data)
-        external
-        virtual
-        override
-        returns (bool)
-    {
+    /**
+     * @notice Simple burn policy that always returns true
+     */
+    function beforeBurnPolicy(address, address, uint256, bytes calldata) external virtual override returns (bool) {
         return true;
     }
 
+    /**
+     * @notice Simple redeem policy that returns the redemption ids and values as requested in the data
+     * @param _data Optional data bytes passed to redeem policy
+     */
     function beforeRedeemPolicy(
-        address _operator,
-        address _redeemer,
-        address _group,
-        uint256 _value,
+        address, /*_operator*/
+        address, /*_redeemer*/
+        address, /*_group*/
+        uint256, /*_value*/
         bytes calldata _data
     )
         external
