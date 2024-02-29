@@ -35,7 +35,7 @@ jobs:
       - name: Run Forge build
         run: |
           forge --version
-          forge build --sizes
+          forge build --sizes --use 0.8.21
         id: build
 
       - name: Run Forge tests
