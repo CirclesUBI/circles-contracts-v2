@@ -213,10 +213,10 @@ contract Hub is Circles {
         if (block.timestamp > invitationOnlyTime) {
             // after the bootstrap period, the inviter must burn the invitation cost
             _burn(msg.sender, toTokenId(msg.sender), INVITATION_COST);
-        }
 
-        // invited receives the welcome bonus in their personal Circles
-        _mint(_human, toTokenId(_human), WELCOME_BONUS, "");
+            // invited receives the welcome bonus in their personal Circles
+            _mint(_human, toTokenId(_human), WELCOME_BONUS, "");
+        }
 
         // set trust to indefinite future, but avatar can edit this later
         _trust(msg.sender, _human, INDEFINITE_FUTURE);
