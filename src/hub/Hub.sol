@@ -540,6 +540,10 @@ contract Hub is Circles, IHubV2 {
 
     // Public functions
 
+    // function operateFlowMatrix(
+    //     int256[] calldata _intended
+    // )
+
     /**
      * Checks if an avatar is registered as a human.
      * @param _human address of the human to check
