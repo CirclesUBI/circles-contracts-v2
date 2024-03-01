@@ -39,9 +39,14 @@ contract Hub is Circles, IHubV2 {
     // Constants
 
     /**
-     * @dev Welcome bonus for new avatars invited to Circles. Set to three days of non-demurraged Circles.
+     * @dev Welcome bonus for new avatars invited to Circles. Set to 50 Circles.
      */
-    uint256 public constant WELCOME_BONUS = 3 * 24 * 10 ** 18;
+    uint256 public constant WELCOME_BONUS = 50 * EXA;
+
+    /**
+     * @dev The cost of an invitation for a new avatar, paid in personal Circles burnt, set to 100 Circles.
+     */
+    uint256 public constant INVITATION_COST = 2 * WELCOME_BONUS;
 
     /**
      * @dev The minimum donation amount for registering a human as an organization,
@@ -61,6 +66,11 @@ contract Hub is Circles, IHubV2 {
      * @notice The Hub v1 contract address.
      */
     IHubV1 public immutable hubV1;
+
+    /**
+     * @notice The address of the migration contract for v1 Circles.
+     */
+    address public immutable migration;
 
     /**
      * @notice The timestamp of the start of the invitation-only period.
@@ -125,7 +135,7 @@ contract Hub is Circles, IHubV2 {
      * Modifier to check if the current time is during the bootstrap period.
      */
     modifier duringBootstrap() {
-        require(block.timestamp < invitationOnlyTime, "Bootstrap period has ended.");
+        require(block.timestamp <= invitationOnlyTime, "Bootstrap period has ended.");
         _;
     }
 
@@ -144,6 +154,7 @@ contract Hub is Circles, IHubV2 {
      */
     constructor(
         IHubV1 _hubV1,
+        address _migration,
         uint256 _inflation_day_zero,
         address _standardTreasury,
         uint256 _bootstrapTime,
@@ -157,6 +168,9 @@ contract Hub is Circles, IHubV2 {
 
         // store the Hub v1 contract address
         hubV1 = _hubV1;
+
+        // store the migration contract address
+        migration = _migration;
 
         // store the standard treasury contract address for registerGroup()
         standardTreasury = _standardTreasury;
@@ -199,11 +213,13 @@ contract Hub is Circles, IHubV2 {
         // register the invited human; reverts if they already exist
         _registerHuman(_human);
 
-        // inviter must burn twice the welcome bonus of their own Circles
-        _burn(msg.sender, toTokenId(msg.sender), 2 * WELCOME_BONUS);
+        if (block.timestamp > invitationOnlyTime) {
+            // after the bootstrap period, the inviter must burn the invitation cost
+            _burn(msg.sender, toTokenId(msg.sender), INVITATION_COST);
 
-        // invited receives the welcome bonus in their personal Circles
-        _mint(_human, toTokenId(_human), WELCOME_BONUS, "");
+            // invited receives the welcome bonus in their personal Circles
+            _mint(_human, toTokenId(_human), WELCOME_BONUS, "");
+        }
 
         // set trust to indefinite future, but avatar can edit this later
         _trust(msg.sender, _human, INDEFINITE_FUTURE);
@@ -407,6 +423,37 @@ contract Hub is Circles, IHubV2 {
             require(policy.beforeBurnPolicy(msg.sender, group, _amount, _data), "Burn policy rejected burn.");
         }
         _burn(msg.sender, _id, _amount);
+    }
+
+    /**
+     * @notice Migrate allows to migrate v1 Circles to v2 Circles. During bootstrap period,
+     * no invitation cost needs to be paid for new humans to be registered. After the bootstrap
+     * period the same invitation cost applies as for normal invitations, and this requires the
+     * owner to be a human and to have enough personal Circles to pay the invitation cost.
+     * Organizations and groups have to ensure all humans have been registered after the bootstrap period.
+     * @param _owner address of the owner of the v1 Circles and beneficiary of the v2 Circles
+     * @param _avatars array of avatar addresses to migrate
+     * @param _amounts array of amounts in inflationary v1 units to migrate
+     */
+    function migrate(address _owner, address[] calldata _avatars, uint256[] calldata _amounts) external {
+        require(avatars[_owner] != address(0), "Only registered avatars can migrate v1 tokens.");
+        require(_avatars.length == _amounts.length, "Arrays must have the same length.");
+
+        // register all unregistered avatars as humans, and check that registered avatars are humans
+        // after the bootstrap period, the _owner needs to pay the equivalent invitation cost for all newly registered humans
+        uint256 cost = INVITATION_COST * _ensureAvatarsRegistered(_avatars);
+
+        // Invitation cost only applies after the bootstrap period
+        if (block.timestamp > invitationOnlyTime && cost > 0) {
+            // personal Circles are required to burn the invitation cost
+            require(isHuman(_owner), "Only humans can migrate v1 tokens after the bootstrap period.");
+            _burn(_owner, toTokenId(_owner), cost);
+        }
+
+        for (uint256 i = 0; i < _avatars.length; i++) {
+            // mint the migrated balances to _owner
+            _mint(_owner, toTokenId(_avatars[i]), _amounts[i], "");
+        }
     }
 
     // check if path transfer can be fully ERC1155 compatible
@@ -668,6 +715,20 @@ contract Hub is Circles, IHubV2 {
         _upsertTrustMarker(_truster, _trustee, _expiry);
 
         emit Trust(_truster, _trustee, _expiry);
+    }
+
+    function _ensureAvatarsRegistered(address[] calldata _avatars) internal returns (uint256) {
+        uint256 registrationCount = 0;
+        for (uint256 i = 0; i < _avatars.length; i++) {
+            if (avatars[_avatars[i]] == address(0)) {
+                registrationCount++;
+                _registerHuman(_avatars[i]);
+            } else {
+                require(isHuman(_avatars[i]), "Only humans can be registered.");
+            }
+        }
+
+        return registrationCount;
     }
 
     /**
