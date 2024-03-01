@@ -3,7 +3,7 @@ pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
-import "../../src/migration/MigrationOld.sol";
+import "../../src/migration/Migration.sol";
 import "../setup/TimeSetup.sol";
 import "./MockHub.sol";
 
@@ -18,12 +18,12 @@ contract GraphTest is Test {
 
     MockHubV1 public mockHubV1;
 
-    CirclesMigration public migration;
+    Migration public migration;
 
     function setUp() public {
         mockHubV1 = new MockHubV1();
 
-        migration = new CirclesMigration(mockHubV1);
+        migration = new Migration(mockHubV1);
 
         vm.warp(MOMENT_IN_TIME);
     }
@@ -40,7 +40,7 @@ contract GraphTest is Test {
         // possibly even on-chain
 
         // for now require accuracy < 1%
-        uint256 convertedAmount = migration.convertFromV1ToTimeCircles(originalAmountV1);
+        uint256 convertedAmount = migration.convertFromV1ToDemurrage(originalAmountV1);
         uint256 difference = uint256(0);
         if (convertedAmount < expectedAmountV2) {
             difference = ACCURACY_ONE - (ACCURACY_ONE * convertedAmount) / expectedAmountV2;
