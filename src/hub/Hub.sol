@@ -538,11 +538,43 @@ contract Hub is Circles, IHubV2 {
 
     function ToInflationAmount(uint256 _amount, uint256 _timestamp) external {}
 
-    // Public functions
+    function operateFlowMatrix(
+        uint16[] calldata _fromIntents,
+        // address[] calldata _toIntents,
+        bytes[] calldata _dataIntents,
+        int256[] calldata _intendedNettedFlow,
+        address[] calldata _flowVertices,
+        uint8[] calldata _flowTerminals,
+        uint256[] calldata _flow,
+        bytes calldata _packedCoordinates
+    ) external {
+        // first unpack the coordinates to array of uint16
+        uint16[] memory coordinates = _unpackCoordinates(_packedCoordinates, _flow.length);
 
-    // function operateFlowMatrix(
-    //     int256[] calldata _intended
-    // )
+        require(
+            _flowVertices.length == _intendedNettedFlow.length &&
+            _flowVertices.length == _flowTerminals.length,
+            "Mismatch in flow vertices, terminals and netted flow."
+        );
+
+        require(
+            _fromIntents.length == _dataIntents.length,
+            "Mismatch in from intents and data intents."
+        );
+
+        // check all senders have the operator authorized
+        for (uint64 i = 0; i < _fromIntents.length; i++) {
+            require(isApprovedForAll(_flowVertices[_fromIntents[i]], msg.sender), "Operator not approved.");
+        }
+
+        // if each vertex in the intended netted flow is zero, then it is a closed path
+        bool closedPath = _checkClosedPath(_intendedNettedFlow);
+
+        
+
+    }
+
+    // Public functions
 
     /**
      * Checks if an avatar is registered as a human.
@@ -785,7 +817,44 @@ contract Hub is Circles, IHubV2 {
         avatars[SENTINEL] = _avatar;
     }
 
+    function _checkClosedPath(int256[] calldata _intendedFlow) internal pure returns (bool closedPath_) {
+        // start by assuming it is a closed path
+        closedPath_ = true;
+        for (uint256 i = 0; i < _intendedFlow.length; i++) {
+            // then any non-zero intentedFlow value, breaks the closed path open
+            closedPath_ = closedPath_ && (_intendedFlow[i] == int256(0));
+        }
+        return closedPath_;
+    }
+
     // Private functions
+
+    /**
+     * @dev abi.encodePacked of an array uint16[] would still pad each uint16 - I think;
+     *      if abi packing does not add padding this function is redundant and should be thrown out
+     *      Unpacks the packed coordinates from bytes.
+     *      Each coordinate is 16 bits, and each triplet is thus 48 bits.
+     * @param _packedData The packed data containing the coordinates.
+     * @param _numberOfTriplets The number of coordinate triplets in the packed data.
+     * @return unpackedCoordinates_ An array of unpacked coordinates (of length 3* numberOfTriplets)
+     */
+    function _unpackCoordinates(bytes calldata _packedData, uint256 _numberOfTriplets)
+        private
+        pure
+        returns (uint16[] memory unpackedCoordinates_)
+    {
+        require(_packedData.length == _numberOfTriplets * 6, "Invalid packed data length");
+
+        unpackedCoordinates_ = new uint16[](_numberOfTriplets * 3);
+        uint256 index = 0;
+
+        // per three coordinates, shift each upper byte left
+        for (uint256 i = 0; i < _packedData.length; i += 6) {
+            unpackedCoordinates_[index++] = uint16(uint8(_packedData[i])) << 8 | uint16(uint8(_packedData[i + 1]));
+            unpackedCoordinates_[index++] = uint16(uint8(_packedData[i + 2])) << 8 | uint16(uint8(_packedData[i + 3]));
+            unpackedCoordinates_[index++] = uint16(uint8(_packedData[i + 4])) << 8 | uint16(uint8(_packedData[i + 5]));
+        }
+    }
 
     /**
      * @dev Internal function to upsert a trust marker for a truster and a trusted address.
