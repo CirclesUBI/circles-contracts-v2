@@ -544,7 +544,7 @@ contract Hub is Circles, IHubV2 {
         bytes[] calldata _dataIntents,
         int256[] calldata _intendedNettedFlow,
         address[] calldata _flowVertices,
-        uint8[] calldata _flowTerminals,
+        // uint8[] calldata _flowTerminals,
         uint256[] calldata _flow,
         bytes calldata _packedCoordinates
     ) external {
@@ -552,14 +552,9 @@ contract Hub is Circles, IHubV2 {
         uint16[] memory coordinates = _unpackCoordinates(_packedCoordinates, _flow.length);
 
         require(
-            _flowVertices.length == _intendedNettedFlow.length &&
-            _flowVertices.length == _flowTerminals.length,
-            "Mismatch in flow vertices, terminals and netted flow."
-        );
-
-        require(
-            _fromIntents.length == _dataIntents.length,
-            "Mismatch in from intents and data intents."
+            _flowVertices.length == _intendedNettedFlow.length // && _flow.length == _flowTerminals.length
+                && _fromIntents.length == _dataIntents.length,
+            "Mismatch in flow tensor dimensions."
         );
 
         // check all senders have the operator authorized
@@ -570,8 +565,10 @@ contract Hub is Circles, IHubV2 {
         // if each vertex in the intended netted flow is zero, then it is a closed path
         bool closedPath = _checkClosedPath(_intendedNettedFlow);
 
-        
-
+        // verify the correctness of the flow matrix describing the path itself,
+        // ie. well-definedness of the flow matrix itself,
+        // check all entities are registered, and the trust relations are respected.
+        int256[] memory verifiedNettedFlow = _verifyFlowMatrix(_flowVertices, _flow, coordinates, closedPath);
     }
 
     // Public functions
@@ -685,6 +682,59 @@ contract Hub is Circles, IHubV2 {
     }
 
     // Internal functions
+
+    function _verifyFlowMatrix(
+        address[] calldata _flowVertices,
+        uint256[] calldata _flow,
+        uint16[] memory _coordinates,
+        bool _closedPath
+    ) internal view returns (int256[] memory) {
+        require(3 * _flow.length == _coordinates.length, "Mismatch in flow and coordinates length.");
+        require(_flowVertices.length <= type(uint16).max, "Too many vertices.");
+        require(_flowVertices.length > 0 && _flow.length > 0, "Empty flow matrix.");
+
+        // initialize the netted flow array
+        int256[] memory nettedFlow = new int256[](_flowVertices.length);
+
+        // check all vertices are valid avatars, groups or organizations
+        for (uint64 i = 0; i < _flowVertices.length - 1; i++) {
+            require(
+                uint160(_flowVertices[i]) < uint160(_flowVertices[i + 1]), "Flow vertices must be in ascending order."
+            );
+            require(avatars[_flowVertices[i]] != address(0), "Avatar must be registered.");
+        }
+        {
+            address lastAvatar = _flowVertices[_flowVertices.length - 1];
+            require(avatars[lastAvatar] != address(0), "Avatar must be registered.");
+        }
+
+        // iterate over the coordinate index
+        uint16 index = uint16(0);
+
+        for (uint64 i = 0; i < _flow.length; i++) {
+            // retrieve the flow vertices associated with this flow edge
+            address circlesId = _flowVertices[_coordinates[index++]];
+            uint16 fromIndex = index++;
+            uint16 toIndex = index++;
+            address to = _flowVertices[_coordinates[toIndex]];
+            require(_flow[i] < uint256(type(int256).max));
+            int256 flow = int256(_flow[i]);
+
+            // check the receiver trusts the Circles being sent
+            require(isTrusted(to, circlesId), "Receiver does not trust Circles being sent");
+            require(
+                !_closedPath || (to == circlesId && !isGroup(circlesId)),
+                "Closed paths can only return personal Circles to source."
+            );
+
+            // nett the flow, dividing out the different Circle identifiers
+            // expect for all edges to a group, as they are interpreted as a request for group mint
+            if (!isGroup(to)) {
+                nettedFlow[_coordinates[fromIndex]] -= flow;
+                nettedFlow[_coordinates[toIndex]] += flow;
+            }
+        }
+    }
 
     /**
      * Register human allows to register an avatar for a human,
