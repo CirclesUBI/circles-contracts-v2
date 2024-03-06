@@ -230,7 +230,7 @@ contract Graph is ProxyFactory, IGraph {
     function registerAvatar() external notOnTrustGraph(msg.sender) {
         bytes memory avatarCircleNodeSetupData = abi.encodeWithSelector(AVATAR_CIRCLE_SETUP_CALLPREFIX, msg.sender);
         IAvatarCircleNode avatarCircleNode =
-            IAvatarCircleNode(address(createProxy(address(masterCopyAvatarCircleNode), avatarCircleNodeSetupData)));
+            IAvatarCircleNode(address(_createProxy(address(masterCopyAvatarCircleNode), avatarCircleNodeSetupData)));
 
         avatarToCircle[msg.sender] = avatarCircleNode;
         _insertAvatarCircleNode(avatarCircleNode);
@@ -246,7 +246,7 @@ contract Graph is ProxyFactory, IGraph {
         bytes memory groupCircleNodeSetupData =
             abi.encodeWithSelector(GROUP_CIRCLE_SETUP_CALLPREFIX, msg.sender, _exitFee_64x64);
         IGroupCircleNode groupCircleNode =
-            IGroupCircleNode(address(createProxy(address(masterCopyGroupCircleNode), groupCircleNodeSetupData)));
+            IGroupCircleNode(address(_createProxy(address(masterCopyGroupCircleNode), groupCircleNodeSetupData)));
 
         groupToCircle[msg.sender] = groupCircleNode;
         _insertGroupCircleNode(groupCircleNode);
