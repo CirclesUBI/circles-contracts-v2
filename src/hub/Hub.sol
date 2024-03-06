@@ -36,6 +36,16 @@ contract Hub is Circles, IHubV2 {
         uint96 expiry;
     }
 
+    struct FlowEdge {
+        uint16 streamSinkId;
+        uint240 amount;
+    }
+
+    struct Stream {
+        uint16 sourceCoordinate;
+        bytes data;
+    }
+
     // Constants
 
     /**
@@ -539,31 +549,21 @@ contract Hub is Circles, IHubV2 {
     function ToInflationAmount(uint256 _amount, uint256 _timestamp) external {}
 
     function operateFlowMatrix(
-        uint16[] calldata _fromIntents,
-        // address[] calldata _toIntents,
-        bytes[] calldata _dataIntents,
-        int256[] calldata _intendedNettedFlow,
         address[] calldata _flowVertices,
-        // uint8[] calldata _flowTerminals,
-        uint256[] calldata _flow,
+        FlowEdge[] calldata _flow,
+        Stream[] calldata _streams,
         bytes calldata _packedCoordinates
     ) external {
         // first unpack the coordinates to array of uint16
         uint16[] memory coordinates = _unpackCoordinates(_packedCoordinates, _flow.length);
 
-        require(
-            _flowVertices.length == _intendedNettedFlow.length // && _flow.length == _flowTerminals.length
-                && _fromIntents.length == _dataIntents.length,
-            "Mismatch in flow tensor dimensions."
-        );
-
         // check all senders have the operator authorized
-        for (uint64 i = 0; i < _fromIntents.length; i++) {
-            require(isApprovedForAll(_flowVertices[_fromIntents[i]], msg.sender), "Operator not approved.");
+        for (uint64 i = 0; i < _streams.length; i++) {
+            require(isApprovedForAll(_flowVertices[_streams[i].sourceCoordinate], msg.sender), "Operator not approved.");
         }
 
-        // if each vertex in the intended netted flow is zero, then it is a closed path
-        bool closedPath = _checkClosedPath(_intendedNettedFlow);
+        // if no streams are provided, then only closed paths are allowed
+        bool closedPath = (_streams.length == 0);
 
         // verify the correctness of the flow matrix describing the path itself,
         // ie. well-definedness of the flow matrix itself,
@@ -685,7 +685,7 @@ contract Hub is Circles, IHubV2 {
 
     function _verifyFlowMatrix(
         address[] calldata _flowVertices,
-        uint256[] calldata _flow,
+        FlowEdge[] calldata _flow,
         uint16[] memory _coordinates,
         bool _closedPath
     ) internal view returns (int256[] memory) {
@@ -717,8 +717,7 @@ contract Hub is Circles, IHubV2 {
             uint16 fromIndex = index++;
             uint16 toIndex = index++;
             address to = _flowVertices[_coordinates[toIndex]];
-            require(_flow[i] < uint256(type(int256).max));
-            int256 flow = int256(_flow[i]);
+            int256 flow = int256(uint256(_flow[i].amount));
 
             // check the receiver trusts the Circles being sent
             require(isTrusted(to, circlesId), "Receiver does not trust Circles being sent");
@@ -728,12 +727,15 @@ contract Hub is Circles, IHubV2 {
             );
 
             // nett the flow, dividing out the different Circle identifiers
-            // expect for all edges to a group, as they are interpreted as a request for group mint
+            // expect for all edges to a group, as they are interpreted
+            // as a request for group mint in _effectPathTransfers
             if (!isGroup(to)) {
                 nettedFlow[_coordinates[fromIndex]] -= flow;
                 nettedFlow[_coordinates[toIndex]] += flow;
             }
         }
+
+        return nettedFlow;
     }
 
     /**
