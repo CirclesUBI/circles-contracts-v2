@@ -696,46 +696,71 @@ contract Hub is Circles, IHubV2 {
         // initialize the netted flow array
         int256[] memory nettedFlow = new int256[](_flowVertices.length);
 
-        // check all vertices are valid avatars, groups or organizations
-        for (uint64 i = 0; i < _flowVertices.length - 1; i++) {
-            require(
-                uint160(_flowVertices[i]) < uint160(_flowVertices[i + 1]), "Flow vertices must be in ascending order."
-            );
-            require(avatars[_flowVertices[i]] != address(0), "Avatar must be registered.");
-        }
         {
+            // check all vertices are valid avatars, groups or organizations
+            for (uint64 i = 0; i < _flowVertices.length - 1; i++) {
+                require(
+                    uint160(_flowVertices[i]) < uint160(_flowVertices[i + 1]),
+                    "Flow vertices must be in ascending order."
+                );
+                require(avatars[_flowVertices[i]] != address(0), "Avatar must be registered.");
+            }
+
             address lastAvatar = _flowVertices[_flowVertices.length - 1];
             require(avatars[lastAvatar] != address(0), "Avatar must be registered.");
         }
 
-        // iterate over the coordinate index
+        {
+            // iterate over the coordinate index
+            uint16 index = uint16(0);
+
+            for (uint64 i = 0; i < _flow.length; i++) {
+                // retrieve the flow vertices associated with this flow edge
+                address circlesId = _flowVertices[_coordinates[index++]];
+                uint16 fromIndex = index++;
+                uint16 toIndex = index++;
+                address to = _flowVertices[_coordinates[toIndex]];
+                // amount is uint240, so no need to check for overflow
+                int256 flow = int256(uint256(_flow[i].amount));
+
+                // check the receiver trusts the Circles being sent
+                require(isTrusted(to, circlesId), "Receiver does not trust Circles being sent");
+                require(
+                    !_closedPath || (to == circlesId && !isGroup(circlesId)),
+                    "Closed paths can only return personal Circles to source."
+                );
+
+                // nett the flow, dividing out the different Circle identifiers
+                // expect for all edges to a group, as they are interpreted
+                // as a request for group mint in _effectPathTransfers
+                if (!isGroup(to)) {
+                    nettedFlow[_coordinates[fromIndex]] -= flow;
+                    nettedFlow[_coordinates[toIndex]] += flow;
+                }
+            }
+        }
+
+        return nettedFlow;
+    }
+
+    function _effectPathTransfers(
+        address[] calldata _flowVertices,
+        FlowEdge[] calldata _flow,
+        Stream[] calldata _streams,
+        uint16[] memory _coordinates
+    ) internal {
+        uint16 N = uint16(_streams.length);
+
         uint16 index = uint16(0);
 
-        for (uint64 i = 0; i < _flow.length; i++) {
+        for (uint16 i = 0; i < _flow.length; i++) {
             // retrieve the flow vertices associated with this flow edge
             address circlesId = _flowVertices[_coordinates[index++]];
             uint16 fromIndex = index++;
             uint16 toIndex = index++;
             address to = _flowVertices[_coordinates[toIndex]];
-            int256 flow = int256(uint256(_flow[i].amount));
-
-            // check the receiver trusts the Circles being sent
-            require(isTrusted(to, circlesId), "Receiver does not trust Circles being sent");
-            require(
-                !_closedPath || (to == circlesId && !isGroup(circlesId)),
-                "Closed paths can only return personal Circles to source."
-            );
-
-            // nett the flow, dividing out the different Circle identifiers
-            // expect for all edges to a group, as they are interpreted
-            // as a request for group mint in _effectPathTransfers
-            if (!isGroup(to)) {
-                nettedFlow[_coordinates[fromIndex]] -= flow;
-                nettedFlow[_coordinates[toIndex]] += flow;
-            }
+            uint256 amount = _flow[i].amount;
         }
-
-        return nettedFlow;
     }
 
     /**
