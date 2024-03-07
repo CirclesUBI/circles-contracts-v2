@@ -139,6 +139,14 @@ contract Hub is Circles, IHubV2 {
         _;
     }
 
+    /**
+     * Modifier to check if the caller is the migration contract.
+     */
+    modifier onlyMigration() {
+        require(msg.sender == migration, "Only migration contract can call this function.");
+        _;
+    }
+
     // Constructor
 
     /**
@@ -413,7 +421,7 @@ contract Hub is Circles, IHubV2 {
      * @param _avatars array of avatar addresses to migrate
      * @param _amounts array of amounts in inflationary v1 units to migrate
      */
-    function migrate(address _owner, address[] calldata _avatars, uint256[] calldata _amounts) external {
+    function migrate(address _owner, address[] calldata _avatars, uint256[] calldata _amounts) external onlyMigration {
         require(avatars[_owner] != address(0), "Only registered avatars can migrate v1 tokens.");
         require(_avatars.length == _amounts.length, "Arrays must have the same length.");
 
