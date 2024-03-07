@@ -546,11 +546,13 @@ contract Hub is Circles, IHubV2 {
         // verify the correctness of the flow matrix describing the path itself,
         // ie. well-definedness of the flow matrix itself,
         // check all entities are registered, and the trust relations are respected.
-        int256[] memory verifiedNettedFlow = _verifyFlowMatrix(_flowVertices, _flow, coordinates, closedPath);
+        int256[] memory matrixNettedFlow = _verifyFlowMatrix(_flowVertices, _flow, coordinates, closedPath);
 
         _effectPathTransfers(_flowVertices, _flow, _streams, coordinates);
 
         int256[] memory streamsNettedFlow = _callAcceptanceChecks(_flowVertices, _flow, _streams, coordinates);
+
+        _matchNettedFlows(streamsNettedFlow, matrixNettedFlow);
     }
 
     // Public functions
@@ -883,6 +885,13 @@ contract Hub is Circles, IHubV2 {
         }
 
         return nettedFlow;
+    }
+
+    function _matchNettedFlows(int256[] memory _streamsNettedFlow, int256[] memory _matrixNettedFlow) internal pure {
+        require(_streamsNettedFlow.length == _matrixNettedFlow.length);
+        for (uint256 i = 0; i < _streamsNettedFlow.length; i++) {
+            require(_streamsNettedFlow[i] == _matrixNettedFlow[i], "Intended flow does not match verified flow.");
+        }
     }
 
     /**
