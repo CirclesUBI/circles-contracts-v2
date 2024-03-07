@@ -549,6 +549,8 @@ contract Hub is Circles, IHubV2 {
         int256[] memory verifiedNettedFlow = _verifyFlowMatrix(_flowVertices, _flow, coordinates, closedPath);
 
         _effectPathTransfers(_flowVertices, _flow, _streams, coordinates);
+
+        int256[] memory streamsNettedFlow = _callAcceptanceChecks(_flowVertices, _flow, _streams, coordinates);
     }
 
     // Public functions
@@ -747,12 +749,11 @@ contract Hub is Circles, IHubV2 {
             uint16 index = uint16(0);
 
             for (uint64 i = 0; i < _flow.length; i++) {
-                // retrieve the flow vertices associated with this flow edge
+                // index: coordinate of Circles identifier avatar address
+                // index + 1: sender coordinate
+                // index + 2: receiver coordinate
                 address circlesId = _flowVertices[_coordinates[index]];
-                // uint16 fromIndex = index++;
-                // uint16 toIndex = index++;
                 address to = _flowVertices[_coordinates[index + 2]];
-                // amount is uint240, so no need to check for overflow
                 int256 flow = int256(uint256(_flow[i].amount));
 
                 // check the receiver trusts the Circles being sent
@@ -782,80 +783,106 @@ contract Hub is Circles, IHubV2 {
         Stream[] calldata _streams,
         uint16[] memory _coordinates
     ) internal {
-        // iterate over the coordinate index
-        uint16 index = uint16(0);
-
         // Create a counter to track the proper definition of the streams
         uint16[] memory streamBatchCounter = new uint16[](_streams.length);
         address[] memory streamReceivers = new address[](_streams.length);
 
-        for (uint16 i = 0; i < _flow.length; i++) {
-            // retrieve the flow vertices associated with this flow edge
-            // address circlesId = _flowVertices[_coordinates[index]];
-            // uint16 fromIndex = index++;
-            // uint16 toIndex = index++;
-            address to = _flowVertices[_coordinates[index + 2]];
-            // uint256 amount = _flow[i].amount;
+        {
+            // iterate over the coordinate index
+            uint16 index = uint16(0);
 
-            (uint256[] memory ids, uint256[] memory amounts) =
-                _asSingletonArrays(toTokenId(_flowVertices[_coordinates[index]]), uint256(_flow[i].amount));
+            for (uint16 i = 0; i < _flow.length; i++) {
+                // index: coordinate of Circles identifier avatar address
+                // index + 1: sender coordinate
+                // index + 2: receiver coordinate
+                address to = _flowVertices[_coordinates[index + 2]];
 
-            // check that each stream has listed the actual terminal flow edges in the correct order
-            // note, we can't do this check in _verifyFlowMatrix, because we run out of stack depth there
-            if (_flow[i].streamSinkId > 0) {
-                require(
-                    _streams[_flow[i].streamSinkId].flowEdgeIds[streamBatchCounter[_flow[i].streamSinkId]] == i,
-                    "Invalid stream sink"
-                );
-                streamBatchCounter[_flow[i].streamSinkId]++;
-                if (streamReceivers[_flow[i].streamSinkId] == address(0)) {
-                    streamReceivers[_flow[i].streamSinkId] = to;
-                } else {
-                    require(streamReceivers[_flow[i].streamSinkId] == to, "Invalid stream receiver");
+                (uint256[] memory ids, uint256[] memory amounts) =
+                    _asSingletonArrays(toTokenId(_flowVertices[_coordinates[index]]), uint256(_flow[i].amount));
+
+                // check that each stream has listed the actual terminal flow edges in the correct order
+                // note, we can't do this check in _verifyFlowMatrix, because we run out of stack depth there
+                if (_flow[i].streamSinkId > 0) {
+                    require(
+                        _streams[_flow[i].streamSinkId].flowEdgeIds[streamBatchCounter[_flow[i].streamSinkId]] == i,
+                        "Invalid stream sink"
+                    );
+                    streamBatchCounter[_flow[i].streamSinkId]++;
+                    if (streamReceivers[_flow[i].streamSinkId] == address(0)) {
+                        streamReceivers[_flow[i].streamSinkId] = to;
+                    } else {
+                        require(streamReceivers[_flow[i].streamSinkId] == to, "Invalid stream receiver");
+                    }
                 }
+
+                // effect the flow edge
+                if (!isGroup(to)) {
+                    // do a erc1155 single transfer without acceptance check,
+                    // as only nett receivers will get an acceptance call
+                    _update(
+                        _flowVertices[_coordinates[index + 1]], // sender, from coordinate
+                        to,
+                        ids,
+                        amounts
+                    );
+                } else {
+                    // do group mint, and the sender receives the minted group Circles
+                    _groupMint(
+                        _flowVertices[_coordinates[index + 1]], // sender, from coordinate
+                        to, // group
+                        ids, // collateral
+                        amounts, // amounts
+                        ""
+                    );
+                }
+
+                index = index + 3;
             }
 
-            // effect the transfer
-            if (!isGroup(to)) {
-                // do a erc1155 single transfer without acceptance check,
-                // as only nett receivers will get an acceptance call
-                _update(
-                    _flowVertices[_coordinates[index + 1]], // sender, from coordinate
-                    to,
-                    ids,
-                    amounts
-                );
-            } else {
-                // do group mint, and the sender receives the mintedd group Circles
-                _groupMint(
-                    _flowVertices[_coordinates[index + 1]], // sender, from coordinate
-                    to, // group
-                    ids, // collateral
-                    amounts, // amounts
-                    ""
-                );
+            for (uint16 i = 0; i < _streams.length; i++) {
+                require(streamReceivers[i] != address(0), "Invalid stream receiver");
+                require(streamBatchCounter[i] == _streams[i].flowEdgeIds.length, "Invalid stream batch");
             }
-
-            index = index + 3;
         }
+    }
+
+    function _callAcceptanceChecks(
+        address[] calldata _flowVertices,
+        FlowEdge[] calldata _flow,
+        Stream[] calldata _streams,
+        uint16[] memory _coordinates
+    ) internal returns (int256[] memory) {
+        // intialiaze netted flow
+        int256[] memory nettedFlow = new int256[](_flowVertices.length);
 
         // effect the stream transfers with acceptance calls
         for (uint16 i = 0; i < _streams.length; i++) {
             uint256[] memory ids = new uint256[](_streams[i].flowEdgeIds.length);
             uint256[] memory amounts = new uint256[](_streams[i].flowEdgeIds.length);
+            uint256 streamTotal = uint256(0);
             for (uint16 j = 0; j < _streams[i].flowEdgeIds.length; j++) {
                 ids[j] = toTokenId(_flowVertices[_coordinates[_streams[i].flowEdgeIds[j]]]);
                 amounts[j] = _flow[_streams[i].flowEdgeIds[j]].amount;
+                streamTotal += amounts[j];
             }
-            require(streamReceivers[i] != address(0), "Invalid stream receiver");
+            // use the first sink flow edge to recover the receiver coordinate
+            uint16 receiverCoordinate = _coordinates[3 * _streams[i].flowEdgeIds[0] + 2];
+            address receiver = _flowVertices[receiverCoordinate];
+            require(receiver != address(0), "Invalid stream receiver");
             _acceptanceCheck(
                 _flowVertices[_streams[i].sourceCoordinate], // from
-                streamReceivers[i], // to
+                receiver, // to
                 ids, // batch of Circles identifiers terminating in receiver
                 amounts, // batch of amounts terminating in receiver
                 _streams[i].data // user-provided data for stream
             );
+            // require(streamTotal <= uint256(type(int256).max));
+            nettedFlow[_streams[i].sourceCoordinate] -= int256(streamTotal);
+            // to recover the receiver coordinate, get the first sink
+            nettedFlow[receiverCoordinate] += int256(streamTotal);
         }
+
+        return nettedFlow;
     }
 
     /**
@@ -987,16 +1014,6 @@ contract Hub is Circles, IHubV2 {
         require(avatars[_avatar] == address(0), "Avatar already inserted");
         avatars[_avatar] = avatars[SENTINEL];
         avatars[SENTINEL] = _avatar;
-    }
-
-    function _checkClosedPath(int256[] calldata _intendedFlow) internal pure returns (bool closedPath_) {
-        // start by assuming it is a closed path
-        closedPath_ = true;
-        for (uint256 i = 0; i < _intendedFlow.length; i++) {
-            // then any non-zero intentedFlow value, breaks the closed path open
-            closedPath_ = closedPath_ && (_intendedFlow[i] == int256(0));
-        }
-        return closedPath_;
     }
 
     // Private functions
