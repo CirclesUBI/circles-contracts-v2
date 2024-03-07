@@ -114,44 +114,6 @@ contract Circles is ERC1155 {
 
     // Public functions
 
-    // todo: do personalBurn from hub only, don't burn group Circles; they must be redeemed first
-
-    // /**
-    //  * @notice Burn Circles in demurrage units.
-    //  * @param _id Circles identifier for which to burn the Circles.
-    //  * @param _value Demurraged value of the Circles to burn.
-    //  */
-    // function burn(uint256 _id, uint256 _value) public {
-    //     assert(false);
-    // }
-
-    // /**
-    //  * @notice Burn a batch of Circles in demurrage units.
-    //  * @param _ids Batch of Circles identifiers for which to burn the Circles.
-    //  * @param _values Batch of demurraged values of the Circles to burn.
-    //  */
-    // function burnBatch(uint256[] memory _ids, uint256[] memory _values) public {
-    //     assert(false);
-    // }
-
-    // /**
-    //  * @notice Burn Circles in inflationary units.
-    //  * @param _id Circles identifier for which to burn the Circles.
-    //  * @param _value Value of the Circles to burn in inflationary units.
-    //  */
-    // function inflationaryBurn(uint256 _id, uint256 _value) public {
-    //     assert(false);
-    // }
-
-    // /**
-    //  * @notice Burn a batch of Circles in inflationary units.
-    //  * @param _ids Batch of Circles identifiers for which to burn the Circles.
-    //  * @param _values Batch of values of the Circles to burn in inflationary units.
-    //  */
-    // function inflationaryBurnBatch(uint256[] memory _ids, uint256[] memory _values) public {
-    //     assert(false);
-    // }
-
     /**
      * @notice Calculate the demurraged issuance for a human's avatar.
      * @param _human Address of the human's avatar to calculate the issuance for.
@@ -204,7 +166,7 @@ contract Circles is ERC1155 {
         uint256 issuance = calculateIssuance(_human);
         require(issuance > 0, "No issuance to claim.");
         // mint personal Circles to the human
-        _mint(_human, super.toTokenId(_human), issuance, "");
+        _mint(_human, toTokenId(_human), issuance, "");
         // update the last mint time
         mintTimes[_human].lastMintTime = uint96(block.timestamp);
     }

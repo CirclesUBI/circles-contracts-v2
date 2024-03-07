@@ -3,30 +3,32 @@ pragma solidity >=0.8.13;
 
 import "./IHub.sol";
 import "./IToken.sol";
-import "../graph/IGraph.sol";
+import "../hub/IHub.sol";
 
-contract CirclesMigration {
+contract Migration {
     // Constant
 
     uint256 private constant ACCURACY = uint256(10 ** 8);
 
     // State variables
 
+    /**
+     * @dev The address of the v1 hub contract.
+     */
     IHubV1 public immutable hubV1;
 
-    uint256 public immutable inflation;
-    uint256 public immutable divisor;
+    /**
+     * @dev Deployment timestamp of Hub v1 contract
+     */
     uint256 public immutable deployedAt;
-    uint256 public immutable initialIssuance;
+
+    /**
+     * @dev Inflationary period of Hub v1 contract
+     */
     uint256 public immutable period;
 
     // Constructor
 
-    // see for context prior discussions on the conversion of CRC to TC,
-    // and some reference to the 8 CRC per day to 24 CRC per day gauge-reset
-    // https://aboutcircles.com/t/conversion-from-crc-to-time-circles-and-back/463
-    // the UI conversion used is found here:
-    // https://github.com/circlesland/timecircle/blob/master/src/index.ts
     constructor(IHubV1 _hubV1) {
         require(address(_hubV1) != address(0), "Hub v1 address can not be zero.");
 
@@ -40,77 +42,53 @@ contract CirclesMigration {
         // because the period is not a whole number of hours,
         // the interval of hub v1 will not match the periodicity of any hour-based period in v2.
         period = hubV1.period();
-
-        // note: currently these parameters are not used, remove them if they remain so
-
-        // from deployed v1 contract SHOULD return inflation = 107
-        inflation = hubV1.inflation();
-        // from deployed v1 contract SHOULD return divisor = 100
-        divisor = hubV1.divisor();
-        // from deployed v1 contract SHOULD return initialIssuance = 92592592592592
-        // (equivalent to 1/3 CRC per hour; original at launch 8 CRC per day)
-        // later it was decided that 24 CRC per day, or 1 CRC per hour should be the standard gauge
-        // and the correction was done at the interface level, so everyone sees their balance
-        // corrected for 24 CRC/day; we should hence adopt this correction in the token migration step.
-        initialIssuance = hubV1.initialIssuance();
     }
 
     // External functions
 
-    function convertAndMigrateFullBalanceOfCircles(ITokenV1 _originCircle, IGraph _destinationGraph)
+    /**
+     * @notice Migrates the given amounts of v1 Circles to v2 Circles.
+     * @param _avatars The avatars to migrate.
+     * @param _amounts The amounts in inflationary v1 units to migrate.
+     * @param _hubV2 The v2 hub contract, given as a constant by the SDK.
+     * @return convertedAmounts The converted amounts of v2 Circles.
+     */
+    function migrate(address[] calldata _avatars, uint256[] calldata _amounts, IHubV2 _hubV2)
         external
-        returns (uint256 mintedAmount_)
+        returns (uint256[] memory)
     {
-        uint256 balance = _originCircle.balanceOf(msg.sender);
-        return mintedAmount_ = convertAndMigrateCircles(_originCircle, balance, _destinationGraph);
+        // note: _hubV2 is passed in as a parameter to avoid a circular dependency, and minimise code complexity
+
+        require(_avatars.length == _amounts.length, "Arrays length mismatch.");
+
+        uint256[] memory convertedAmounts = new uint256[](_avatars.length);
+
+        for (uint256 i = 0; i < _avatars.length; i++) {
+            ITokenV1 circlesV1 = ITokenV1(hubV1.userToToken(_avatars[i]));
+            require(address(circlesV1) != address(0), "Invalid avatar.");
+            convertedAmounts[i] = convertFromV1ToDemurrage(_amounts[i]);
+            // transfer the v1 Circles to this contract to be locked
+            circlesV1.transferFrom(msg.sender, address(this), _amounts[i]);
+        }
+
+        // mint the converted amount of v2 Circles
+        _hubV2.migrate(msg.sender, _avatars, convertedAmounts);
+
+        return convertedAmounts;
     }
 
     // Public functions
 
     /**
-     * @param _depositAmount Deposit amount specifies the amount of inflationary
-     *     hub v1 circles the caller wants to convert and migrate to demurraged Circles.
-     *     One can only convert personal v1 Circles, if that person has stopped their v1
-     *     circles contract, and has created a v2 demurraged Circles contract by registering in v2.
+     * @notice Converts an amount of v1 Circles to demurrage Circles.
+     * @param _amount The amount of v1 Circles to convert.
      */
-    function convertAndMigrateCircles(ITokenV1 _originCircle, uint256 _depositAmount, IGraph _destinationGraph)
-        public
-        returns (uint256 mintedAmount_)
-    {
-        // First check the existance of the origin Circle, and associated avatar
-        address avatar = hubV1.tokenToUser(address(_originCircle));
-        require(avatar != address(0), "Origin Circle is unknown to hub v1.");
-
-        // and whether the origin Circle has been stopped.
-        require(_originCircle.stopped(), "Origin Circle must have been stopped before conversion.");
-
-        // Retrieve the destination Circle where to migrate the tokens to
-        IAvatarCircleNode destinationCircle = _destinationGraph.avatarToCircle(avatar);
-        // and check it in fact exists.
-        require(
-            address(destinationCircle) != address(0),
-            "Associated avatar has not been registered in the destination graph."
-        );
-
-        // Calculate inflationary correction towards time circles.
-        uint256 convertedAmount = convertFromV1ToTimeCircles(_depositAmount);
-
-        // transfer the tokens into a permanent lock in this contract
-        // v1 Circle does not have a burn function exposed, so we can only lock them here
-        _originCircle.transferFrom(msg.sender, address(this), _depositAmount);
-
-        require(
-            convertedAmount == _destinationGraph.migrateCircles(msg.sender, convertedAmount, destinationCircle),
-            "Destination graph must succeed at migrating the tokens."
-        );
-
-        return mintedAmount_ = convertedAmount;
-    }
-
-    function convertFromV1ToTimeCircles(uint256 _amount) public view returns (uint256 timeCircleAmount_) {
+    function convertFromV1ToDemurrage(uint256 _amount) public view returns (uint256) {
+        // implement the linear interpolation that was used in V1 UI
         uint256 currentPeriod = hubV1.periods();
         uint256 nextPeriod = currentPeriod + 1;
 
+        // calculate the start of the current period in unix time
         uint256 startOfPeriod = deployedAt + currentPeriod * period;
 
         // number of seconds into the new period
@@ -140,6 +118,6 @@ contract CirclesMigration {
         // and divide by the inflation rate to convert to temporally discounted units
         // (as if inflation would have been continuously adjusted. This is not the case,
         // it is only annually compounded, but the disadvantage is for v1 vs v2).
-        return timeCircleAmount_ = (_amount * 3 * ACCURACY * period) / rP;
+        return (_amount * 3 * ACCURACY * period) / rP;
     }
 }
