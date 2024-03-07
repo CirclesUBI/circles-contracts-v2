@@ -417,6 +417,7 @@ contract Hub is Circles, IHubV2 {
      * period the same invitation cost applies as for normal invitations, and this requires the
      * owner to be a human and to have enough personal Circles to pay the invitation cost.
      * Organizations and groups have to ensure all humans have been registered after the bootstrap period.
+     * Can only be called by the migration contract.
      * @param _owner address of the owner of the v1 Circles and beneficiary of the v2 Circles
      * @param _avatars array of avatar addresses to migrate
      * @param _amounts array of amounts in inflationary v1 units to migrate
