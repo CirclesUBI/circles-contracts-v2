@@ -296,6 +296,9 @@ abstract contract ERC1155 is DiscountedBalances, Context, ERC165, IERC1155, IERC
         _acceptanceCheck(from, to, ids, values, data);
     }
 
+    /**
+     * @dev do the ERC1155 token acceptance check to the receiver
+     */
     function _acceptanceCheck(
         address _from,
         address _to,

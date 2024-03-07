@@ -547,6 +547,8 @@ contract Hub is Circles, IHubV2 {
         // ie. well-definedness of the flow matrix itself,
         // check all entities are registered, and the trust relations are respected.
         int256[] memory verifiedNettedFlow = _verifyFlowMatrix(_flowVertices, _flow, coordinates, closedPath);
+
+        _effectPathTransfers(_flowVertices, _flow, _streams, coordinates);
     }
 
     // Public functions
@@ -785,6 +787,7 @@ contract Hub is Circles, IHubV2 {
 
         // Create a counter to track the proper definition of the streams
         uint16[] memory streamBatchCounter = new uint16[](_streams.length);
+        address[] memory streamReceivers = new address[](_streams.length);
 
         for (uint16 i = 0; i < _flow.length; i++) {
             // retrieve the flow vertices associated with this flow edge
@@ -805,20 +808,27 @@ contract Hub is Circles, IHubV2 {
                     "Invalid stream sink"
                 );
                 streamBatchCounter[_flow[i].streamSinkId]++;
+                if (streamReceivers[_flow[i].streamSinkId] == address(0)) {
+                    streamReceivers[_flow[i].streamSinkId] = to;
+                } else {
+                    require(streamReceivers[_flow[i].streamSinkId] == to, "Invalid stream receiver");
+                }
             }
 
             // effect the transfer
             if (!isGroup(to)) {
+                // do a erc1155 single transfer without acceptance check,
+                // as only nett receivers will get an acceptance call
                 _update(
-                    _flowVertices[_coordinates[index + 1]], // from coordinate
-                    _flowVertices[_coordinates[index + 2]], // to coordinate
+                    _flowVertices[_coordinates[index + 1]], // sender, from coordinate
+                    to,
                     ids,
                     amounts
                 );
             } else {
-                // do group mint
+                // do group mint, and the sender receives the mintedd group Circles
                 _groupMint(
-                    _flowVertices[_coordinates[index + 1]], // sender
+                    _flowVertices[_coordinates[index + 1]], // sender, from coordinate
                     to, // group
                     ids, // collateral
                     amounts, // amounts
@@ -837,6 +847,14 @@ contract Hub is Circles, IHubV2 {
                 ids[j] = toTokenId(_flowVertices[_coordinates[_streams[i].flowEdgeIds[j]]]);
                 amounts[j] = _flow[_streams[i].flowEdgeIds[j]].amount;
             }
+            require(streamReceivers[i] != address(0), "Invalid stream receiver");
+            _acceptanceCheck(
+                _flowVertices[_streams[i].sourceCoordinate], // from
+                streamReceivers[i], // to
+                ids, // batch of Circles identifiers terminating in receiver
+                amounts, // batch of amounts terminating in receiver
+                _streams[i].data // user-provided data for stream
+            );
         }
     }
 
