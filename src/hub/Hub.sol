@@ -43,6 +43,7 @@ contract Hub is Circles, IHubV2 {
 
     struct Stream {
         uint16 sourceCoordinate;
+        uint16[] flowEdgeIds; // todo: this can possible be packed more compactly manually, evaluate
         bytes data;
     }
 
@@ -350,53 +351,21 @@ contract Hub is Circles, IHubV2 {
     /**
      * @notice Group mint allows to mint group Circles by providing the required collateral.
      * @param _group address of the group avatar to mint Circles of
-     * @param _collateral array of (personal or group) avatar addresses to be used as collateral
+     * @param _collateralAvatars array of (personal or group) avatar addresses to be used as collateral
      * @param _amounts array of amounts of collateral to be used for minting
      * @param _data (optional) additional data to be passed to the mint policy, treasury and minter
      */
     function groupMint(
         address _group,
-        address[] calldata _collateral,
+        address[] calldata _collateralAvatars,
         uint256[] calldata _amounts,
         bytes calldata _data
     ) external {
-        require(_collateral.length == _amounts.length, "Collateral and amount arrays must have equal length");
-        require(_collateral.length > 0, "At least one collateral must be provided");
-        require(isGroup(_group), "Group is not registered as an avatar.");
-
-        // note: we don't need to check whether collateral circle ids are registered,
-        // because only for registered collateral do non-zero balances exist to transfer,
-        // so it suffices to check that all amounts are non-zero during summing.
-        uint256 sumAmounts = 0;
-        uint256[] memory collateralCirclesIds = new uint256[](_collateral.length);
-        for (uint256 i = 0; i < _amounts.length; i++) {
-            require(isTrusted(_group, _collateral[i]), "Collateral must be trusted");
-            require(_amounts[i] > 0, "Non-zero collateral must be provided.");
-            sumAmounts += _amounts[i];
-            collateralCirclesIds[i] = toTokenId(_collateral[i]);
+        uint256[] memory collateral = new uint256[](_collateralAvatars.length);
+        for (uint256 i = 0; i < _collateralAvatars.length; i++) {
+            collateral[i] = toTokenId(_collateralAvatars[i]);
         }
-
-        // Rely on the mint policy to determine whether the collateral is valid for minting
-        require(
-            IMintPolicy(mintPolicies[_group]).beforeMintPolicy(msg.sender, _group, _collateral, _amounts, _data),
-            "Mint policy rejected mint."
-        );
-
-        // abi encode the group address into the data to send onwards to the treasury
-        bytes memory metadataGroup = abi.encode(MetadataDefinitions.GroupMintMetadata({group: _group}));
-        bytes memory dataWithGroup = abi.encode(
-            MetadataDefinitions.Metadata({
-                metadataType: MetadataDefinitions.MetadataType.GroupMint,
-                metadata: metadataGroup,
-                erc1155UserData: _data
-            })
-        );
-
-        // note: treasury.on1155Received must implement and unpack the GroupMintMetadata to know the group
-        safeBatchTransferFrom(msg.sender, treasuries[_group], collateralCirclesIds, _amounts, dataWithGroup);
-
-        // mint group Circles to the sender and send the original _data onwards
-        _mint(msg.sender, toTokenId(_group), sumAmounts, _data);
+        _groupMint(msg.sender, _group, collateral, _amounts, _data);
     }
 
     /**
@@ -692,6 +661,58 @@ contract Hub is Circles, IHubV2 {
 
     // Internal functions
 
+    /**
+     * @notice Group mint allows to mint group Circles by providing the required collateral.
+     * @param _sender address of the sender of the group mint, and receiver of minted group Circles
+     * @param _group address of the group avatar to mint Circles of
+     * @param _collateral array of (personal or group) avatar addresses to be used as collateral
+     * @param _amounts array of amounts of collateral to be used for minting
+     * @param _data (optional) additional data to be passed to the mint policy, treasury and minter
+     */
+    function _groupMint(
+        address _sender,
+        address _group,
+        uint256[] memory _collateral,
+        uint256[] memory _amounts,
+        bytes memory _data
+    ) internal {
+        require(_collateral.length == _amounts.length, "Collateral and amount arrays must have equal length");
+        require(_collateral.length > 0, "At least one collateral must be provided");
+        require(isGroup(_group), "Group is not registered as an avatar.");
+
+        // note: we don't need to check whether collateral circle ids are registered,
+        // because only for registered collateral do non-zero balances exist to transfer,
+        // so it suffices to check that all amounts are non-zero during summing.
+        uint256 sumAmounts = 0;
+        for (uint256 i = 0; i < _amounts.length; i++) {
+            require(isTrusted(_group, address(uint160(_collateral[i]))), "Collateral must be trusted");
+            require(_amounts[i] > 0, "Non-zero collateral must be provided.");
+            sumAmounts += _amounts[i];
+        }
+
+        // Rely on the mint policy to determine whether the collateral is valid for minting
+        require(
+            IMintPolicy(mintPolicies[_group]).beforeMintPolicy(_sender, _group, _collateral, _amounts, _data),
+            "Mint policy rejected mint."
+        );
+
+        // abi encode the group address into the data to send onwards to the treasury
+        bytes memory metadataGroup = abi.encode(MetadataDefinitions.GroupMintMetadata({group: _group}));
+        bytes memory dataWithGroup = abi.encode(
+            MetadataDefinitions.Metadata({
+                metadataType: MetadataDefinitions.MetadataType.GroupMint,
+                metadata: metadataGroup,
+                erc1155UserData: _data
+            })
+        );
+
+        // note: treasury.on1155Received must implement and unpack the GroupMintMetadata to know the group
+        safeBatchTransferFrom(_sender, treasuries[_group], _collateral, _amounts, dataWithGroup);
+
+        // mint group Circles to the sender and send the original _data onwards
+        _mint(_sender, toTokenId(_group), sumAmounts, _data);
+    }
+
     function _verifyFlowMatrix(
         address[] calldata _flowVertices,
         FlowEdge[] calldata _flow,
@@ -725,10 +746,10 @@ contract Hub is Circles, IHubV2 {
 
             for (uint64 i = 0; i < _flow.length; i++) {
                 // retrieve the flow vertices associated with this flow edge
-                address circlesId = _flowVertices[_coordinates[index++]];
-                uint16 fromIndex = index++;
-                uint16 toIndex = index++;
-                address to = _flowVertices[_coordinates[toIndex]];
+                address circlesId = _flowVertices[_coordinates[index]];
+                // uint16 fromIndex = index++;
+                // uint16 toIndex = index++;
+                address to = _flowVertices[_coordinates[index + 2]];
                 // amount is uint240, so no need to check for overflow
                 int256 flow = int256(uint256(_flow[i].amount));
 
@@ -743,9 +764,10 @@ contract Hub is Circles, IHubV2 {
                 // expect for all edges to a group, as they are interpreted
                 // as a request for group mint in _effectPathTransfers
                 if (!isGroup(to)) {
-                    nettedFlow[_coordinates[fromIndex]] -= flow;
-                    nettedFlow[_coordinates[toIndex]] += flow;
+                    nettedFlow[_coordinates[index + 1]] -= flow;
+                    nettedFlow[_coordinates[index + 2]] += flow;
                 }
+                index = index + 3;
             }
         }
 
@@ -758,17 +780,63 @@ contract Hub is Circles, IHubV2 {
         Stream[] calldata _streams,
         uint16[] memory _coordinates
     ) internal {
-        uint16 N = uint16(_streams.length);
-
+        // iterate over the coordinate index
         uint16 index = uint16(0);
+
+        // Create a counter to track the proper definition of the streams
+        uint16[] memory streamBatchCounter = new uint16[](_streams.length);
 
         for (uint16 i = 0; i < _flow.length; i++) {
             // retrieve the flow vertices associated with this flow edge
-            address circlesId = _flowVertices[_coordinates[index++]];
-            uint16 fromIndex = index++;
-            uint16 toIndex = index++;
-            address to = _flowVertices[_coordinates[toIndex]];
-            uint256 amount = _flow[i].amount;
+            // address circlesId = _flowVertices[_coordinates[index]];
+            // uint16 fromIndex = index++;
+            // uint16 toIndex = index++;
+            address to = _flowVertices[_coordinates[index + 2]];
+            // uint256 amount = _flow[i].amount;
+
+            (uint256[] memory ids, uint256[] memory amounts) =
+                _asSingletonArrays(toTokenId(_flowVertices[_coordinates[index]]), uint256(_flow[i].amount));
+
+            // check that each stream has listed the actual terminal flow edges in the correct order
+            // note, we can't do this check in _verifyFlowMatrix, because we run out of stack depth there
+            if (_flow[i].streamSinkId > 0) {
+                require(
+                    _streams[_flow[i].streamSinkId].flowEdgeIds[streamBatchCounter[_flow[i].streamSinkId]] == i,
+                    "Invalid stream sink"
+                );
+                streamBatchCounter[_flow[i].streamSinkId]++;
+            }
+
+            // effect the transfer
+            if (!isGroup(to)) {
+                _update(
+                    _flowVertices[_coordinates[index + 1]], // from coordinate
+                    _flowVertices[_coordinates[index + 2]], // to coordinate
+                    ids,
+                    amounts
+                );
+            } else {
+                // do group mint
+                _groupMint(
+                    _flowVertices[_coordinates[index + 1]], // sender
+                    to, // group
+                    ids, // collateral
+                    amounts, // amounts
+                    ""
+                );
+            }
+
+            index = index + 3;
+        }
+
+        // effect the stream transfers with acceptance calls
+        for (uint16 i = 0; i < _streams.length; i++) {
+            uint256[] memory ids = new uint256[](_streams[i].flowEdgeIds.length);
+            uint256[] memory amounts = new uint256[](_streams[i].flowEdgeIds.length);
+            for (uint16 j = 0; j < _streams[i].flowEdgeIds.length; j++) {
+                ids[j] = toTokenId(_flowVertices[_coordinates[_streams[i].flowEdgeIds[j]]]);
+                amounts[j] = _flow[_streams[i].flowEdgeIds[j]].amount;
+            }
         }
     }
 

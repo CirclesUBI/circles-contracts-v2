@@ -5,7 +5,7 @@ interface IMintPolicy {
     function beforeMintPolicy(
         address minter,
         address group,
-        address[] calldata collateral,
+        uint256[] calldata collateral,
         uint256[] calldata amounts,
         bytes calldata data
     ) external returns (bool);

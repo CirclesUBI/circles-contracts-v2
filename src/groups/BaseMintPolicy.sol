@@ -13,7 +13,7 @@ abstract contract MintPolicy is IMintPolicy {
     function beforeMintPolicy(
         address, /*_minter*/
         address, /*_group*/
-        address[] calldata, /*_collateral*/
+        uint256[] calldata, /*_collateral*/
         uint256[] calldata, /*_amounts*/
         bytes calldata /*_data*/
     ) external virtual override returns (bool) {
