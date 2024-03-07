@@ -73,6 +73,8 @@ contract Migration {
 
         // mint the converted amount of v2 Circles
         _hubV2.migrate(msg.sender, _avatars, convertedAmounts);
+
+        return convertedAmounts;
     }
 
     // Public functions
