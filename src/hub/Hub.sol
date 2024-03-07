@@ -422,8 +422,6 @@ contract Hub is Circles, IHubV2 {
     }
 
     /**
-<<<<<<< HEAD
-=======
      * @notice Migrate allows to migrate v1 Circles to v2 Circles. During bootstrap period,
      * no invitation cost needs to be paid for new humans to be registered. After the bootstrap
      * period the same invitation cost applies as for normal invitations, and this requires the
@@ -456,7 +454,6 @@ contract Hub is Circles, IHubV2 {
     }
 
     /**
->>>>>>> origin/develop
      * @notice Burn allows to burn Circles owned by the caller.
      * @param _id Circles identifier of the Circles to burn
      * @param _amount amount of Circles to burn
@@ -476,40 +473,6 @@ contract Hub is Circles, IHubV2 {
             require(policy.beforeBurnPolicy(msg.sender, group, _amount, _data), "Burn policy rejected burn.");
         }
         _burn(msg.sender, _id, _amount);
-<<<<<<< HEAD
-    }
-
-    /**
-     * @notice Migrate allows to migrate v1 Circles to v2 Circles. During bootstrap period,
-     * no invitation cost needs to be paid for new humans to be registered. After the bootstrap
-     * period the same invitation cost applies as for normal invitations, and this requires the
-     * owner to be a human and to have enough personal Circles to pay the invitation cost.
-     * Organizations and groups have to ensure all humans have been registered after the bootstrap period.
-     * @param _owner address of the owner of the v1 Circles and beneficiary of the v2 Circles
-     * @param _avatars array of avatar addresses to migrate
-     * @param _amounts array of amounts in inflationary v1 units to migrate
-     */
-    function migrate(address _owner, address[] calldata _avatars, uint256[] calldata _amounts) external {
-        require(avatars[_owner] != address(0), "Only registered avatars can migrate v1 tokens.");
-        require(_avatars.length == _amounts.length, "Arrays must have the same length.");
-
-        // register all unregistered avatars as humans, and check that registered avatars are humans
-        // after the bootstrap period, the _owner needs to pay the equivalent invitation cost for all newly registered humans
-        uint256 cost = INVITATION_COST * _ensureAvatarsRegistered(_avatars);
-
-        // Invitation cost only applies after the bootstrap period
-        if (block.timestamp > invitationOnlyTime && cost > 0) {
-            // personal Circles are required to burn the invitation cost
-            require(isHuman(_owner), "Only humans can migrate v1 tokens after the bootstrap period.");
-            _burn(_owner, toTokenId(_owner), cost);
-        }
-
-        for (uint256 i = 0; i < _avatars.length; i++) {
-            // mint the migrated balances to _owner
-            _mint(_owner, toTokenId(_avatars[i]), _amounts[i], "");
-        }
-=======
->>>>>>> origin/develop
     }
 
     // check if path transfer can be fully ERC1155 compatible
