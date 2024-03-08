@@ -31,12 +31,12 @@ contract CirclesTest is Test, TimeSetup, Approximation {
 
     function setUp() public {
         // set time to 15th October 2020
-        _setUpTime(DEMURRAGE_DAY_ZERO + 1);
+        _setUpTime(INFLATION_DAY_ZERO + 1);
 
         // 23 january 2024 12:01 am UTC
         _forwardTime(DAY0 * 1 days);
 
-        circles = new MockCircles(DEMURRAGE_DAY_ZERO);
+        circles = new MockCircles(INFLATION_DAY_ZERO);
 
         for (uint256 i = 0; i < N; i++) {
             addresses[i] = makeAddr(avatars[i]);

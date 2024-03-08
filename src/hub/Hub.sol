@@ -163,7 +163,7 @@ contract Hub is Circles, IHubV2 {
     /**
      * @notice Constructor for the Hub contract.
      * @param _hubV1 address of the Hub v1 contract
-     * @param _inflation_day_zero timestamp of the start of the global inflation curve.
+     * @param _inflationDayZero timestamp of the start of the global inflation curve.
      * For deployment on Gnosis Chain this parameter should be set to midnight 15 October 2020,
      * or in unix time 1602786330 (deployment at 6:25:30 pm UTC) - 66330 (offset to midnight) = 1602720000.
      * @param _standardTreasury address of the standard treasury contract
@@ -174,11 +174,11 @@ contract Hub is Circles, IHubV2 {
     constructor(
         IHubV1 _hubV1,
         address _migration,
-        uint256 _inflation_day_zero,
+        uint256 _inflationDayZero,
         address _standardTreasury,
         uint256 _bootstrapTime,
         string memory _fallbackUri
-    ) Circles(_inflation_day_zero, _fallbackUri) {
+    ) Circles(_inflationDayZero, _fallbackUri) {
         require(address(_hubV1) != address(0), "Hub v1 address can not be zero.");
         require(_standardTreasury != address(0), "Standard treasury address can not be zero.");
 
@@ -854,7 +854,7 @@ contract Hub is Circles, IHubV2 {
         Stream[] calldata _streams,
         uint16[] memory _coordinates
     ) internal returns (int256[] memory) {
-        // intialiaze netted flow
+        // initialize netted flow
         int256[] memory nettedFlow = new int256[](_flowVertices.length);
 
         // effect the stream transfers with acceptance calls
@@ -1025,8 +1025,6 @@ contract Hub is Circles, IHubV2 {
         avatars[SENTINEL] = _avatar;
     }
 
-    // Private functions
-
     /**
      * @dev abi.encodePacked of an array uint16[] would still pad each uint16 - I think;
      *      if abi packing does not add padding this function is redundant and should be thrown out
@@ -1037,7 +1035,7 @@ contract Hub is Circles, IHubV2 {
      * @return unpackedCoordinates_ An array of unpacked coordinates (of length 3* numberOfTriplets)
      */
     function _unpackCoordinates(bytes calldata _packedData, uint256 _numberOfTriplets)
-        private
+        internal
         pure
         returns (uint16[] memory unpackedCoordinates_)
     {
@@ -1053,6 +1051,8 @@ contract Hub is Circles, IHubV2 {
             unpackedCoordinates_[index++] = uint16(uint8(_packedData[i + 4])) << 8 | uint16(uint8(_packedData[i + 5]));
         }
     }
+
+    // Private functions
 
     /**
      * @dev Internal function to upsert a trust marker for a truster and a trusted address.
