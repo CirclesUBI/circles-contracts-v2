@@ -320,7 +320,7 @@ contract Hub is Circles, IHubV2 {
      * The trusted address does not (yet) have to be registered in the Hub contract.
      */
     function trust(address _trustReceiver, uint96 _expiry) external {
-        // require(avatars[msg.sender] != address(0), "To trust caller must be registered.");
+        require(avatars[msg.sender] != address(0), "To trust caller must be registered.");
         require(
             _trustReceiver != address(0) || _trustReceiver != SENTINEL, "You cannot trust the zero, or 0x1 address."
         );
@@ -589,7 +589,7 @@ contract Hub is Circles, IHubV2 {
      */
     function isTrusted(address _truster, address _trustee) public view returns (bool) {
         // trust up until expiry timestamp
-        return uint256(trustMarkers[_truster][_trustee].expiry) > block.timestamp;
+        return uint256(trustMarkers[_truster][_trustee].expiry) >= block.timestamp;
     }
 
     /**

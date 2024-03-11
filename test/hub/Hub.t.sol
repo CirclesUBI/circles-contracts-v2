@@ -30,26 +30,27 @@ contract HubPathTransferTest is Test, TimeSetup, HumanRegistration {
 
         // register 4 humans
         for (uint256 i = 0; i < N; i++) {
-            console.log("registering human", addresses[i]);
             vm.prank(addresses[i]);
             mockHub.registerHumanUnrestricted();
+            assertEq(mockHub.isTrusted(addresses[i], addresses[i]), true);
         }
         // skip time to claim Circles
         skipTime(2 days + 1 minutes);
 
         for (uint256 i = 0; i < N; i++) {
-            console.log("claiming Circles for human", addresses[i]);
             vm.prank(addresses[i]);
             mockHub.personalMintWithoutV1Check();
             assertEq(mockHub.balanceOf(addresses[i], mockHub.toTokenId(addresses[i])), 47985696851874424310);
         }
 
+        // get this value first to avoid using `startPrank` over inline calls
+        uint96 expiry = mockHub.INDEFINITE_FUTURE();
+
         // David trust (->) Charlie, C -> B, B -> A
         // so that Alice can send tokens to David over A-B-C-D
         for (uint256 i = N - 1; i > 0; i--) {
-            console.log("trusting", addresses[i - 1], "from", addresses[i]);
             vm.prank(addresses[i]);
-            mockHub.trust(addresses[i - 1], mockHub.INDEFINITE_FUTURE());
+            mockHub.trust(addresses[i - 1], expiry);
             assertEq(mockHub.isTrusted(addresses[i], addresses[i - 1]), true);
             assertEq(mockHub.isTrusted(addresses[i - 1], addresses[i]), false);
         }
