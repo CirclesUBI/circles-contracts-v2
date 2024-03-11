@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity >=0.8.13;
 
-import "../../src/migration/IHub.sol";
 import "../../src/hub/Hub.sol";
 import "../../src/migration/IHub.sol";
 
@@ -20,6 +19,8 @@ contract MockPathTransferHub is Hub {
         // insert avatar into linked list; reverts if it already exists
         _insertAvatar(human);
 
+        require(avatars[human] != address(0), "MockPathTransferHub: avatar not found");
+
         // set the last mint time to the current timestamp for invited human
         // and register the v1 Circles contract status as unregistered
         address v1CirclesStatus = address(0);
@@ -29,6 +30,17 @@ contract MockPathTransferHub is Hub {
 
         // trust self indefinitely, cannot be altered later
         _trust(human, human, INDEFINITE_FUTURE);
+    }
+
+    function personalMintWithoutV1Check() external {
+        require(isHuman(msg.sender), "MockPathTransferHub: not a human");
+        require(avatars[msg.sender] != address(0), "MockPathTransferHub: avatar not found");
+        address human = msg.sender;
+
+        // skips checks in v1 mint for tests
+
+        // mint Circles for the human
+        _claimIssuance(human);
     }
 
     // Public functions
