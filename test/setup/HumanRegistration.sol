@@ -15,7 +15,8 @@ contract HumanRegistration is Test {
 
     address[] public addresses;
     address[] public sortedAddresses;
-    uint256[] public permutationMap;
+    uint16[] public permutationMap;
+    uint16[] public lookupMap;
 
     // Public functions
 
@@ -24,7 +25,8 @@ contract HumanRegistration is Test {
         N = _n;
         addresses = new address[](N);
         sortedAddresses = new address[](N);
-        permutationMap = new uint256[](N);
+        permutationMap = new uint16[](N);
+        lookupMap = new uint16[](N);
         for (uint256 i = 0; i < N; i++) {
             addresses[i] = makeAddr(avatars[i]);
         }
@@ -43,7 +45,7 @@ contract HumanRegistration is Test {
         sortedAddresses = addresses;
 
         // Initialize the permutation map with original indices
-        for (uint256 i = 0; i < length; i++) {
+        for (uint16 i = 0; i < length; i++) {
             permutationMap[i] = i;
         }
 
@@ -57,6 +59,11 @@ contract HumanRegistration is Test {
                     (permutationMap[j], permutationMap[j + 1]) = (permutationMap[j + 1], permutationMap[j]);
                 }
             }
+        }
+
+        // Create a lookup map for the sorted addresses
+        for (uint16 i = 0; i < length; i++) {
+            lookupMap[permutationMap[i]] = i;
         }
     }
 }

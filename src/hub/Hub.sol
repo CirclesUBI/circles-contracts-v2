@@ -537,6 +537,7 @@ contract Hub is Circles, IHubV2 {
 
         // check all senders have the operator authorized
         for (uint64 i = 0; i < _streams.length; i++) {
+            require(_flowVertices[_streams[i].sourceCoordinate] == msg.sender, "Not Alice?");
             require(isApprovedForAll(_flowVertices[_streams[i].sourceCoordinate], msg.sender), "Operator not approved.");
         }
 
@@ -804,16 +805,18 @@ contract Hub is Circles, IHubV2 {
 
                 // check that each stream has listed the actual terminal flow edges in the correct order
                 // note, we can't do this check in _verifyFlowMatrix, because we run out of stack depth there
+                // streamSinkId starts counting from 1, so that 0 is reserved for non-terminal flow edges
                 if (_flow[i].streamSinkId > 0) {
+                    uint16 streamSinkArrayId = _flow[i].streamSinkId - 1;
                     require(
-                        _streams[_flow[i].streamSinkId].flowEdgeIds[streamBatchCounter[_flow[i].streamSinkId]] == i,
+                        _streams[streamSinkArrayId].flowEdgeIds[streamBatchCounter[streamSinkArrayId]] == i,
                         "Invalid stream sink"
                     );
-                    streamBatchCounter[_flow[i].streamSinkId]++;
-                    if (streamReceivers[_flow[i].streamSinkId] == address(0)) {
-                        streamReceivers[_flow[i].streamSinkId] = to;
+                    streamBatchCounter[streamSinkArrayId]++;
+                    if (streamReceivers[streamSinkArrayId] == address(0)) {
+                        streamReceivers[streamSinkArrayId] = to;
                     } else {
-                        require(streamReceivers[_flow[i].streamSinkId] == to, "Invalid stream receiver");
+                        require(streamReceivers[streamSinkArrayId] == to, "Invalid stream receiver");
                     }
                 }
 
@@ -863,7 +866,8 @@ contract Hub is Circles, IHubV2 {
             uint256[] memory amounts = new uint256[](_streams[i].flowEdgeIds.length);
             uint256 streamTotal = uint256(0);
             for (uint16 j = 0; j < _streams[i].flowEdgeIds.length; j++) {
-                ids[j] = toTokenId(_flowVertices[_coordinates[_streams[i].flowEdgeIds[j]]]);
+                // the Circles identifier coordinate is the first of three coordinates per flow edge
+                ids[j] = toTokenId(_flowVertices[_coordinates[3 * _streams[i].flowEdgeIds[j]]]);
                 amounts[j] = _flow[_streams[i].flowEdgeIds[j]].amount;
                 streamTotal += amounts[j];
             }
