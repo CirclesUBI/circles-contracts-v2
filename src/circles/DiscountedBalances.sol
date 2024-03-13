@@ -284,14 +284,6 @@ contract DiscountedBalances {
     }
 
     /**
-     * @dev Calculates the demurrage value from an inflationaey value and the absolute
-     * day since inflation_day_zero.
-     * @param _value Inflationary value to calculate the demurrage value of
-     * @param _day Absolute day since inflation_day_zero
-     */
-    function _calculateDemurrageValue(uint256 _value, uint64 _day) private pure returns (uint256) {}
-
-    /**
      * Calculate the inflationary balance of a demurraged balance
      * @param _balance Demurraged balance to calculate the inflationary balance of
      * @param _dayUpdated The day the balance was last updated
