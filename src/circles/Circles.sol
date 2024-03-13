@@ -2,9 +2,10 @@
 pragma solidity >=0.8.13;
 
 import "./ERC1155.sol";
+import "./ICircles.sol";
 import "../lib/Math64x64.sol";
 
-contract Circles is ERC1155 {
+contract Circles is ERC1155, ICircles {
     // Type declarations
 
     /**
@@ -59,44 +60,6 @@ contract Circles is ERC1155 {
     mapping(address => MintTime) public mintTimes;
 
     // Events
-
-    /**
-     * @dev Emitted when Circles are transferred in addition to TransferSingle event,
-     * to include the demurraged value of the Circles transferred.
-     * @param operator Operator who called safeTransferFrom.
-     * @param from Address from which the Circles have been transferred.
-     * @param to Address to which the Circles have been transferred.
-     * @param id Circles identifier for which the Circles have been transferred.
-     * @param value Demurraged value of the Circles transferred.
-     * @param inflationaryValue Inflationary amount of Circles transferred.
-     */
-    event DemurragedTransferSingle(
-        address indexed operator,
-        address indexed from,
-        address indexed to,
-        uint256 id,
-        uint256 value,
-        uint256 inflationaryValue
-    );
-
-    /**
-     * @dev Emitted when Circles are transferred in addition to TransferBatch event,
-     * to include the demurraged values of the Circles transferred.
-     * @param operator Operator who called safeBatchTransferFrom.
-     * @param from Address from which the Circles have been transferred.
-     * @param to Address to which the Circles have been transferred.
-     * @param ids Array of Circles identifiers for which the Circles have been transferred.
-     * @param values Array of demurraged values of the Circles transferred.
-     * @param inflationaryValues Array of inflationary amounts of Circles transferred.
-     */
-    event DemurragedTransferBatch(
-        address indexed operator,
-        address indexed from,
-        address indexed to,
-        uint256[] ids,
-        uint256[] values,
-        uint256[] inflationaryValues
-    );
 
     // Constructor
 
