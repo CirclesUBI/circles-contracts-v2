@@ -444,25 +444,6 @@ contract Hub is Circles, IHubV2 {
         _burn(msg.sender, _id, _amount);
     }
 
-    // check if path transfer can be fully ERC1155 compatible
-    // note: matrix math needs to consider mints, otherwise it won't add up
-
-    function singleSourcePathTransfer() external {
-        //require(msg.sender == _source);
-        // todo: sender does not have to be registered; can be anyone
-        // can have multiple receivers
-        // can allow zero-nett amounts, ie. closed paths are ok
-
-        // consider adding a group mint targets array
-
-        // emit Transfer intent events
-    }
-
-    function operatorPathTransfer() external {
-        // msg.sender = oeprator
-        //require("nett sources have approved operator");
-    }
-
     // Public functions
 
     function getDeterministicAddress(uint256 _tokenId, bytes32 _bytecodeHash) public view returns (address) {

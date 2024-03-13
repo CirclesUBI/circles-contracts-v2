@@ -60,44 +60,6 @@ contract Circles is ERC1155 {
 
     // Events
 
-    /**
-     * @dev Emitted when Circles are transferred in addition to TransferSingle event,
-     * to include the demurraged value of the Circles transferred.
-     * @param operator Operator who called safeTransferFrom.
-     * @param from Address from which the Circles have been transferred.
-     * @param to Address to which the Circles have been transferred.
-     * @param id Circles identifier for which the Circles have been transferred.
-     * @param value Demurraged value of the Circles transferred.
-     * @param inflationaryValue Inflationary amount of Circles transferred.
-     */
-    event DemurragedTransferSingle(
-        address indexed operator,
-        address indexed from,
-        address indexed to,
-        uint256 id,
-        uint256 value,
-        uint256 inflationaryValue
-    );
-
-    /**
-     * @dev Emitted when Circles are transferred in addition to TransferBatch event,
-     * to include the demurraged values of the Circles transferred.
-     * @param operator Operator who called safeBatchTransferFrom.
-     * @param from Address from which the Circles have been transferred.
-     * @param to Address to which the Circles have been transferred.
-     * @param ids Array of Circles identifiers for which the Circles have been transferred.
-     * @param values Array of demurraged values of the Circles transferred.
-     * @param inflationaryValues Array of inflationary amounts of Circles transferred.
-     */
-    event DemurragedTransferBatch(
-        address indexed operator,
-        address indexed from,
-        address indexed to,
-        uint256[] ids,
-        uint256[] values,
-        uint256[] inflationaryValues
-    );
-
     // Constructor
 
     /**
@@ -125,9 +87,9 @@ contract Circles is ERC1155 {
             "Circles v1 contract cannot be active."
         );
 
-        if (uint256(mintTime.lastMintTime) + 10 > block.timestamp) {
+        if (uint256(mintTime.lastMintTime) + 1 hours > block.timestamp) {
             // Mint time is set to indefinite future for stopped mints in v2
-            // and wait at least 10 seconds between mints
+            // and only complete hours get minted, so shortcut the calculation
             return 0;
         }
 
