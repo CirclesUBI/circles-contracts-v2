@@ -35,7 +35,7 @@ contract ERC20Lift is ProxyFactory {
 
     // Public functions
 
-    function ensureERC20DemurrageWrapper(uint256 _id) public returns (address) {
+    function ensureERC20DemurrageWrapper(uint256 _id) public pure returns (address) {
         bytes32 salt = keccak256(abi.encodePacked(_id));
     }
 

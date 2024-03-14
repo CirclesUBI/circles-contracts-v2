@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity >=0.8.13;
 
-import "./ERC1155.sol";
 import "../lib/Math64x64.sol";
+import "./ERC1155.sol";
 
 contract Circles is ERC1155 {
     // Type declarations
@@ -106,10 +106,10 @@ contract Circles is ERC1155 {
         uint256 n = dB - dA;
 
         // calculate the number of completed hours in day A until `startMint`
-        int128 k = Math64x64.fromUInt((startMint - (dA * 1 days + inflation_day_zero)) / 1 hours);
+        int128 k = Math64x64.fromUInt((startMint - (dA * 1 days + inflationDayZero)) / 1 hours);
 
         // Calculate the number of incompleted hours remaining in day B from current timestamp
-        int128 l = Math64x64.fromUInt(((dB + 1) * 1 days + inflation_day_zero - block.timestamp) / 1 hours + 1);
+        int128 l = Math64x64.fromUInt(((dB + 1) * 1 days + inflationDayZero - block.timestamp) / 1 hours + 1);
 
         // calculate the overcounted (demurraged) k (in day A) and l (in day B) hours
         int128 overcount = Math64x64.add(Math64x64.mul(R[n], k), l);

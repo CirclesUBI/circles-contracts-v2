@@ -8,7 +8,6 @@ import "../migration/IHub.sol";
 import "../migration/IToken.sol";
 import "../circles/Circles.sol";
 import "../groups/IMintPolicy.sol";
-import "./IHub.sol";
 import "./MetadataDefinitions.sol";
 
 /**
@@ -22,7 +21,7 @@ import "./MetadataDefinitions.sol";
  * It further allows to wrap any token into an inflationary or demurraged
  * ERC20 Circles contract.
  */
-contract Hub is Circles, IHubV2 {
+contract Hub is Circles {
     // Type declarations
 
     /**
@@ -38,7 +37,7 @@ contract Hub is Circles, IHubV2 {
 
     struct FlowEdge {
         uint16 streamSinkId;
-        uint240 amount;
+        uint240 amount; // todo: set this to uint192 (align with demurrage), and leave it to compiler to pad
     }
 
     struct Stream {
@@ -499,7 +498,7 @@ contract Hub is Circles, IHubV2 {
         // timestamp should be "stepfunction" the timestamp
         // todo: ask where the best time step is
 
-        if (_timestamp < inflation_day_zero) _timestamp = block.timestamp;
+        if (_timestamp < inflationDayZero) _timestamp = block.timestamp;
 
         // uint256 durationSinceStart = _time - hubV1start;
         // do conversion
