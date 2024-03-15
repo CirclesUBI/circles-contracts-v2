@@ -10,7 +10,7 @@ import "../hub/IHub.sol";
 import "../groups/IMintPolicy.sol";
 import "./IStandardVault.sol";
 
-contract standardTreasury is ERC165, IERC1155Receiver, ProxyFactory {
+contract standardTreasury is ERC165, ProxyFactory, MetadataDefinitions, IERC1155Receiver {
     // Constants
 
     /**
@@ -68,7 +68,7 @@ contract standardTreasury is ERC165, IERC1155Receiver, ProxyFactory {
     /**
      * @dev See {IERC165-supportsInterface}.
      */
-    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165, IERC165) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view override(ERC165, IERC165) returns (bool) {
         return interfaceId == type(IERC1155Receiver).interfaceId || super.supportsInterface(interfaceId);
     }
 
@@ -76,10 +76,10 @@ contract standardTreasury is ERC165, IERC1155Receiver, ProxyFactory {
      * @dev Exclusively use single received for receiving group Circles to redeem them
      * for collateral Circles according to the group mint policy
      */
-    function onERC1155Received(address _operator, address _from, uint256 _id, uint256 _value, bytes memory _data)
+    function onERC1155Received(address _operator, address _from, uint256 _id, uint256 _value, bytes calldata _data)
         public
-        virtual
         override
+        onlyHub
         returns (bytes4)
     {
         address group = _validateCirclesIdToGroup(_id);
@@ -130,21 +130,29 @@ contract standardTreasury is ERC165, IERC1155Receiver, ProxyFactory {
         address, /*_from*/
         uint256[] memory _ids,
         uint256[] memory _values,
-        bytes memory _data
-    ) public virtual override onlyHub returns (bytes4) {
-        // decode the data to get the group address
-        MetadataDefinitions.Metadata memory metadata = abi.decode(_data, (MetadataDefinitions.Metadata));
-        require(metadata.metadataType == MetadataDefinitions.MetadataType.GroupMint, "Treasury: Invalid metadata type");
-        MetadataDefinitions.GroupMintMetadata memory groupMintMetadata =
-            abi.decode(metadata.metadata, (MetadataDefinitions.GroupMintMetadata));
+        bytes calldata _data
+    ) public override onlyHub returns (bytes4) {
+        // decode the data to get the group address and user data
+        (address group, bytes memory userData) = _decodeMetadataForGroup(_data);
         // ensure the vault exists
-        address vault = address(_ensureVault(groupMintMetadata.group));
+        address vault = address(_ensureVault(group));
         // forward the Circles to the vault
-        hub.safeBatchTransferFrom(address(this), vault, _ids, _values, metadata.erc1155UserData);
+        hub.safeBatchTransferFrom(address(this), vault, _ids, _values, userData);
         return this.onERC1155BatchReceived.selector;
     }
 
     // Internal functions
+
+    /**
+     * @dev Decode the metadata for the group mint and revert if the type does not match group mint
+     * @param _data Metadata for the group mint
+     */
+    function _decodeMetadataForGroup(bytes memory _data) internal pure returns (address, bytes memory) {
+        Metadata memory metadata = abi.decode(_data, (Metadata));
+        require(_isReservedGroupMint(metadata.metadataType), "Treasury: Invalid metadata type");
+        GroupMintMetadata memory groupMintMetadata = abi.decode(metadata.metadata, (GroupMintMetadata));
+        return (groupMintMetadata.group, metadata.erc1155UserData);
+    }
 
     /**
      * @dev Validate the Circles id to group address
@@ -180,5 +188,11 @@ contract standardTreasury is ERC165, IERC1155Receiver, ProxyFactory {
         bytes memory vaultSetupData = abi.encodeWithSelector(STANDARD_VAULT_SETUP_CALLPREFIX, hub);
         IStandardVault vault = IStandardVault(address(_createProxy(mastercopyStandardVault, vaultSetupData)));
         return vault;
+    }
+
+    // private functions
+
+    function _isReservedGroupMint(bytes32 metadataType) private pure returns (bool) {
+        return metadataType == METADATATYPE_GROUPMINT;
     }
 }

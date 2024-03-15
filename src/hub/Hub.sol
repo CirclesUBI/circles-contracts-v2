@@ -21,7 +21,7 @@ import "./MetadataDefinitions.sol";
  * It further allows to wrap any token into an inflationary or demurraged
  * ERC20 Circles contract.
  */
-contract Hub is Circles {
+contract Hub is Circles, MetadataDefinitions {
     // Type declarations
 
     /**
@@ -494,15 +494,15 @@ contract Hub is Circles {
         emit CidV0(msg.sender, _ipfsCid);
     }
 
-    function toDemurrageAmount(uint256 _amount, uint256 _timestamp) external {
-        // timestamp should be "stepfunction" the timestamp
-        // todo: ask where the best time step is
+    // function toDemurrageAmount(uint256 _amount, uint256 _timestamp) external {
+    //     // timestamp should be "stepfunction" the timestamp
+    //     // todo: ask where the best time step is
 
-        if (_timestamp < inflationDayZero) _timestamp = block.timestamp;
+    //     if (_timestamp < inflationDayZero) _timestamp = block.timestamp;
 
-        // uint256 durationSinceStart = _time - hubV1start;
-        // do conversion
-    }
+    //     // uint256 durationSinceStart = _time - hubV1start;
+    //     // do conversion
+    // }
 
     function ToInflationAmount(uint256 _amount, uint256 _timestamp) external {}
 
@@ -684,13 +684,9 @@ contract Hub is Circles {
         );
 
         // abi encode the group address into the data to send onwards to the treasury
-        bytes memory metadataGroup = abi.encode(MetadataDefinitions.GroupMintMetadata({group: _group}));
+        bytes memory metadataGroup = abi.encode(GroupMintMetadata({group: _group}));
         bytes memory dataWithGroup = abi.encode(
-            MetadataDefinitions.Metadata({
-                metadataType: MetadataDefinitions.MetadataType.GroupMint,
-                metadata: metadataGroup,
-                erc1155UserData: _data
-            })
+            Metadata({metadataType: METADATATYPE_GROUPMINT, metadata: metadataGroup, erc1155UserData: _data})
         );
 
         // note: treasury.on1155Received must implement and unpack the GroupMintMetadata to know the group

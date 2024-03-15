@@ -5,7 +5,7 @@ contract MetadataDefinitions {
     // Type declarations
 
     struct Metadata {
-        MetadataType metadataType;
+        bytes32 metadataType;
         bytes metadata;
         bytes erc1155UserData;
     }
@@ -14,10 +14,7 @@ contract MetadataDefinitions {
         address group;
     }
 
-    // Enums
+    // Constants
 
-    enum MetadataType {
-        NoMetadata,
-        GroupMint
-    }
+    bytes32 public constant METADATATYPE_GROUPMINT = keccak256("CIRCLESv2:RESERVED_DATA:CirclesGroupMint");
 }
