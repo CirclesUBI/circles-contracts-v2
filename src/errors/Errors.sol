@@ -7,4 +7,6 @@ interface ICirclesErrors {
     error CirclesInvalidFunctionCaller(address caller, uint8 code);
 
     error CirclesInvalidCirclesId(uint256 id, uint8 code);
+
+    error CirclesERC1155CannotReceiveBatch(uint8 code);
 }

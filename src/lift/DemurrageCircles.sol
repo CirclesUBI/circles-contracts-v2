@@ -95,6 +95,16 @@ abstract contract DemurrageCircles is ERC20DiscountedBalances, ERC1155Holder, IE
         return this.onERC1155Received.selector;
     }
 
+    function onERC1155BatchReceived(address, address, uint256[] memory, uint256[] memory, bytes memory)
+        public
+        view
+        override
+        onlyHub
+        returns (bytes4)
+    {
+        revert CirclesERC1155CannotReceiveBatch(0);
+    }
+
     function circlesIdentifier() public view returns (uint256) {
         return toTokenId(avatar);
     }
