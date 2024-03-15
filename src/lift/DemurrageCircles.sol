@@ -63,7 +63,25 @@ abstract contract DemurrageCircles is ERC20DiscountedBalances, ERC1155Holder, IE
         return true;
     }
 
-    // todo: increaseAllowance and decreaseAllowance, and ERC20Permit
+    function increaseAllowance(address _spender, uint256 _addedValue) external returns (bool) {
+        uint256 currentAllowance = _allowances[msg.sender][_spender];
+        _approve(msg.sender, _spender, currentAllowance + _addedValue);
+        return true;
+    }
+
+    function decreaseAllowance(address _spender, uint256 _subtractedValue) external returns (bool) {
+        uint256 currentAllowance = _allowances[msg.sender][_spender];
+        if (_subtractedValue >= currentAllowance) {
+            _approve(msg.sender, _spender, 0);
+        } else {
+            unchecked {
+                _approve(msg.sender, _spender, currentAllowance - _subtractedValue);
+            }
+        }
+        return true;
+    }
+
+    // todo: ERC20Permit
 
     function unwrap(uint256 _amount) external {
         _burn(msg.sender, _amount);

@@ -473,15 +473,6 @@ contract Hub is Circles, MetadataDefinitions {
         safeTransferFrom(address(tokenIDToInfERC20[_tokenId]), msg.sender, _tokenId, _amount, "");
     }
 
-    function wrapDemurrageERC20() external {
-        // call on Hub for demurrage calculation in ERC20 contract
-
-        // dont do a global allowance; but do do an ERC20Permit
-
-        // do do a auto-factory of deterministic contract address
-        // and how?
-    }
-
     /**
      * set IPFS CIDv0 digest for the avatar metadata.
      * @param _ipfsCid IPFS CIDv0 digest for the avatar metadata
@@ -493,16 +484,6 @@ contract Hub is Circles, MetadataDefinitions {
 
         emit CidV0(msg.sender, _ipfsCid);
     }
-
-    // function toDemurrageAmount(uint256 _amount, uint256 _timestamp) external {
-    //     // timestamp should be "stepfunction" the timestamp
-    //     // todo: ask where the best time step is
-
-    //     if (_timestamp < inflationDayZero) _timestamp = block.timestamp;
-
-    //     // uint256 durationSinceStart = _time - hubV1start;
-    //     // do conversion
-    // }
 
     function ToInflationAmount(uint256 _amount, uint256 _timestamp) external {}
 
