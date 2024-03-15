@@ -3,8 +3,8 @@ pragma solidity >=0.8.13;
 
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import "../errors/Errors.sol";
+import "../hub/IHub.sol";
 import "./ERC20DiscountedBalances.sol";
 
 abstract contract DemurrageCircles is ERC20DiscountedBalances, ERC1155Holder, ICirclesErrors {
@@ -46,8 +46,6 @@ abstract contract DemurrageCircles is ERC20DiscountedBalances, ERC1155Holder, IC
     }
 
     // External functions
-
-    // todo: ERC20Permit
 
     function unwrap(uint256 _amount) external {
         _burn(msg.sender, _amount);
