@@ -1,16 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity >=0.8.13;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../circles/Demurrage.sol";
 import "../hub/IHub.sol";
 
-abstract contract ERC20DiscountedBalances is Demurrage, IERC20 {
+contract ERC20DiscountedBalances is Demurrage {
     // Constants
 
     // State variables
-
-    IHubV2 public hub;
 
     /**
      * @dev The mapping of addresses to the discounted balances.
@@ -18,20 +15,6 @@ abstract contract ERC20DiscountedBalances is Demurrage, IERC20 {
     mapping(address => DiscountedBalance) public discountedBalances;
 
     // Constructor
-
-    constructor() {
-        // lock the master copy upon construction
-        hub = IHubV2(address(0x1));
-    }
-
-    // Setup function
-
-    function setup() external {
-        require(address(hub) == address(0), "Already initialized.");
-        hub = IHubV2(msg.sender);
-        // read inflation day zero from hub
-        inflationDayZero = hub.inflationDayZero();
-    }
 
     // External functions
 
