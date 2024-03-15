@@ -4,9 +4,10 @@ pragma solidity >=0.8.13;
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+import "../errors/Errors.sol";
 import "./ERC20DiscountedBalances.sol";
 
-abstract contract DemurrageCircles is ERC20DiscountedBalances, ERC1155Holder, IERC20, IERC20Errors {
+abstract contract DemurrageCircles is ERC20DiscountedBalances, ERC1155Holder, IERC20, IERC20Errors, ICirclesErrors {
     // Constants
 
     // State variables
@@ -16,6 +17,15 @@ abstract contract DemurrageCircles is ERC20DiscountedBalances, ERC1155Holder, IE
     address public avatar;
 
     mapping(address => mapping(address => uint256)) private _allowances;
+
+    // Modifiers
+
+    modifier onlyHub() {
+        if (msg.sender != address(hub)) {
+            revert CirclesInvalidFunctionCaller(msg.sender, 0);
+        }
+        _;
+    }
 
     // Constructor
 
@@ -27,8 +37,8 @@ abstract contract DemurrageCircles is ERC20DiscountedBalances, ERC1155Holder, IE
     // Setup function
 
     function setup(address _avatar) external {
-        require(address(hub) == address(0), "Already initialized.");
-        require(_avatar != address(0), "Avatar cannot be the zero address.");
+        require(address(hub) == address(0));
+        require(_avatar != address(0));
         hub = IHubV2(msg.sender);
         avatar = _avatar;
         // read inflation day zero from hub
@@ -43,14 +53,13 @@ abstract contract DemurrageCircles is ERC20DiscountedBalances, ERC1155Holder, IE
     }
 
     function transferFrom(address _from, address _to, uint256 _amount) external returns (bool) {
-        uint256 currentAllowance = _allowances[_from][msg.sender];
-        if (currentAllowance < _amount) {
-            revert ERC20InsufficientAllowance(msg.sender, currentAllowance, _amount);
-        }
-        unchecked {
-            _allowances[_from][msg.sender] = currentAllowance - _amount;
-        }
+        _spendAllowance(_from, msg.sender, _amount);
         _transfer(_from, _to, _amount);
+        return true;
+    }
+
+    function approve(address _spender, uint256 _amount) external returns (bool) {
+        _approve(msg.sender, _spender, _amount);
         return true;
     }
 
@@ -58,16 +67,24 @@ abstract contract DemurrageCircles is ERC20DiscountedBalances, ERC1155Holder, IE
         return balanceOfOnDay(_account, day(block.timestamp));
     }
 
+    function allowance(address _owner, address _spender) external view returns (uint256) {
+        return _allowances[_owner][_spender];
+    }
+
+    function totalSupply() external view returns (uint256) {
+        return hub.balanceOf(address(this), toTokenId(avatar));
+    }
+
     // Public functions
 
-    function onERC1155Received(address, address, uint256 _id, uint256, bytes memory)
+    function onERC1155Received(address, address _from, uint256 _id, uint256 _amount, bytes memory)
         public
-        view
         override
+        onlyHub
         returns (bytes4)
     {
-        require(msg.sender == address(hub), "Must be Circles.");
-        require(_id == toTokenId(avatar), "Invalid tokenId.");
+        if (_id != toTokenId(avatar)) revert CirclesInvalidCirclesId(_id, 0);
+        _mint(_from, _amount);
         return this.onERC1155Received.selector;
     }
 
@@ -87,6 +104,8 @@ abstract contract DemurrageCircles is ERC20DiscountedBalances, ERC1155Holder, IE
             _updateBalance(_from, fromBalance - _amount, day);
         }
         _discountAndAddToBalance(_to, _amount, day);
+
+        emit Transfer(_from, _to, _amount);
     }
 
     function _approve(address _owner, address _spender, uint256 _amount) internal {
@@ -110,5 +129,10 @@ abstract contract DemurrageCircles is ERC20DiscountedBalances, ERC1155Holder, IE
                 _approve(_owner, _spender, currentAllowance - _amount);
             }
         }
+    }
+
+    function _mint(address _owner, uint256 _amount) internal {
+        _discountAndAddToBalance(_owner, _amount, day(block.timestamp));
+        emit Transfer(address(0), _owner, _amount);
     }
 }
