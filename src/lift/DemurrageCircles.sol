@@ -63,6 +63,13 @@ abstract contract DemurrageCircles is ERC20DiscountedBalances, ERC1155Holder, IE
         return true;
     }
 
+    // todo: increaseAllowance and decreaseAllowance, and ERC20Permit
+
+    function unwrap(uint256 _amount) external {
+        _burn(msg.sender, _amount);
+        hub.safeTransferFrom(address(this), msg.sender, toTokenId(avatar), _amount, "");
+    }
+
     function balanceOf(address _account) external view returns (uint256) {
         return balanceOfOnDay(_account, day(block.timestamp));
     }
@@ -134,5 +141,17 @@ abstract contract DemurrageCircles is ERC20DiscountedBalances, ERC1155Holder, IE
     function _mint(address _owner, uint256 _amount) internal {
         _discountAndAddToBalance(_owner, _amount, day(block.timestamp));
         emit Transfer(address(0), _owner, _amount);
+    }
+
+    function _burn(address _owner, uint256 _amount) internal {
+        uint64 day = day(block.timestamp);
+        uint256 ownerBalance = balanceOfOnDay(_owner, day);
+        if (ownerBalance < _amount) {
+            revert ERC20InsufficientBalance(_owner, ownerBalance, _amount);
+        }
+        unchecked {
+            _updateBalance(_owner, ownerBalance - _amount, day);
+        }
+        emit Transfer(_owner, address(0), _amount);
     }
 }
