@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity >=0.8.13;
 
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../circles/Demurrage.sol";
 import "../hub/IHub.sol";
+import "./ERC20Permit.sol";
 
-contract ERC20DiscountedBalances is Demurrage {
+contract ERC20DiscountedBalances is ERC20Permit, Demurrage, IERC20 {
     // Constants
 
     // State variables
@@ -17,6 +19,52 @@ contract ERC20DiscountedBalances is Demurrage {
     // Constructor
 
     // External functions
+
+    function transfer(address _to, uint256 _amount) external returns (bool) {
+        _transfer(msg.sender, _to, _amount);
+        return true;
+    }
+
+    function transferFrom(address _from, address _to, uint256 _amount) external returns (bool) {
+        _spendAllowance(_from, msg.sender, _amount);
+        _transfer(_from, _to, _amount);
+        return true;
+    }
+
+    function approve(address _spender, uint256 _amount) external returns (bool) {
+        _approve(msg.sender, _spender, _amount);
+        return true;
+    }
+
+    function increaseAllowance(address _spender, uint256 _addedValue) external returns (bool) {
+        uint256 currentAllowance = _allowances[msg.sender][_spender];
+        _approve(msg.sender, _spender, currentAllowance + _addedValue);
+        return true;
+    }
+
+    function decreaseAllowance(address _spender, uint256 _subtractedValue) external returns (bool) {
+        uint256 currentAllowance = _allowances[msg.sender][_spender];
+        if (_subtractedValue >= currentAllowance) {
+            _approve(msg.sender, _spender, 0);
+        } else {
+            unchecked {
+                _approve(msg.sender, _spender, currentAllowance - _subtractedValue);
+            }
+        }
+        return true;
+    }
+
+    function balanceOf(address _account) external view returns (uint256) {
+        return balanceOfOnDay(_account, day(block.timestamp));
+    }
+
+    function allowance(address _owner, address _spender) external view returns (uint256) {
+        return _allowances[_owner][_spender];
+    }
+
+    function totalSupply() external view virtual returns (uint256) {
+        return uint256(0);
+    }
 
     // Public functions
 
@@ -46,5 +94,36 @@ contract ERC20DiscountedBalances is Demurrage {
         require(newBalance <= MAX_VALUE, "Balance exceeds maximum value.");
         discountedBalance.balance = uint192(newBalance);
         discountedBalance.lastUpdatedDay = _day;
+    }
+
+    function _transfer(address _from, address _to, uint256 _amount) internal {
+        uint64 day = day(block.timestamp);
+        uint256 fromBalance = balanceOfOnDay(_from, day);
+        if (fromBalance < _amount) {
+            revert ERC20InsufficientBalance(_from, fromBalance, _amount);
+        }
+        unchecked {
+            _updateBalance(_from, fromBalance - _amount, day);
+        }
+        _discountAndAddToBalance(_to, _amount, day);
+
+        emit Transfer(_from, _to, _amount);
+    }
+
+    function _mint(address _owner, uint256 _amount) internal {
+        _discountAndAddToBalance(_owner, _amount, day(block.timestamp));
+        emit Transfer(address(0), _owner, _amount);
+    }
+
+    function _burn(address _owner, uint256 _amount) internal {
+        uint64 day = day(block.timestamp);
+        uint256 ownerBalance = balanceOfOnDay(_owner, day);
+        if (ownerBalance < _amount) {
+            revert ERC20InsufficientBalance(_owner, ownerBalance, _amount);
+        }
+        unchecked {
+            _updateBalance(_owner, ownerBalance - _amount, day);
+        }
+        emit Transfer(_owner, address(0), _amount);
     }
 }
