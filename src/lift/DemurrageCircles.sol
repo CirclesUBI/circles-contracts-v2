@@ -6,8 +6,16 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import "../errors/Errors.sol";
 import "./ERC20DiscountedBalances.sol";
+import "./ERC20Permit.sol";
 
-abstract contract DemurrageCircles is ERC20DiscountedBalances, ERC1155Holder, IERC20, IERC20Errors, ICirclesErrors {
+abstract contract DemurrageCircles is
+    ERC20DiscountedBalances,
+    ERC20Permit,
+    ERC1155Holder,
+    IERC20,
+    IERC20Errors,
+    ICirclesErrors
+{
     // Constants
 
     // State variables
@@ -15,8 +23,6 @@ abstract contract DemurrageCircles is ERC20DiscountedBalances, ERC1155Holder, IE
     IHubV2 public hub;
 
     address public avatar;
-
-    mapping(address => mapping(address => uint256)) private _allowances;
 
     // Modifiers
 
@@ -43,6 +49,8 @@ abstract contract DemurrageCircles is ERC20DiscountedBalances, ERC1155Holder, IE
         avatar = _avatar;
         // read inflation day zero from hub
         inflationDayZero = hub.inflationDayZero();
+
+        _setupPermit();
     }
 
     // External functions
