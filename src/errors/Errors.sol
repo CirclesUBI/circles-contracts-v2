@@ -9,4 +9,6 @@ interface ICirclesErrors {
     error CirclesInvalidCirclesId(uint256 id, uint8 code);
 
     error CirclesERC1155CannotReceiveBatch(uint8 code);
+
+    error CirclesAmountOverflow(uint256 amount, uint8 code);
 }

@@ -6,9 +6,10 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/Nonces.sol";
+import "../errors/Errors.sol";
 import "./EIP712.sol";
 
-contract ERC20Permit is EIP712, Nonces, IERC20Permit, IERC20Errors {
+contract ERC20Permit is EIP712, Nonces, IERC20Permit, IERC20Errors, ICirclesErrors {
     // Errors
 
     /**

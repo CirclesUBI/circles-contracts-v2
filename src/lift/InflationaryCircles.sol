@@ -3,11 +3,10 @@ pragma solidity >=0.8.13;
 
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "../errors/Errors.sol";
 import "../hub/IHub.sol";
 import "./ERC20InflationaryBalances.sol";
 
-abstract contract InflationaryCircles is ERC20InflationaryBalances, ERC1155Holder, ICirclesErrors {
+abstract contract InflationaryCircles is ERC20InflationaryBalances, ERC1155Holder {
     // Constants
 
     // State variables
@@ -15,8 +14,6 @@ abstract contract InflationaryCircles is ERC20InflationaryBalances, ERC1155Holde
     IHubV2 public hub;
 
     address public avatar;
-
-    uint256 private _totalSupply;
 
     // Modifiers
 
@@ -55,14 +52,11 @@ abstract contract InflationaryCircles is ERC20InflationaryBalances, ERC1155Holde
         // hub.safeTransferFrom(address(this), msg.sender, toTokenId(avatar), _amount, "");
     }
 
-    function totalSupply() external view override returns (uint256) {
-        return _totalSupply;
-    }
-
     // Public functions
 
-    function onERC1155Received(address, address _from, uint256 _id, uint256 _amount, bytes memory)
+    function onERC1155Received(address, address, uint256 _id, uint256, bytes memory)
         public
+        view
         override
         onlyHub
         returns (bytes4)
