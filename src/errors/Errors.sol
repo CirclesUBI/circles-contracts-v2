@@ -1,14 +1,58 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity >=0.8.13;
 
-interface IHubErrors {}
+interface IHubErrors {
+    error CirclesHubOnlyDuringBootstrap(uint8 code);
+
+    error CirclesHubRegisterAvatarV1MustBeStopped(address avatar, uint8 code);
+
+    error CirclesHubAvatarMustBeRegistered(address avatar, uint8 code);
+
+    error CirclesHubCallerMustBeHuman(address caller, uint8 code);
+
+    error CirclesHubGroupIsNotRegistered(address group, uint8 code);
+
+    error CirclesHubInvalidName(address caller, string name, uint8 code);
+
+    error CirclesHubInvalidTrustReceiver(address trustReceiver, uint8 code);
+
+    error CirclesHubIdMustBeDerivedFromAddress(uint256 providedId, uint8 code);
+
+    error CirclesHubGroupMintPolicyRejectedMint(
+        address minter, address group, uint256[] collateral, uint256[] amounts, bytes data, uint8 code
+    );
+
+    error CirclesHubGroupMintPolicyRejectedBurn(address burner, address group, uint256 amount, bytes data, uint8 code);
+
+    error CirclesHubOperatorNotApprovedForSource(address operator, address source, uint16 streamId, uint8 code);
+
+    error CirclesHubCirclesAreNotTrustedByReceiver(address receiver, uint256 circlesId, uint8 code);
+
+    error CirclesHubOnClosedPathOnlyPersonalCirclesCanReturnToAvatar(address failedReceiver, uint256 circlesId);
+
+    error CirclesHubFlowVerticesMustBeSorted();
+}
 
 interface ICirclesErrors {
-    error CirclesInvalidFunctionCaller(address caller, uint8 code);
+    error CirclesSetupAddressCannotBeZero(uint8 code);
+
+    error CirclesInvalidFunctionCaller(address caller, address expectedCaller, uint8 code);
 
     error CirclesInvalidCirclesId(uint256 id, uint8 code);
 
     error CirclesERC1155CannotReceiveBatch(uint8 code);
 
     error CirclesAmountOverflow(uint256 amount, uint8 code);
+
+    error CirclesArraysLengthMismatch(uint256 lengthArray1, uint256 lengthArray2, uint8 code);
+
+    error CirclesArrayMustNotBeEmpty(uint8 code);
+
+    error CirclesAmountMustNotBeZero(uint8 code);
+}
+
+interface INameRegistryErrors {
+    error CirclesNamesShortNameAlreadyAssigned(address avatar, uint72 shortName, uint8 code);
+
+    error CirclesNamesShortNameWithNonceTaken(address avatar, uint256 nonce, uint72 shortName, address takenByAvatar);
 }

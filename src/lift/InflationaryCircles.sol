@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../hub/IHub.sol";
 import "./ERC20InflationaryBalances.sol";
 
-abstract contract InflationaryCircles is ERC20InflationaryBalances, ERC1155Holder {
+contract InflationaryCircles is ERC20InflationaryBalances, ERC1155Holder {
     // Constants
 
     // State variables
@@ -23,9 +23,9 @@ abstract contract InflationaryCircles is ERC20InflationaryBalances, ERC1155Holde
 
     // Modifiers
 
-    modifier onlyHub() {
+    modifier onlyHub(uint8 _code) {
         if (msg.sender != address(hub)) {
-            revert CirclesInvalidFunctionCaller(msg.sender, 0);
+            revert CirclesInvalidFunctionCaller(msg.sender, address(hub), _code);
         }
         _;
     }
@@ -69,7 +69,7 @@ abstract contract InflationaryCircles is ERC20InflationaryBalances, ERC1155Holde
     function onERC1155Received(address, address _from, uint256 _id, uint256 _amount, bytes memory)
         public
         override
-        onlyHub
+        onlyHub(0)
         returns (bytes4)
     {
         if (_id != toTokenId(avatar)) revert CirclesInvalidCirclesId(_id, 0);
@@ -82,7 +82,7 @@ abstract contract InflationaryCircles is ERC20InflationaryBalances, ERC1155Holde
         public
         view
         override
-        onlyHub
+        onlyHub(1)
         returns (bytes4)
     {
         revert CirclesERC1155CannotReceiveBatch(0);

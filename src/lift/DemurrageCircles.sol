@@ -17,9 +17,9 @@ abstract contract DemurrageCircles is ERC20DiscountedBalances, ERC1155Holder {
 
     // Modifiers
 
-    modifier onlyHub() {
+    modifier onlyHub(uint8 _code) {
         if (msg.sender != address(hub)) {
-            revert CirclesInvalidFunctionCaller(msg.sender, 0);
+            revert CirclesInvalidFunctionCaller(msg.sender, address(hub), _code);
         }
         _;
     }
@@ -60,7 +60,7 @@ abstract contract DemurrageCircles is ERC20DiscountedBalances, ERC1155Holder {
     function onERC1155Received(address, address _from, uint256 _id, uint256 _amount, bytes memory)
         public
         override
-        onlyHub
+        onlyHub(0)
         returns (bytes4)
     {
         if (_id != toTokenId(avatar)) revert CirclesInvalidCirclesId(_id, 0);
@@ -72,7 +72,7 @@ abstract contract DemurrageCircles is ERC20DiscountedBalances, ERC1155Holder {
         public
         view
         override
-        onlyHub
+        onlyHub(1)
         returns (bytes4)
     {
         revert CirclesERC1155CannotReceiveBatch(0);

@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity >=0.8.13;
 
-import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/utils/Create2.sol";
+// import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+// import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+// import "@openzeppelin/contracts/utils/Create2.sol";
+import "../circles/Circles.sol";
+import "../errors/Errors.sol";
+import "../groups/IMintPolicy.sol";
 import "../migration/IHub.sol";
 import "../migration/IToken.sol";
-import "../circles/Circles.sol";
-import "../groups/IMintPolicy.sol";
+import "../names/INameRegistry.sol";
 import "./MetadataDefinitions.sol";
 
 /**
@@ -21,7 +23,7 @@ import "./MetadataDefinitions.sol";
  * It further allows to wrap any token into an inflationary or demurraged
  * ERC20 Circles contract.
  */
-contract Hub is Circles, MetadataDefinitions {
+contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
     // Type declarations
 
     /**
@@ -77,6 +79,8 @@ contract Hub is Circles, MetadataDefinitions {
      */
     IHubV1 public immutable hubV1;
 
+    INameRegistry public immutable nameRegistry;
+
     /**
      * @notice The address of the migration contract for v1 Circles.
      */
@@ -113,7 +117,7 @@ contract Hub is Circles, MetadataDefinitions {
 
     mapping(address => string) public symbols;
 
-    mapping(uint256 => WrappedERC20) public tokenIDToInfERC20;
+    // mapping(uint256 => WrappedERC20) public tokenIDToInfERC20;
 
     /**
      * @notice The iterable mapping of directional trust relations between avatars and
@@ -137,6 +141,8 @@ contract Hub is Circles, MetadataDefinitions {
 
     event Trust(address indexed truster, address indexed trustee, uint256 expiryTime);
 
+    event Stopped(address indexed avatar);
+
     event CidV0(address indexed avatar, bytes32 cidV0Digest);
 
     // Modifiers
@@ -144,8 +150,10 @@ contract Hub is Circles, MetadataDefinitions {
     /**
      * Modifier to check if the current time is during the bootstrap period.
      */
-    modifier duringBootstrap() {
-        require(block.timestamp <= invitationOnlyTime, "Bootstrap period has ended.");
+    modifier onlyDuringBootstrap(uint8 _code) {
+        if (block.timestamp > invitationOnlyTime) {
+            revert CirclesHubOnlyDuringBootstrap(_code);
+        }
         _;
     }
 
@@ -153,7 +161,9 @@ contract Hub is Circles, MetadataDefinitions {
      * Modifier to check if the caller is the migration contract.
      */
     modifier onlyMigration() {
-        require(msg.sender == migration, "Only migration contract can call this function.");
+        if (msg.sender != migration) {
+            revert CirclesInvalidFunctionCaller(msg.sender, migration, 0);
+        }
         _;
     }
 
@@ -172,20 +182,28 @@ contract Hub is Circles, MetadataDefinitions {
      */
     constructor(
         IHubV1 _hubV1,
+        INameRegistry _nameRegistry,
         address _migration,
         uint256 _inflationDayZero,
         address _standardTreasury,
         uint256 _bootstrapTime,
         string memory _fallbackUri
     ) Circles(_inflationDayZero, _fallbackUri) {
-        require(address(_hubV1) != address(0), "Hub v1 address can not be zero.");
-        require(_standardTreasury != address(0), "Standard treasury address can not be zero.");
+        if (address(_hubV1) == address(0)) {
+            revert CirclesSetupAddressCannotBeZero(0);
+        }
+        if (_standardTreasury == address(0)) {
+            revert CirclesSetupAddressCannotBeZero(1);
+        }
 
         // initialize linked list for avatars
         avatars[SENTINEL] = SENTINEL;
 
         // store the Hub v1 contract address
         hubV1 = _hubV1;
+
+        // store the name registry contract address
+        nameRegistry = _nameRegistry;
 
         // store the migration contract address
         migration = _migration;
@@ -205,10 +223,12 @@ contract Hub is Circles, MetadataDefinitions {
      * @param _cidV0Digest (optional) IPFS CIDv0 digest for the avatar metadata
      * should follow ERC1155 metadata standard.
      */
-    function registerHuman(bytes32 _cidV0Digest) external duringBootstrap {
+    function registerHuman(bytes32 _cidV0Digest) external onlyDuringBootstrap(0) {
         // only available for v1 users with stopped v1 mint, for initial bootstrap period
         address v1CirclesStatus = _registerHuman(msg.sender);
-        require(v1CirclesStatus == CIRCLES_STOPPED_V1, "Avatar must have stopped v1 Circles contract.");
+        if (v1CirclesStatus != CIRCLES_STOPPED_V1) {
+            revert CirclesHubRegisterAvatarV1MustBeStopped(msg.sender, 0);
+        }
 
         // store the IPFS CIDv0 digest for the avatar metadata
         tokenIdToCidV0Digest[toTokenId(msg.sender)] = _cidV0Digest;
@@ -226,7 +246,9 @@ contract Hub is Circles, MetadataDefinitions {
      * @param _human avatar of the human to invite
      */
     function inviteHuman(address _human) external {
-        require(isHuman(msg.sender), "Only humans can invite.");
+        if (!isHuman(msg.sender)) {
+            revert CirclesHubCallerMustBeHuman(msg.sender, 0);
+        }
 
         // register the invited human; reverts if they already exist
         _registerHuman(_human);
@@ -235,6 +257,7 @@ contract Hub is Circles, MetadataDefinitions {
             // after the bootstrap period, the inviter must burn the invitation cost
             _burn(msg.sender, toTokenId(msg.sender), INVITATION_COST);
 
+            // todo: re-discuss desired approach to welcome bonus vs migration
             // invited receives the welcome bonus in their personal Circles
             _mint(_human, toTokenId(_human), WELCOME_BONUS, "");
         }
@@ -296,7 +319,9 @@ contract Hub is Circles, MetadataDefinitions {
      * @param _cidV0Digest IPFS CIDv0 digest for the organization metadata
      */
     function registerOrganization(string calldata _name, bytes32 _cidV0Digest) external {
-        require(isValidName(_name), "Invalid organization name.");
+        if (!nameRegistry.isValidName(_name)) {
+            revert CirclesHubInvalidName(msg.sender, _name, 0);
+        }
         _insertAvatar(msg.sender);
 
         // store the name for the organization
@@ -319,11 +344,18 @@ contract Hub is Circles, MetadataDefinitions {
      * The trusted address does not (yet) have to be registered in the Hub contract.
      */
     function trust(address _trustReceiver, uint96 _expiry) external {
-        require(avatars[msg.sender] != address(0), "To trust caller must be registered.");
-        require(
-            _trustReceiver != address(0) || _trustReceiver != SENTINEL, "You cannot trust the zero, or 0x1 address."
-        );
-        require(_trustReceiver != msg.sender, "You cannot edit your own trust relation.");
+        if (avatars[msg.sender] == address(0)) {
+            revert CirclesHubAvatarMustBeRegistered(msg.sender, 0);
+        }
+        if (_trustReceiver == address(0) || _trustReceiver == SENTINEL) {
+            // You cannot trust the zero address or the sentinel address.
+            // Reserved addresses for logic.
+            revert CirclesHubInvalidTrustReceiver(_trustReceiver, 0);
+        }
+        if (_trustReceiver == msg.sender) {
+            // You cannot edit your own trust relation.
+            revert CirclesHubInvalidTrustReceiver(_trustReceiver, 1);
+        }
         // expiring trust cannot be set in the past
         if (_expiry < block.timestamp) _expiry = uint96(block.timestamp);
         _trust(msg.sender, _trustReceiver, _expiry);
@@ -333,7 +365,10 @@ contract Hub is Circles, MetadataDefinitions {
      * @notice Personal mint allows to mint personal Circles for a registered human avatar.
      */
     function personalMint() external {
-        require(isHuman(msg.sender), "Only avatars registered as human can call personal mint.");
+        if (!isHuman(msg.sender)) {
+            // Only avatars registered as human can call personal mint.
+            revert CirclesHubCallerMustBeHuman(msg.sender, 1);
+        }
         // check if v1 Circles is known to be stopped
         if (mintTimes[msg.sender].mintV1Status != CIRCLES_STOPPED_V1) {
             // if v1 Circles is not known to be stopped, check the status
@@ -372,11 +407,20 @@ contract Hub is Circles, MetadataDefinitions {
      * Must be called by the avatar itself. This action is irreversible.
      */
     function stop() external {
-        require(isHuman(msg.sender), "Only human can call stop.");
+        if (!isHuman(msg.sender)) {
+            // Only human can call stop.
+            revert CirclesHubCallerMustBeHuman(msg.sender, 2);
+        }
         MintTime storage mintTime = mintTimes[msg.sender];
+        // check if already stopped
+        if (mintTime.lastMintTime == INDEFINITE_FUTURE) {
+            return;
+        }
         // stop future mints of personal Circles
         // by setting the last mint time to indefinite future.
         mintTime.lastMintTime = INDEFINITE_FUTURE;
+
+        emit Stopped(msg.sender);
     }
 
     /**
@@ -384,7 +428,10 @@ contract Hub is Circles, MetadataDefinitions {
      * @param _human address of avatar of the human to check whether it is stopped
      */
     function stopped(address _human) external view returns (bool) {
-        require(isHuman(_human), "Only personal Circles can stopped or not stopped.");
+        if (!isHuman(_human)) {
+            // Only personal Circles can have a status of boolean stopped.
+            revert CirclesHubCallerMustBeHuman(_human, 3);
+        }
         MintTime storage mintTime = mintTimes[msg.sender];
         return (mintTime.lastMintTime == INDEFINITE_FUTURE);
     }
@@ -401,8 +448,13 @@ contract Hub is Circles, MetadataDefinitions {
      * @param _amounts array of amounts in inflationary v1 units to migrate
      */
     function migrate(address _owner, address[] calldata _avatars, uint256[] calldata _amounts) external onlyMigration {
-        require(avatars[_owner] != address(0), "Only registered avatars can migrate v1 tokens.");
-        require(_avatars.length == _amounts.length, "Arrays must have the same length.");
+        if (avatars[_owner] == address(0)) {
+            // Only registered avatars can migrate v1 tokens.
+            revert CirclesHubAvatarMustBeRegistered(_owner, 1);
+        }
+        if (_avatars.length != _amounts.length) {
+            revert CirclesArraysLengthMismatch(_avatars.length, _amounts.length, 0);
+        }
 
         // register all unregistered avatars as humans, and check that registered avatars are humans
         // after the bootstrap period, the _owner needs to pay the equivalent invitation cost for all newly registered humans
@@ -411,7 +463,10 @@ contract Hub is Circles, MetadataDefinitions {
         // Invitation cost only applies after the bootstrap period
         if (block.timestamp > invitationOnlyTime && cost > 0) {
             // personal Circles are required to burn the invitation cost
-            require(isHuman(_owner), "Only humans can migrate v1 tokens after the bootstrap period.");
+            if (!isHuman(_owner)) {
+                // Only humans can migrate v1 tokens after the bootstrap period.
+                revert CirclesHubCallerMustBeHuman(_owner, 4);
+            }
             _burn(_owner, toTokenId(_owner), cost);
         }
 
@@ -428,64 +483,67 @@ contract Hub is Circles, MetadataDefinitions {
      * @param _data (optional) additional data to be passed to the burn policy if they are group Circles
      */
     function burn(uint256 _id, uint256 _amount, bytes calldata _data) external {
-        // todo: by construction we can not have an id with non-zero balance,
+        // note: by construction we can not have an id with non-zero balance,
         // that was not converted from a group address.
-        // for now, do a redundant check that the id is identical to the recovered address
-        address group = address(uint160(_id));
-        require(uint256(uint160(group)) == _id, "Invalid Circles identifier.");
+        // Nonetheless assert that the id is identical an address
+        address group = _validateAddressFromId(_id, 0);
 
         IMintPolicy policy = IMintPolicy(mintPolicies[group]);
         if (address(policy) != address(0) && treasuries[group] != msg.sender) {
             // if Circles are a group Circles and if the burner is not the associated treasury,
             // then the mint policy must approve the burn
-            require(policy.beforeBurnPolicy(msg.sender, group, _amount, _data), "Burn policy rejected burn.");
+            if (!policy.beforeBurnPolicy(msg.sender, group, _amount, _data)) {
+                // Burn policy rejected burn.
+                revert CirclesHubGroupMintPolicyRejectedBurn(msg.sender, group, _amount, _data, 0);
+            }
         }
         _burn(msg.sender, _id, _amount);
     }
 
     // Public functions
 
-    function getDeterministicAddress(uint256 _tokenId, bytes32 _bytecodeHash) public view returns (address) {
-        return Create2.computeAddress(keccak256(abi.encodePacked(_tokenId)), _bytecodeHash);
-    }
+    // function getDeterministicAddress(uint256 _tokenId, bytes32 _bytecodeHash) public view returns (address) {
+    //     return Create2.computeAddress(keccak256(abi.encodePacked(_tokenId)), _bytecodeHash);
+    // }
 
-    function createERC20InflationWrapper(uint256 _tokenId, string memory _name, string memory _symbol) public {
-        require(address(tokenIDToInfERC20[_tokenId]) == address(0), "Wrapper already exists");
+    // function createERC20InflationWrapper(uint256 _tokenId, string memory _name, string memory _symbol) public {
+    //     require(address(tokenIDToInfERC20[_tokenId]) == address(0), "Wrapper already exists");
 
-        bytes memory bytecode =
-            abi.encodePacked(type(WrappedERC20).creationCode, abi.encode(_name, _symbol, address(this), _tokenId));
+    //     bytes memory bytecode =
+    //         abi.encodePacked(type(WrappedERC20).creationCode, abi.encode(_name, _symbol, address(this), _tokenId));
 
-        //bytes32 bytecodeHash = keccak256(bytecode);
-        address wrappedToken = Create2.deploy(0, keccak256(abi.encodePacked(_tokenId)), bytecode);
+    //     //bytes32 bytecodeHash = keccak256(bytecode);
+    //     address wrappedToken = Create2.deploy(0, keccak256(abi.encodePacked(_tokenId)), bytecode);
 
-        tokenIDToInfERC20[_tokenId] = WrappedERC20(wrappedToken);
-    }
+    //     tokenIDToInfERC20[_tokenId] = WrappedERC20(wrappedToken);
+    // }
 
-    function wrapInflationaryERC20(uint256 _tokenId, uint256 _amount) public {
-        require(address(tokenIDToInfERC20[_tokenId]) != address(0), "Wrapper does not exist");
-        safeTransferFrom(msg.sender, address(tokenIDToInfERC20[_tokenId]), _tokenId, _amount, "");
-        tokenIDToInfERC20[_tokenId].mint(msg.sender, _amount);
-    }
+    // function wrapInflationaryERC20(uint256 _tokenId, uint256 _amount) public {
+    //     require(address(tokenIDToInfERC20[_tokenId]) != address(0), "Wrapper does not exist");
+    //     safeTransferFrom(msg.sender, address(tokenIDToInfERC20[_tokenId]), _tokenId, _amount, "");
+    //     tokenIDToInfERC20[_tokenId].mint(msg.sender, _amount);
+    // }
 
-    function unwrapInflationaryERC20(uint256 _tokenId, uint256 _amount) public {
-        require(address(tokenIDToInfERC20[_tokenId]) != address(0), "Wrapper does not exist");
-        tokenIDToInfERC20[_tokenId].burn(msg.sender, _amount);
-        safeTransferFrom(address(tokenIDToInfERC20[_tokenId]), msg.sender, _tokenId, _amount, "");
-    }
+    // function unwrapInflationaryERC20(uint256 _tokenId, uint256 _amount) public {
+    //     require(address(tokenIDToInfERC20[_tokenId]) != address(0), "Wrapper does not exist");
+    //     tokenIDToInfERC20[_tokenId].burn(msg.sender, _amount);
+    //     safeTransferFrom(address(tokenIDToInfERC20[_tokenId]), msg.sender, _tokenId, _amount, "");
+    // }
 
     /**
      * set IPFS CIDv0 digest for the avatar metadata.
      * @param _ipfsCid IPFS CIDv0 digest for the avatar metadata
      */
     function setIpfsCidV0(bytes32 _ipfsCid) external {
-        require(avatars[msg.sender] != address(0), "Avatar must be registered.");
+        if (avatars[msg.sender] == address(0)) {
+            // Only registered avatars can set the IPFS CIDv0 digest.
+            revert CirclesHubAvatarMustBeRegistered(msg.sender, 2);
+        }
         // todo: we should charge in CRC, but better done later through a storage market
         tokenIdToCidV0Digest[toTokenId(msg.sender)] = _ipfsCid;
 
         emit CidV0(msg.sender, _ipfsCid);
     }
-
-    function ToInflationAmount(uint256 _amount, uint256 _timestamp) external {}
 
     function operateFlowMatrix(
         address[] calldata _flowVertices,
@@ -497,9 +555,13 @@ contract Hub is Circles, MetadataDefinitions {
         uint16[] memory coordinates = _unpackCoordinates(_packedCoordinates, _flow.length);
 
         // check all senders have the operator authorized
-        for (uint64 i = 0; i < _streams.length; i++) {
-            require(_flowVertices[_streams[i].sourceCoordinate] == msg.sender, "Not Alice?");
-            require(isApprovedForAll(_flowVertices[_streams[i].sourceCoordinate], msg.sender), "Operator not approved.");
+        for (uint16 i = 0; i < _streams.length; i++) {
+            if (!isApprovedForAll(_flowVertices[_streams[i].sourceCoordinate], msg.sender)) {
+                // Operator not approved for source.
+                revert CirclesHubOperatorNotApprovedForSource(
+                    msg.sender, _flowVertices[_streams[i].sourceCoordinate], i, 0
+                );
+            }
         }
 
         // if no streams are provided, then only closed paths are allowed
@@ -566,66 +628,66 @@ contract Hub is Circles, MetadataDefinitions {
         return super.uri(_id);
     }
 
-    /**
-     * @dev checks whether string is a valid name by checking
-     * the length as max 32 bytes and the allowed characters: 0-9, A-Z, a-z, space,
-     * hyphen, underscore, period, parentheses, apostrophe,
-     * ampersand, plus and hash.
-     * This restricts the contract name to a subset of ASCII characters,
-     * and excludes unicode characters for other alphabets and emoticons.
-     * Instead the default ERC1155 metadata read from the IPFS CID registry,
-     * should provide the full display name with unicode characters.
-     * Names are not checked for uniqueness.
-     */
-    function isValidName(string memory _name) public pure returns (bool) {
-        bytes memory nameBytes = bytes(_name);
-        if (nameBytes.length > 32 || nameBytes.length == 0) return false; // Check length
+    // /**
+    //  * @dev checks whether string is a valid name by checking
+    //  * the length as max 32 bytes and the allowed characters: 0-9, A-Z, a-z, space,
+    //  * hyphen, underscore, period, parentheses, apostrophe,
+    //  * ampersand, plus and hash.
+    //  * This restricts the contract name to a subset of ASCII characters,
+    //  * and excludes unicode characters for other alphabets and emoticons.
+    //  * Instead the default ERC1155 metadata read from the IPFS CID registry,
+    //  * should provide the full display name with unicode characters.
+    //  * Names are not checked for uniqueness.
+    //  */
+    // function isValidName(string memory _name) public pure returns (bool) {
+    //     bytes memory nameBytes = bytes(_name);
+    //     if (nameBytes.length > 32 || nameBytes.length == 0) return false; // Check length
 
-        for (uint256 i = 0; i < nameBytes.length; i++) {
-            bytes1 char = nameBytes[i];
-            if (
-                !(char >= 0x30 && char <= 0x39) // 0-9
-                    && !(char >= 0x41 && char <= 0x5A) // A-Z
-                    && !(char >= 0x61 && char <= 0x7A) // a-z
-                    && !(char == 0x20) // Space
-                    && !(char == 0x2D || char == 0x5F) // Hyphen (-), Underscore (_)
-                    && !(char == 0x2E) // Period (.)
-                    && !(char == 0x28 || char == 0x29) // Parentheses ( () )
-                    && !(char == 0x27) // Apostrophe (')
-                    && !(char == 0x26) // Ampersand (&)
-                    && !(char == 0x2B || char == 0x23) // Plus (+), Hash (#)
-            ) {
-                return false;
-            }
-        }
-        return true;
-    }
+    //     for (uint256 i = 0; i < nameBytes.length; i++) {
+    //         bytes1 char = nameBytes[i];
+    //         if (
+    //             !(char >= 0x30 && char <= 0x39) // 0-9
+    //                 && !(char >= 0x41 && char <= 0x5A) // A-Z
+    //                 && !(char >= 0x61 && char <= 0x7A) // a-z
+    //                 && !(char == 0x20) // Space
+    //                 && !(char == 0x2D || char == 0x5F) // Hyphen (-), Underscore (_)
+    //                 && !(char == 0x2E) // Period (.)
+    //                 && !(char == 0x28 || char == 0x29) // Parentheses ( () )
+    //                 && !(char == 0x27) // Apostrophe (')
+    //                 && !(char == 0x26) // Ampersand (&)
+    //                 && !(char == 0x2B || char == 0x23) // Plus (+), Hash (#)
+    //         ) {
+    //             return false;
+    //         }
+    //     }
+    //     return true;
+    // }
 
-    /**
-     * @dev checks whether string is a valid symbol by checking
-     * the length as max 16 bytes and the allowed characters: 0-9, A-Z, a-z,
-     * hyphen, underscore.
-     */
-    function isValidSymbol(string memory _symbol) public pure returns (bool) {
-        bytes memory symbolBytes = bytes(_symbol);
-        if (symbolBytes.length == 0 || symbolBytes.length > 16) {
-            return false; // Check length is within range
-        }
+    // /**
+    //  * @dev checks whether string is a valid symbol by checking
+    //  * the length as max 16 bytes and the allowed characters: 0-9, A-Z, a-z,
+    //  * hyphen, underscore.
+    //  */
+    // function isValidSymbol(string memory _symbol) public pure returns (bool) {
+    //     bytes memory symbolBytes = bytes(_symbol);
+    //     if (symbolBytes.length == 0 || symbolBytes.length > 16) {
+    //         return false; // Check length is within range
+    //     }
 
-        for (uint256 i = 0; i < symbolBytes.length; i++) {
-            bytes1 char = symbolBytes[i];
-            if (
-                // allowed ASCII characters 0-9, A-Z, a-z, Hyphen (-), Underscore (_)
-                !(
-                    (char >= 0x30 && char <= 0x39) || (char >= 0x41 && char <= 0x5A) || (char >= 0x61 && char <= 0x7A)
-                        || (char == 0x2D) || (char == 0x5F)
-                )
-            ) {
-                return false;
-            }
-        }
-        return true;
-    }
+    //     for (uint256 i = 0; i < symbolBytes.length; i++) {
+    //         bytes1 char = symbolBytes[i];
+    //         if (
+    //             // allowed ASCII characters 0-9, A-Z, a-z, Hyphen (-), Underscore (_)
+    //             !(
+    //                 (char >= 0x30 && char <= 0x39) || (char >= 0x41 && char <= 0x5A) || (char >= 0x61 && char <= 0x7A)
+    //                     || (char == 0x2D) || (char == 0x5F)
+    //             )
+    //         ) {
+    //             return false;
+    //         }
+    //     }
+    //     return true;
+    // }
 
     // Internal functions
 
@@ -644,25 +706,44 @@ contract Hub is Circles, MetadataDefinitions {
         uint256[] memory _amounts,
         bytes memory _data
     ) internal {
-        require(_collateral.length == _amounts.length, "Collateral and amount arrays must have equal length");
-        require(_collateral.length > 0, "At least one collateral must be provided");
-        require(isGroup(_group), "Group is not registered as an avatar.");
+        if (_collateral.length != _amounts.length) {
+            // Collateral and amount arrays must have equal length.
+            revert CirclesArraysLengthMismatch(_collateral.length, _amounts.length, 1);
+        }
+        if (_collateral.length == 0) {
+            // At least one collateral must be provided.
+            revert CirclesArrayMustNotBeEmpty(0);
+        }
+        if (!isGroup(_group)) {
+            // Group is not registered as an avatar.
+            revert CirclesHubGroupIsNotRegistered(_group, 0);
+        }
 
         // note: we don't need to check whether collateral circle ids are registered,
         // because only for registered collateral do non-zero balances exist to transfer,
         // so it suffices to check that all amounts are non-zero during summing.
         uint256 sumAmounts = 0;
         for (uint256 i = 0; i < _amounts.length; i++) {
-            require(isTrusted(_group, address(uint160(_collateral[i]))), "Collateral must be trusted");
-            require(_amounts[i] > 0, "Non-zero collateral must be provided.");
+            // _groupMint is only called from the public groupMint function,
+            // or from operateFlowMatrix, and both ensure the collateral ids are derived
+            // from an address, so we can cast here without checks.
+            if (!isTrusted(_group, address(uint160(_collateral[i])))) {
+                // Group does not trust collateral.
+                revert CirclesHubCirclesAreNotTrustedByReceiver(_group, _collateral[i], 0);
+            }
+
+            if (_amounts[i] == 0) {
+                // Non-zero collateral must be provided.
+                revert CirclesAmountMustNotBeZero(0);
+            }
             sumAmounts += _amounts[i];
         }
 
         // Rely on the mint policy to determine whether the collateral is valid for minting
-        require(
-            IMintPolicy(mintPolicies[_group]).beforeMintPolicy(_sender, _group, _collateral, _amounts, _data),
-            "Mint policy rejected mint."
-        );
+        if (!IMintPolicy(mintPolicies[_group]).beforeMintPolicy(_sender, _group, _collateral, _amounts, _data)) {
+            // Mint policy rejected mint.
+            revert CirclesHubGroupMintPolicyRejectedMint(_sender, _group, _collateral, _amounts, _data, 0);
+        }
 
         // abi encode the group address into the data to send onwards to the treasury
         bytes memory metadataGroup = abi.encode(GroupMintMetadata({group: _group}));
@@ -683,9 +764,18 @@ contract Hub is Circles, MetadataDefinitions {
         uint16[] memory _coordinates,
         bool _closedPath
     ) internal view returns (int256[] memory) {
-        require(3 * _flow.length == _coordinates.length, "Mismatch in flow and coordinates length.");
-        require(_flowVertices.length <= type(uint16).max, "Too many vertices.");
-        require(_flowVertices.length > 0 && _flow.length > 0, "Empty flow matrix.");
+        if (3 * _flow.length != _coordinates.length) {
+            // Mismatch in flow and coordinates length.
+            revert CirclesArraysLengthMismatch(_flow.length, _coordinates.length, 2);
+        }
+        if (_flowVertices.length > type(uint16).max) {
+            // Too many vertices.
+            revert CirclesArraysLengthMismatch(_flowVertices.length, type(uint16).max, 3);
+        }
+        if (_flowVertices.length == 0 || _flow.length == 0) {
+            // Empty flow matrix
+            revert CirclesArraysLengthMismatch(_flowVertices.length, _flow.length, 4);
+        }
 
         // initialize the netted flow array
         int256[] memory nettedFlow = new int256[](_flowVertices.length);
@@ -693,15 +783,21 @@ contract Hub is Circles, MetadataDefinitions {
         {
             // check all vertices are valid avatars, groups or organizations
             for (uint64 i = 0; i < _flowVertices.length - 1; i++) {
-                require(
-                    uint160(_flowVertices[i]) < uint160(_flowVertices[i + 1]),
-                    "Flow vertices must be in ascending order."
-                );
-                require(avatars[_flowVertices[i]] != address(0), "Avatar must be registered.");
+                if (uint160(_flowVertices[i]) >= uint160(_flowVertices[i + 1])) {
+                    // Flow vertices must be in ascending order.
+                    revert CirclesHubFlowVerticesMustBeSorted();
+                }
+                if (avatars[_flowVertices[i]] == address(0)) {
+                    // Avatar must be registered.
+                    revert CirclesHubAvatarMustBeRegistered(_flowVertices[i], 3);
+                }
             }
 
             address lastAvatar = _flowVertices[_flowVertices.length - 1];
-            require(avatars[lastAvatar] != address(0), "Avatar must be registered.");
+            if (avatars[lastAvatar] == address(0)) {
+                // Avatar must be registered.
+                revert CirclesHubAvatarMustBeRegistered(lastAvatar, 4);
+            }
         }
 
         {
@@ -717,11 +813,14 @@ contract Hub is Circles, MetadataDefinitions {
                 int256 flow = int256(uint256(_flow[i].amount));
 
                 // check the receiver trusts the Circles being sent
-                require(isTrusted(to, circlesId), "Receiver does not trust Circles being sent");
-                require(
-                    !_closedPath || (to == circlesId && !isGroup(circlesId)),
-                    "Closed paths can only return personal Circles to source."
-                );
+                if (!isTrusted(to, circlesId)) {
+                    // Receiver does not trust Circles being sent
+                    revert CirclesHubCirclesAreNotTrustedByReceiver(to, toTokenId(circlesId), 1);
+                }
+                if (_closedPath && (to != circlesId || isGroup(circlesId))) {
+                    // Closed paths can only return personal Circles to source.
+                    revert CirclesHubOnClosedPathOnlyPersonalCirclesCanReturnToAvatar(to, toTokenId(circlesId));
+                }
 
                 // nett the flow, dividing out the different Circle identifiers
                 // expect for all edges to a group, as they are interpreted
@@ -898,9 +997,9 @@ contract Hub is Circles, MetadataDefinitions {
         // todo: same check treasury is an ERC1155Receiver for receiving collateral
         require(_treasury != address(0), "Treasury address can not be zero.");
         // name must be ASCII alphanumeric and some special characters
-        require(isValidName(_name), "Invalid group name.");
+        require(nameRegistry.isValidName(_name), "Invalid group name.");
         // symbol must be ASCII alphanumeric and some special characters
-        require(isValidSymbol(_symbol), "Invalid group symbol.");
+        require(nameRegistry.isValidSymbol(_symbol), "Invalid group symbol.");
 
         // insert avatar into linked list; reverts if it already exists
         _insertAvatar(_avatar);
@@ -986,6 +1085,15 @@ contract Hub is Circles, MetadataDefinitions {
         avatars[SENTINEL] = _avatar;
     }
 
+    function _validateAddressFromId(uint256 _id, uint8 _code) internal pure returns (address) {
+        address avatar = address(uint160(_id));
+        if (uint256(uint160(avatar)) != _id) {
+            // Invalid Circles identifier, not derived from address
+            revert CirclesHubIdMustBeDerivedFromAddress(_id, _code);
+        }
+        return avatar;
+    }
+
     /**
      * @dev abi.encodePacked of an array uint16[] would still pad each uint16 - I think;
      *      if abi packing does not add padding this function is redundant and should be thrown out
@@ -1044,25 +1152,25 @@ contract Hub is Circles, MetadataDefinitions {
     }
 }
 
-contract WrappedERC20 is ERC20, ERC1155Holder {
-    address public parentContract;
-    uint256 public parentTokenId;
+// contract WrappedERC20 is ERC20, ERC1155Holder {
+//     address public parentContract;
+//     uint256 public parentTokenId;
 
-    constructor(string memory _name, string memory _symbol, address _parentContract, uint256 _parentTokenId)
-        ERC20(_name, _symbol)
-    {
-        parentContract = _parentContract;
-        parentTokenId = _parentTokenId;
-    }
+//     constructor(string memory _name, string memory _symbol, address _parentContract, uint256 _parentTokenId)
+//         ERC20(_name, _symbol)
+//     {
+//         parentContract = _parentContract;
+//         parentTokenId = _parentTokenId;
+//     }
 
-    //TODO - seems to not update total supply
-    function mint(address _to, uint256 _amount) public {
-        require(msg.sender == parentContract, "Only parent contract can mint");
-        _mint(_to, _amount);
-    }
+//     //TODO - seems to not update total supply
+//     function mint(address _to, uint256 _amount) public {
+//         require(msg.sender == parentContract, "Only parent contract can mint");
+//         _mint(_to, _amount);
+//     }
 
-    function burn(address _from, uint256 _amount) public {
-        require(msg.sender == parentContract, "Only parent contract can burn");
-        _burn(_from, _amount);
-    }
-}
+//     function burn(address _from, uint256 _amount) public {
+//         require(msg.sender == parentContract, "Only parent contract can burn");
+//         _burn(_from, _amount);
+//     }
+// }
