@@ -8,7 +8,7 @@ import "./ERC20Permit.sol";
 abstract contract ERC20InflationaryBalances is ERC20Permit, Demurrage, IERC20 {
     // Constants
 
-    uint8 private constant EXTENDED_ACCURACY_BITS = 64;
+    uint8 internal constant EXTENDED_ACCURACY_BITS = 64;
 
     // State variables
 
@@ -87,17 +87,20 @@ abstract contract ERC20InflationaryBalances is ERC20Permit, Demurrage, IERC20 {
         emit Transfer(_from, _to, _amount);
     }
 
-    function _mint(address _owner, uint256 _amount) internal {
-        uint256 extendedAmount = _convertToExtended(_amount);
+    function _mintFromDemurragedAmount(address _owner, uint256 _demurragedAmount) internal {
+        // first convert to extended accuracy representation so we have extra garbage bits,
+        // before we apply the inflation factor, which will produce errors in the least significant bits
+        uint256 extendedAmount =
+            _calculateInflationaryBalance(_convertToExtended(_demurragedAmount), day(block.timestamp));
         // here ensure total supply does not overflow
         _extendedTotalSupply += extendedAmount;
         unchecked {
             _extendedAccuracyBalances[_owner] += extendedAmount;
         }
-        emit Transfer(address(0), _owner, _amount);
+        emit Transfer(address(0), _owner, extendedAmount >> EXTENDED_ACCURACY_BITS);
     }
 
-    function _burn(address _owner, uint256 _amount) internal {
+    function _burn(address _owner, uint256 _amount) internal returns (uint256) {
         uint256 extendedAmount = _convertToExtended(_amount);
         uint256 extendedOwnerBalance = _extendedAccuracyBalances[_owner];
         if (extendedOwnerBalance < extendedAmount) {
@@ -109,5 +112,7 @@ abstract contract ERC20InflationaryBalances is ERC20Permit, Demurrage, IERC20 {
             _extendedTotalSupply -= extendedAmount;
         }
         emit Transfer(_owner, address(0), _amount);
+
+        return extendedAmount;
     }
 }

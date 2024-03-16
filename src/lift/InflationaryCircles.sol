@@ -15,6 +15,12 @@ abstract contract InflationaryCircles is ERC20InflationaryBalances, ERC1155Holde
 
     address public avatar;
 
+    // Events
+
+    event Deposit(address indexed account, uint256 amount, uint256 demurragedAmount);
+
+    event Withdraw(address indexed account, uint256 amount, uint256 demurragedAmount);
+
     // Modifiers
 
     modifier onlyHub() {
@@ -47,24 +53,28 @@ abstract contract InflationaryCircles is ERC20InflationaryBalances, ERC1155Holde
     // External functions
 
     function unwrap(uint256 _amount) external {
-        // _burn(msg.sender, _amount);
-        // calculate demurraged amount to return to sender
-        // hub.safeTransferFrom(address(this), msg.sender, toTokenId(avatar), _amount, "");
+        uint256 extendedAmount = _burn(msg.sender, _amount);
+        // calculate demurraged amount in extended accuracy representation
+        // then discard garbage bits by shifting right
+        uint256 demurragedAmount =
+            convertInflationaryToDemurrageValue(extendedAmount, day(block.timestamp)) >> EXTENDED_ACCURACY_BITS;
+
+        hub.safeTransferFrom(address(this), msg.sender, toTokenId(avatar), demurragedAmount, "");
+
+        emit Withdraw(msg.sender, _amount, demurragedAmount);
     }
 
     // Public functions
 
-    function onERC1155Received(address, address, uint256 _id, uint256, bytes memory)
+    function onERC1155Received(address, address _from, uint256 _id, uint256 _amount, bytes memory)
         public
-        view
         override
         onlyHub
         returns (bytes4)
     {
         if (_id != toTokenId(avatar)) revert CirclesInvalidCirclesId(_id, 0);
         // calculate inflationary amount to mint to sender
-        // uint256 inflationaryAmount =
-        // _mint(_from, _amount);
+        _mintFromDemurragedAmount(_from, _amount);
         return this.onERC1155Received.selector;
     }
 
