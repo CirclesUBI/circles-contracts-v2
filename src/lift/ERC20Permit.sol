@@ -73,12 +73,12 @@ contract ERC20Permit is EIP712, Nonces, IERC20Permit, IERC20Errors, ICirclesErro
         _approve(_owner, _spender, _value);
     }
 
-    function nonces(address owner) public view override(IERC20Permit, Nonces) returns (uint256) {
-        // return nonce(owner);
+    function nonces(address _owner) public view override(IERC20Permit, Nonces) returns (uint256) {
+        return super.nonces(_owner);
     }
 
     function DOMAIN_SEPARATOR() public view override returns (bytes32) {
-        // return _domainSeparatorV4(name(), "1");
+        return _domainSeparatorV4();
     }
 
     // Public functions
