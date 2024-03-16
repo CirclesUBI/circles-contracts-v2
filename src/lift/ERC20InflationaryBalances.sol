@@ -12,7 +12,7 @@ abstract contract ERC20InflationaryBalances is ERC20Permit, Demurrage, IERC20 {
 
     // State variables
 
-    uint256 internal _totalSupply;
+    uint256 internal _extendedTotalSupply;
 
     mapping(address => uint256) private _extendedAccuracyBalances;
 
@@ -63,18 +63,18 @@ abstract contract ERC20InflationaryBalances is ERC20Permit, Demurrage, IERC20 {
     }
 
     function totalSupply() external view returns (uint256) {
-        return _totalSupply >> EXTENDED_ACCURACY_BITS;
+        return _extendedTotalSupply >> EXTENDED_ACCURACY_BITS;
     }
 
     // Internal functions
 
-    function convertToExtended(uint256 _amount) internal pure returns (uint256) {
+    function _convertToExtended(uint256 _amount) internal pure returns (uint256) {
         if (_amount > MAX_VALUE) revert CirclesAmountOverflow(_amount, 0);
         return _amount << EXTENDED_ACCURACY_BITS;
     }
 
     function _transfer(address _from, address _to, uint256 _amount) internal {
-        uint256 extendedAmount = convertToExtended(_amount);
+        uint256 extendedAmount = _convertToExtended(_amount);
         uint256 extendedFromBalance = _extendedAccuracyBalances[_from];
         if (extendedFromBalance < extendedAmount) {
             revert ERC20InsufficientBalance(_from, extendedFromBalance >> EXTENDED_ACCURACY_BITS, _amount);
@@ -85,5 +85,29 @@ abstract contract ERC20InflationaryBalances is ERC20Permit, Demurrage, IERC20 {
             _extendedAccuracyBalances[_to] += extendedAmount;
         }
         emit Transfer(_from, _to, _amount);
+    }
+
+    function _mint(address _owner, uint256 _amount) internal {
+        uint256 extendedAmount = _convertToExtended(_amount);
+        // here ensure total supply does not overflow
+        _extendedTotalSupply += extendedAmount;
+        unchecked {
+            _extendedAccuracyBalances[_owner] += extendedAmount;
+        }
+        emit Transfer(address(0), _owner, _amount);
+    }
+
+    function _burn(address _owner, uint256 _amount) internal {
+        uint256 extendedAmount = _convertToExtended(_amount);
+        uint256 extendedOwnerBalance = _extendedAccuracyBalances[_owner];
+        if (extendedOwnerBalance < extendedAmount) {
+            revert ERC20InsufficientBalance(_owner, _extendedAccuracyBalances[_owner], _amount);
+        }
+        unchecked {
+            _extendedAccuracyBalances[_owner] = extendedOwnerBalance - extendedAmount;
+            // rely on total supply tracking complete sum of balances
+            _extendedTotalSupply -= extendedAmount;
+        }
+        emit Transfer(_owner, address(0), _amount);
     }
 }
