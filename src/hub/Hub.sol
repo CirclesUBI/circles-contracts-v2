@@ -859,20 +859,23 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
                 (uint256[] memory ids, uint256[] memory amounts) =
                     _asSingletonArrays(toTokenId(_flowVertices[_coordinates[index]]), uint256(_flow[i].amount));
 
-                // check that each stream has listed the actual terminal flow edges in the correct order
-                // note, we can't do this check in _verifyFlowMatrix, because we run out of stack depth there
-                // streamSinkId starts counting from 1, so that 0 is reserved for non-terminal flow edges
+                // Check that each stream has listed the actual terminal flow edges in the correct order.
+                // Note, we can't do this check in _verifyFlowMatrix, because we run out of stack depth there.
+                // streamSinkId starts counting from 1, so that 0 is reserved for non-terminal flow edges.
                 if (_flow[i].streamSinkId > 0) {
                     uint16 streamSinkArrayId = _flow[i].streamSinkId - 1;
-                    require(
-                        _streams[streamSinkArrayId].flowEdgeIds[streamBatchCounter[streamSinkArrayId]] == i,
-                        "Invalid stream sink"
-                    );
+                    if (_streams[streamSinkArrayId].flowEdgeIds[streamBatchCounter[streamSinkArrayId]] != i) {
+                        // Invalid stream sink
+                        revert CirclesHubFlowEdgeStreamMismatch(i, _flow[i].streamSinkId, 0);
+                    }
                     streamBatchCounter[streamSinkArrayId]++;
                     if (streamReceivers[streamSinkArrayId] == address(0)) {
                         streamReceivers[streamSinkArrayId] = to;
                     } else {
-                        require(streamReceivers[streamSinkArrayId] == to, "Invalid stream receiver");
+                        if (streamReceivers[streamSinkArrayId] != to) {
+                            // Invalid stream receiver
+                            revert CirclesHubFlowEdgeStreamMismatch(i, _flow[i].streamSinkId, 1);
+                        }
                     }
                 }
 
@@ -900,9 +903,16 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
                 index = index + 3;
             }
 
+            // check that all streams are properly defined
             for (uint16 i = 0; i < _streams.length; i++) {
-                require(streamReceivers[i] != address(0), "Invalid stream receiver");
-                require(streamBatchCounter[i] == _streams[i].flowEdgeIds.length, "Invalid stream batch");
+                if (streamReceivers[i] == address(0)) {
+                    // Invalid stream receiver
+                    revert CirclesHubStreamMismatch(i, 0);
+                }
+                if (streamBatchCounter[i] != _streams[i].flowEdgeIds.length) {
+                    // Invalid stream batch
+                    revert CirclesHubStreamMismatch(i, 1);
+                }
             }
         }
     }
@@ -930,7 +940,6 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
             // use the first sink flow edge to recover the receiver coordinate
             uint16 receiverCoordinate = _coordinates[3 * _streams[i].flowEdgeIds[0] + 2];
             address receiver = _flowVertices[receiverCoordinate];
-            require(receiver != address(0), "Invalid stream receiver");
             _acceptanceCheck(
                 _flowVertices[_streams[i].sourceCoordinate], // from
                 receiver, // to
@@ -948,9 +957,15 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
     }
 
     function _matchNettedFlows(int256[] memory _streamsNettedFlow, int256[] memory _matrixNettedFlow) internal pure {
-        require(_streamsNettedFlow.length == _matrixNettedFlow.length);
-        for (uint256 i = 0; i < _streamsNettedFlow.length; i++) {
-            require(_streamsNettedFlow[i] == _matrixNettedFlow[i], "Intended flow does not match verified flow.");
+        if (_streamsNettedFlow.length != _matrixNettedFlow.length) {
+            // Mismatch in netted flow length.
+            revert CirclesArraysLengthMismatch(_streamsNettedFlow.length, _matrixNettedFlow.length, 5);
+        }
+        for (uint16 i = 0; i < _streamsNettedFlow.length; i++) {
+            if (_streamsNettedFlow[i] != _matrixNettedFlow[i]) {
+                // Intended flow does not match verified flow.
+                revert CirclesHubNettedFlowMismatch(i, _streamsNettedFlow[i], _matrixNettedFlow[i]);
+            }
         }
     }
 

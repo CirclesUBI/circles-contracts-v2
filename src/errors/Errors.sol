@@ -31,6 +31,12 @@ interface IHubErrors {
     error CirclesHubOnClosedPathOnlyPersonalCirclesCanReturnToAvatar(address failedReceiver, uint256 circlesId);
 
     error CirclesHubFlowVerticesMustBeSorted();
+
+    error CirclesHubFlowEdgeStreamMismatch(uint16 flowEdgeId, uint16 streamId, uint8 code);
+
+    error CirclesHubStreamMismatch(uint16 streamId, uint8 code);
+
+    error CirclesHubNettedFlowMismatch(uint16 vertexPosition, int256 matrixNettedFlow, int256 streamNettedFlow);
 }
 
 interface ICirclesErrors {
