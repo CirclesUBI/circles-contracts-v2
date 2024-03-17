@@ -18,8 +18,6 @@ interface IHubErrors {
 
     error CirclesHubInvalidTrustReceiver(address trustReceiver, uint8 code);
 
-    error CirclesHubIdMustBeDerivedFromAddress(uint256 providedId, uint8 code);
-
     error CirclesHubGroupMintPolicyRejectedMint(
         address minter, address group, uint256[] collateral, uint256[] amounts, bytes data, uint8 code
     );
@@ -39,14 +37,14 @@ interface IHubErrors {
     error CirclesHubStreamMismatch(uint16 streamId, uint8 code);
 
     error CirclesHubNettedFlowMismatch(uint16 vertexPosition, int256 matrixNettedFlow, int256 streamNettedFlow);
-
-    error CirclesHubLogicAssertion(uint8 code);
 }
 
 interface ICirclesERC1155Errors {
     error CirclesERC1155MintBlocked(address human, address mintV1Status);
 
     error CirclesERC1155NoMintToIssue(address human, uint96 lastMintTime);
+
+    error CirclesERC1155AmountExceedsMaxUint190(address account, uint256 circlesId, uint256 amount, uint8 code);
 }
 
 interface ICirclesErrors {
@@ -67,6 +65,22 @@ interface ICirclesErrors {
     error CirclesArrayMustNotBeEmpty(uint8 code);
 
     error CirclesAmountMustNotBeZero(uint8 code);
+
+    error CirclesProxyAlreadyInitialized();
+
+    error CirclesLogicAssertion(uint8 code);
+
+    error CirclesIdMustBeDerivedFromAddress(uint256 providedId, uint8 code);
+}
+
+interface IStandardTreasuryErrors {
+    error CirclesStandardTreasuryGroupHasNoVault(address group);
+
+    error CirclesStandardTreasuryRedemptionCollateralMismatch(
+        uint256 circlesId, uint256[] redemptionIds, uint256[] redemptionValues, uint256[] burnIds, uint256[] burnValues
+    );
+
+    error CirclesStandardTreasuryInvalidMetadataType(bytes32 metadataType, uint8 code);
 }
 
 interface INameRegistryErrors {

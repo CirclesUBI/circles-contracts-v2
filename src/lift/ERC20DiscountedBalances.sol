@@ -81,7 +81,10 @@ contract ERC20DiscountedBalances is ERC20Permit, Demurrage, IERC20 {
     }
 
     function _updateBalance(address _account, uint256 _balance, uint64 _day) internal {
-        require(_balance <= MAX_VALUE, "Balance exceeds maximum value.");
+        if (_balance > MAX_VALUE) {
+            // Balance exceeds maximum value.
+            revert CirclesERC1155AmountExceedsMaxUint190(_account, 0, _balance, 0);
+        }
         DiscountedBalance storage discountedBalance = discountedBalances[_account];
         discountedBalance.balance = uint192(_balance);
         discountedBalance.lastUpdatedDay = _day;
@@ -91,7 +94,10 @@ contract ERC20DiscountedBalances is ERC20Permit, Demurrage, IERC20 {
         DiscountedBalance storage discountedBalance = discountedBalances[_account];
         uint256 newBalance =
             _calculateDiscountedBalance(discountedBalance.balance, _day - discountedBalance.lastUpdatedDay) + _value;
-        require(newBalance <= MAX_VALUE, "Balance exceeds maximum value.");
+        if (newBalance > MAX_VALUE) {
+            // Balance exceeds maximum value.
+            revert CirclesERC1155AmountExceedsMaxUint190(_account, 0, newBalance, 0);
+        }
         discountedBalance.balance = uint192(newBalance);
         discountedBalance.lastUpdatedDay = _day;
     }

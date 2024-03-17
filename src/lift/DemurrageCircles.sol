@@ -34,8 +34,12 @@ abstract contract DemurrageCircles is ERC20DiscountedBalances, ERC1155Holder {
     // Setup function
 
     function setup(address _avatar) external {
-        require(address(hub) == address(0));
-        require(_avatar != address(0));
+        if (address(hub) != address(0)) {
+            revert CirclesProxyAlreadyInitialized();
+        }
+        if (_avatar == address(0)) {
+            revert CirclesAddressCannotBeZero(0);
+        }
         hub = IHubV2(msg.sender);
         avatar = _avatar;
         // read inflation day zero from hub

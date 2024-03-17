@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity >=0.8.13;
 
+import "../errors/Errors.sol";
 import "../lib/Math64x64.sol";
 
-contract Demurrage {
+contract Demurrage is ICirclesERC1155Errors {
     // Type declarations
 
     /**

@@ -2,6 +2,8 @@
 // Adapted from https://github.com/gnosis/safe-contracts
 pragma solidity >=0.8.4;
 
+import "../errors/Errors.sol";
+
 /// @title IProxy - interface to access master copy of the proxy on-chain
 interface IProxy {
     function masterCopy() external view returns (address);
@@ -11,7 +13,7 @@ interface IProxy {
 ///        applying the code of a master contract.
 /// @author Stefan George - <stefan@gnosis.io>
 /// @author Richard Meissner - <richard@gnosis.io>
-contract Proxy {
+contract Proxy is ICirclesErrors {
     // masterCopy always needs to be first declared variable,
     // to ensure that it is at the same location in the contracts
     // to which calls are delegated.
@@ -22,7 +24,10 @@ contract Proxy {
     /// @dev Constructor function sets address of master copy contract.
     /// @param _masterCopy Master copy address.
     constructor(address _masterCopy) {
-        require(_masterCopy != address(0), "Invalid master copy address provided");
+        if (_masterCopy != address(0)) {
+            // Invalid master copy address provided
+            revert CirclesAddressCannotBeZero(0);
+        }
         masterCopy = _masterCopy;
     }
 

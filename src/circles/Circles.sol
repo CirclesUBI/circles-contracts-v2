@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity >=0.8.13;
 
-import "../errors/Errors.sol";
 import "../lib/Math64x64.sol";
 import "./ERC1155.sol";
 
-contract Circles is ERC1155, ICirclesERC1155Errors {
+contract Circles is ERC1155 {
     // Type declarations
 
     /**

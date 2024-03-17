@@ -236,7 +236,10 @@ contract DiscountedBalances is Demurrage {
      * @param _day Day since inflation_day_zero to set as last updated day
      */
     function _updateBalance(address _account, uint256 _id, uint256 _balance, uint64 _day) internal {
-        require(_balance <= MAX_VALUE, "DiscountedBalances: balance exceeds maximum value");
+        if (_balance > MAX_VALUE) {
+            // DiscountedBalances: balance exceeds maximum value
+            revert CirclesERC1155AmountExceedsMaxUint190(_account, _id, _balance, 0);
+        }
         DiscountedBalance storage discountedBalance = discountedBalances[_id][_account];
         discountedBalance.balance = uint192(_balance);
         discountedBalance.lastUpdatedDay = _day;
@@ -254,7 +257,10 @@ contract DiscountedBalances is Demurrage {
         uint256 discountedBalanceValue =
             _calculateDiscountedBalance(discountedBalance.balance, _day - discountedBalance.lastUpdatedDay);
         uint256 newBalance = discountedBalanceValue + _value;
-        require(newBalance <= MAX_VALUE, "DiscountedBalances: balance exceeds maximum value");
+        if (newBalance > MAX_VALUE) {
+            // DiscountedBalances: balance exceeds maximum value
+            revert CirclesERC1155AmountExceedsMaxUint190(_account, _id, newBalance, 1);
+        }
         discountedBalance.balance = uint192(newBalance);
         discountedBalance.lastUpdatedDay = _day;
     }

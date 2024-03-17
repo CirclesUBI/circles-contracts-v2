@@ -2,9 +2,10 @@
 pragma solidity >=0.8.13;
 
 import "@openzeppelin/contracts/utils/Create2.sol";
+import "../errors/Errors.sol";
 import "../proxy/ProxyFactory.sol";
 
-contract ERC20Lift is ProxyFactory {
+contract ERC20Lift is ProxyFactory, ICirclesErrors {
     // Constants
 
     bytes4 public constant ERC20_DEMURRAGE_SETUP_CALLPREFIX = bytes4(keccak256("setup(uint256)"));
@@ -26,8 +27,14 @@ contract ERC20Lift is ProxyFactory {
     // Constructor
 
     constructor(address _masterCopyERC20Demurrage, address _masterCopyERC20Inflation) {
-        require(_masterCopyERC20Demurrage != address(0), "Must not be the zero address.");
-        require(_masterCopyERC20Inflation != address(0), "Must not be the zero address.");
+        if (_masterCopyERC20Demurrage == address(0)) {
+            // Must not be the zero address.
+            revert CirclesAddressCannotBeZero(0);
+        }
+        if (_masterCopyERC20Inflation == address(0)) {
+            // Must not be the zero address.
+            revert CirclesAddressCannotBeZero(1);
+        }
 
         masterCopyERC20Demurrage = _masterCopyERC20Demurrage;
         masterCopyERC20Inflation = _masterCopyERC20Inflation;

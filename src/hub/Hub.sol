@@ -1097,7 +1097,7 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
         // as this marks whether an avatar is registered as human or not
         if (mintTime.lastMintTime == 0) {
             // Avatar must already be registered as human before we call update
-            revert CirclesHubLogicAssertion(0);
+            revert CirclesLogicAssertion(0);
         }
         // if the status has changed, update the last mint time
         // to avoid possible overlap of the mint between Hub v1 and Hub v2
@@ -1125,7 +1125,7 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
         address avatar = address(uint160(_id));
         if (uint256(uint160(avatar)) != _id) {
             // Invalid Circles identifier, not derived from address
-            revert CirclesHubIdMustBeDerivedFromAddress(_id, _code);
+            revert CirclesIdMustBeDerivedFromAddress(_id, _code);
         }
         return avatar;
     }
@@ -1169,9 +1169,9 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
      * It will update the expiry time for the trusted address.
      */
     function _upsertTrustMarker(address _truster, address _trusted, uint96 _expiry) private {
-        if (_truster == address(0)) revert CirclesHubLogicAssertion(1);
-        if (_trusted == address(0)) revert CirclesHubLogicAssertion(2);
-        if (_trusted == SENTINEL) revert CirclesHubLogicAssertion(3);
+        if (_truster == address(0)) revert CirclesLogicAssertion(1);
+        if (_trusted == address(0)) revert CirclesLogicAssertion(2);
+        if (_trusted == SENTINEL) revert CirclesLogicAssertion(3);
 
         TrustMarker storage sentinelMarker = trustMarkers[_truster][SENTINEL];
         if (sentinelMarker.previous == address(0)) {
