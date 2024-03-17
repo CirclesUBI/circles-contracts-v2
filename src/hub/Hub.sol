@@ -190,10 +190,10 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
         string memory _fallbackUri
     ) Circles(_inflationDayZero, _fallbackUri) {
         if (address(_hubV1) == address(0)) {
-            revert CirclesSetupAddressCannotBeZero(0);
+            revert CirclesAddressCannotBeZero(0);
         }
         if (_standardTreasury == address(0)) {
-            revert CirclesSetupAddressCannotBeZero(1);
+            revert CirclesAddressCannotBeZero(1);
         }
 
         // initialize linked list for avatars
@@ -247,7 +247,7 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
      */
     function inviteHuman(address _human) external {
         if (!isHuman(msg.sender)) {
-            revert CirclesHubCallerMustBeHuman(msg.sender, 0);
+            revert CirclesHubMustBeHuman(msg.sender, 0);
         }
 
         // register the invited human; reverts if they already exist
@@ -367,7 +367,7 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
     function personalMint() external {
         if (!isHuman(msg.sender)) {
             // Only avatars registered as human can call personal mint.
-            revert CirclesHubCallerMustBeHuman(msg.sender, 1);
+            revert CirclesHubMustBeHuman(msg.sender, 1);
         }
         // check if v1 Circles is known to be stopped
         if (mintTimes[msg.sender].mintV1Status != CIRCLES_STOPPED_V1) {
@@ -409,7 +409,7 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
     function stop() external {
         if (!isHuman(msg.sender)) {
             // Only human can call stop.
-            revert CirclesHubCallerMustBeHuman(msg.sender, 2);
+            revert CirclesHubMustBeHuman(msg.sender, 2);
         }
         MintTime storage mintTime = mintTimes[msg.sender];
         // check if already stopped
@@ -430,7 +430,7 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
     function stopped(address _human) external view returns (bool) {
         if (!isHuman(_human)) {
             // Only personal Circles can have a status of boolean stopped.
-            revert CirclesHubCallerMustBeHuman(_human, 3);
+            revert CirclesHubMustBeHuman(_human, 3);
         }
         MintTime storage mintTime = mintTimes[msg.sender];
         return (mintTime.lastMintTime == INDEFINITE_FUTURE);
@@ -465,7 +465,7 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
             // personal Circles are required to burn the invitation cost
             if (!isHuman(_owner)) {
                 // Only humans can migrate v1 tokens after the bootstrap period.
-                revert CirclesHubCallerMustBeHuman(_owner, 4);
+                revert CirclesHubMustBeHuman(_owner, 4);
             }
             _burn(_owner, toTokenId(_owner), cost);
         }
@@ -1008,13 +1008,25 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
         string calldata _symbol
     ) internal {
         // todo: we could check ERC165 support interface for mint policy
-        require(_mint != address(0), "Mint address can not be zero.");
+        if (_mint == address(0)) {
+            // Mint address can not be zero.
+            revert CirclesAddressCannotBeZero(2);
+        }
         // todo: same check treasury is an ERC1155Receiver for receiving collateral
-        require(_treasury != address(0), "Treasury address can not be zero.");
-        // name must be ASCII alphanumeric and some special characters
-        require(nameRegistry.isValidName(_name), "Invalid group name.");
-        // symbol must be ASCII alphanumeric and some special characters
-        require(nameRegistry.isValidSymbol(_symbol), "Invalid group symbol.");
+        if (_treasury == address(0)) {
+            // Treasury address can not be zero.
+            revert CirclesAddressCannotBeZero(3);
+        }
+        if (!nameRegistry.isValidName(_name)) {
+            // Invalid group name.
+            // name must be ASCII alphanumeric and some special characters
+            revert CirclesInvalidString(_name, 0);
+        }
+        if (!nameRegistry.isValidSymbol(_symbol)) {
+            // Invalid group symbol.
+            // symbol must be ASCII alphanumeric and some special characters
+            revert CirclesInvalidString(_symbol, 1);
+        }
 
         // insert avatar into linked list; reverts if it already exists
         _insertAvatar(_avatar);
@@ -1043,7 +1055,10 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
                 registrationCount++;
                 _registerHuman(_avatars[i]);
             } else {
-                require(isHuman(_avatars[i]), "Only humans can be registered.");
+                if (!isHuman(_avatars[i])) {
+                    // Only humans can be registered.
+                    revert CirclesHubMustBeHuman(_avatars[i], 5);
+                }
             }
         }
 
@@ -1080,7 +1095,10 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
         MintTime storage mintTime = mintTimes[_human];
         // precautionary check to ensure that the last mint time is already set
         // as this marks whether an avatar is registered as human or not
-        assert(mintTime.lastMintTime > 0);
+        if (mintTime.lastMintTime == 0) {
+            // Avatar must already be registered as human before we call update
+            revert CirclesHubLogicAssertion(0);
+        }
         // if the status has changed, update the last mint time
         // to avoid possible overlap of the mint between Hub v1 and Hub v2
         if (mintTime.mintV1Status != _mintV1Status) {
@@ -1095,7 +1113,10 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
      * @param _avatar avatar address to insert
      */
     function _insertAvatar(address _avatar) internal {
-        require(avatars[_avatar] == address(0), "Avatar already inserted");
+        if (avatars[_avatar] != address(0)) {
+            // Avatar already inserted
+            revert CirclesHubAvatarAlreadyRegistered(_avatar, 0);
+        }
         avatars[_avatar] = avatars[SENTINEL];
         avatars[SENTINEL] = _avatar;
     }
@@ -1123,7 +1144,10 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
         pure
         returns (uint16[] memory unpackedCoordinates_)
     {
-        require(_packedData.length == _numberOfTriplets * 6, "Invalid packed data length");
+        if (_packedData.length != _numberOfTriplets * 6) {
+            // Invalid packed data length
+            revert CirclesArraysLengthMismatch(_packedData.length, _numberOfTriplets, 6);
+        }
 
         unpackedCoordinates_ = new uint16[](_numberOfTriplets * 3);
         uint256 index = 0;
@@ -1145,9 +1169,9 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
      * It will update the expiry time for the trusted address.
      */
     function _upsertTrustMarker(address _truster, address _trusted, uint96 _expiry) private {
-        assert(_truster != address(0));
-        assert(_trusted != address(0));
-        assert(_trusted != SENTINEL);
+        if (_truster == address(0)) revert CirclesHubLogicAssertion(1);
+        if (_trusted == address(0)) revert CirclesHubLogicAssertion(2);
+        if (_trusted == SENTINEL) revert CirclesHubLogicAssertion(3);
 
         TrustMarker storage sentinelMarker = trustMarkers[_truster][SENTINEL];
         if (sentinelMarker.previous == address(0)) {

@@ -8,7 +8,9 @@ interface IHubErrors {
 
     error CirclesHubAvatarMustBeRegistered(address avatar, uint8 code);
 
-    error CirclesHubCallerMustBeHuman(address caller, uint8 code);
+    error CirclesHubAvatarAlreadyRegistered(address avatar, uint8 code);
+
+    error CirclesHubMustBeHuman(address avatar, uint8 code);
 
     error CirclesHubGroupIsNotRegistered(address group, uint8 code);
 
@@ -37,14 +39,18 @@ interface IHubErrors {
     error CirclesHubStreamMismatch(uint16 streamId, uint8 code);
 
     error CirclesHubNettedFlowMismatch(uint16 vertexPosition, int256 matrixNettedFlow, int256 streamNettedFlow);
+
+    error CirclesHubLogicAssertion(uint8 code);
 }
 
 interface ICirclesErrors {
-    error CirclesSetupAddressCannotBeZero(uint8 code);
+    error CirclesAddressCannotBeZero(uint8 code);
 
     error CirclesInvalidFunctionCaller(address caller, address expectedCaller, uint8 code);
 
     error CirclesInvalidCirclesId(uint256 id, uint8 code);
+
+    error CirclesInvalidString(string str, uint8 code);
 
     error CirclesERC1155CannotReceiveBatch(uint8 code);
 
