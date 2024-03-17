@@ -24,6 +24,10 @@ contract ERC20Lift is ProxyFactory, ICirclesErrors {
      */
     address public immutable masterCopyERC20Inflation;
 
+    mapping(address => address) public erc20DemurrageCircles;
+
+    mapping(address => address) public erc20InflationCircles;
+
     // Constructor
 
     constructor(address _masterCopyERC20Demurrage, address _masterCopyERC20Inflation) {
@@ -43,7 +47,8 @@ contract ERC20Lift is ProxyFactory, ICirclesErrors {
     // Public functions
 
     function ensureERC20DemurrageWrapper(uint256 _id) public pure returns (address) {
-        bytes32 salt = keccak256(abi.encodePacked(_id));
+        // todo: first build a simple proxy factory, afterwards redo for create2 deployment
+        // bytes32 salt = keccak256(abi.encodePacked(_id));
     }
 
     function getDeterministicAddress(uint256 _tokenId, bytes32 _bytecodeHash) public view returns (address) {
