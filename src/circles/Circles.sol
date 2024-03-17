@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity >=0.8.13;
 
+import "../errors/Errors.sol";
 import "../lib/Math64x64.sol";
 import "./ERC1155.sol";
 
-contract Circles is ERC1155 {
+contract Circles is ERC1155, ICirclesERC1155Errors {
     // Type declarations
 
     /**
@@ -82,10 +83,10 @@ contract Circles is ERC1155 {
      */
     function calculateIssuance(address _human) public view returns (uint256) {
         MintTime storage mintTime = mintTimes[_human];
-        require(
-            mintTime.mintV1Status == address(0) || mintTime.mintV1Status == CIRCLES_STOPPED_V1,
-            "Circles v1 contract cannot be active."
-        );
+        if (mintTime.mintV1Status != address(0) && mintTime.mintV1Status != CIRCLES_STOPPED_V1) {
+            // Circles v1 contract cannot be active.
+            revert CirclesERC1155MintBlocked(_human, mintTime.mintV1Status);
+        }
 
         if (uint256(mintTime.lastMintTime) + 1 hours > block.timestamp) {
             // Mint time is set to indefinite future for stopped mints in v2
@@ -126,7 +127,10 @@ contract Circles is ERC1155 {
      */
     function _claimIssuance(address _human) internal {
         uint256 issuance = calculateIssuance(_human);
-        require(issuance > 0, "No issuance to claim.");
+        if (issuance == 0) {
+            // No issuance to claim.
+            revert CirclesERC1155NoMintToIssue(_human, mintTimes[_human].lastMintTime);
+        }
         // mint personal Circles to the human
         _mint(_human, toTokenId(_human), issuance, "");
         // update the last mint time

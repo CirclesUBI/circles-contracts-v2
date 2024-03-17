@@ -43,6 +43,12 @@ interface IHubErrors {
     error CirclesHubLogicAssertion(uint8 code);
 }
 
+interface ICirclesERC1155Errors {
+    error CirclesERC1155MintBlocked(address human, address mintV1Status);
+
+    error CirclesERC1155NoMintToIssue(address human, uint96 lastMintTime);
+}
+
 interface ICirclesErrors {
     error CirclesAddressCannotBeZero(uint8 code);
 
