@@ -218,15 +218,15 @@ contract DiscountedBalances is Demurrage {
 
     // Internal functions
 
-    /**
-     * @dev Calculate the inflationary balance of a discounted balance
-     * @param _account Address of the account to calculate the balance of
-     * @param _id Circles identifier for which to calculate the balance
-     */
-    function _inflationaryBalanceOf(address _account, uint256 _id) internal view returns (uint256) {
-        DiscountedBalance memory discountedBalance = discountedBalances[_id][_account];
-        return _calculateInflationaryBalance(discountedBalance.balance, discountedBalance.lastUpdatedDay);
-    }
+    // /**
+    //  * @dev Calculate the inflationary balance of a discounted balance
+    //  * @param _account Address of the account to calculate the balance of
+    //  * @param _id Circles identifier for which to calculate the balance
+    //  */
+    // function _inflationaryBalanceOf(address _account, uint256 _id) internal view returns (uint256) {
+    //     DiscountedBalance memory discountedBalance = discountedBalances[_id][_account];
+    //     return _calculateInflationaryBalance(discountedBalance.balance, discountedBalance.lastUpdatedDay);
+    // }
 
     /**
      * @dev Update the balance of an account for a given Circles identifier

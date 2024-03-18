@@ -31,23 +31,23 @@ contract Circles is ERC1155 {
      * @notice Issue one Circle per hour for each human in demurraged units.
      * So per second issue 10**18 / 3600 = 277777777777778 attoCircles.
      */
-    uint256 public constant ISSUANCE_PER_SECOND = uint256(277777777777778);
+    uint256 private constant ISSUANCE_PER_SECOND = uint256(277777777777778);
 
     /**
      * @notice Upon claiming, the maximum claim is upto two weeks
      * of history. Unclaimed older Circles are unclaimable.
      */
-    uint256 public constant MAX_CLAIM_DURATION = 2 weeks;
+    uint256 private constant MAX_CLAIM_DURATION = 2 weeks;
 
     /**
      * @dev Address used to indicate that the associated v1 Circles contract has been stopped.
      */
-    address public constant CIRCLES_STOPPED_V1 = address(0x1);
+    address internal constant CIRCLES_STOPPED_V1 = address(0x1);
 
     /**
      * @notice Indefinite future, or approximated with uint96.max
      */
-    uint96 public constant INDEFINITE_FUTURE = type(uint96).max;
+    uint96 internal constant INDEFINITE_FUTURE = type(uint96).max;
 
     // State variables
 

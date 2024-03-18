@@ -45,7 +45,7 @@ contract HubPathTransferTest is Test, TimeSetup, HumanRegistration {
         }
 
         // get this value first to avoid using `startPrank` over inline calls
-        uint96 expiry = mockHub.INDEFINITE_FUTURE();
+        uint96 expiry = type(uint96).max;
 
         // David trust (->) Charlie, C -> B, B -> A
         // so that Alice can send tokens to David over A-B-C-D

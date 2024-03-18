@@ -7,6 +7,7 @@ pragma solidity >=0.8.13;
 import "../circles/Circles.sol";
 import "../errors/Errors.sol";
 import "../groups/IMintPolicy.sol";
+import "../lift/IERC20Lift.sol";
 import "../migration/IHub.sol";
 import "../migration/IToken.sol";
 import "../names/INameRegistry.sol";
@@ -53,24 +54,17 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
     /**
      * @dev Welcome bonus for new avatars invited to Circles. Set to 50 Circles.
      */
-    uint256 public constant WELCOME_BONUS = 50 * EXA;
+    uint256 private constant WELCOME_BONUS = 50 * EXA;
 
     /**
      * @dev The cost of an invitation for a new avatar, paid in personal Circles burnt, set to 100 Circles.
      */
-    uint256 public constant INVITATION_COST = 2 * WELCOME_BONUS;
-
-    /**
-     * @dev The minimum donation amount for registering a human as an organization,
-     * paid in xDai, set to 0.1 xDai. The donation benefiary is arbitrary, and purely
-     * reputational for the organization inviting people to Circles.
-     */
-    uint256 public constant MINIMUM_DONATION = 10 ** 17;
+    uint256 private constant INVITATION_COST = 2 * WELCOME_BONUS;
 
     /**
      * @dev The address used as the first element of the linked list of avatars.
      */
-    address public constant SENTINEL = address(0x1);
+    address private constant SENTINEL = address(0x1);
 
     // State variables
 
@@ -86,7 +80,7 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
      */
     address public immutable migration;
 
-    address public immutable liftERC20;
+    IERC20Lift public immutable liftERC20;
 
     /**
      * @notice The timestamp of the start of the invitation-only period.
@@ -184,7 +178,7 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
         IHubV1 _hubV1,
         INameRegistry _nameRegistry,
         address _migration,
-        address _liftERC20,
+        IERC20Lift _liftERC20,
         address _standardTreasury,
         uint256 _inflationDayZero,
         uint256 _bootstrapTime,
@@ -498,6 +492,17 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
 
     // Public functions
 
+    function wrap(address _avatar, uint256 _amount, CirclesType _type) public {
+        if (!isHuman(_avatar) && !isGroup(_avatar)) {
+            // Avatar must be human or group.
+            revert CirclesAvatarMustBeRegistered(_avatar, 2);
+        }
+        address erc20Wrapper = liftERC20.ensureERC20(_avatar, _type);
+        safeTransferFrom(msg.sender, erc20Wrapper, toTokenId(_avatar), _amount, "");
+    }
+
+    // todo: if we have space, possibly have a wrapBatch function
+
     // function getDeterministicAddress(uint256 _tokenId, bytes32 _bytecodeHash) public view returns (address) {
     //     return Create2.computeAddress(keccak256(abi.encodePacked(_tokenId)), _bytecodeHash);
     // }
@@ -533,7 +538,7 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
     function setIpfsCidV0(bytes32 _ipfsCid) external {
         if (avatars[msg.sender] == address(0)) {
             // Only registered avatars can set the IPFS CIDv0 digest.
-            revert CirclesAvatarMustBeRegistered(msg.sender, 2);
+            revert CirclesAvatarMustBeRegistered(msg.sender, 3);
         }
         // todo: we should charge in CRC, but better done later through a storage market
         nameRegistry.updateCidV0Digest(msg.sender, _ipfsCid);
@@ -783,14 +788,14 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
                 }
                 if (avatars[_flowVertices[i]] == address(0)) {
                     // Avatar must be registered.
-                    revert CirclesAvatarMustBeRegistered(_flowVertices[i], 3);
+                    revert CirclesAvatarMustBeRegistered(_flowVertices[i], 4);
                 }
             }
 
             address lastAvatar = _flowVertices[_flowVertices.length - 1];
             if (avatars[lastAvatar] == address(0)) {
                 // Avatar must be registered.
-                revert CirclesAvatarMustBeRegistered(lastAvatar, 4);
+                revert CirclesAvatarMustBeRegistered(lastAvatar, 5);
             }
         }
 

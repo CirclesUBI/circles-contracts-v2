@@ -39,16 +39,20 @@ contract InflationaryCircles is ERC20InflationaryBalances, ERC1155Holder {
 
     // Setup function
 
-    function setup(address _avatar) external {
+    function setup(IHubV2 _hub, address _avatar) external {
         if (address(hub) != address(0)) {
             // Must not be initialized already.
             revert CirclesProxyAlreadyInitialized();
         }
-        if (_avatar == address(0)) {
+        if (address(_hub) == address(0)) {
             // Must not be the zero address.
             revert CirclesAddressCannotBeZero(0);
         }
-        hub = IHubV2(msg.sender);
+        if (_avatar == address(0)) {
+            // Must not be the zero address.
+            revert CirclesAddressCannotBeZero(1);
+        }
+        hub = _hub;
         avatar = _avatar;
         // read inflation day zero from hub
         inflationDayZero = hub.inflationDayZero();
@@ -80,7 +84,10 @@ contract InflationaryCircles is ERC20InflationaryBalances, ERC1155Holder {
     {
         if (_id != toTokenId(avatar)) revert CirclesInvalidCirclesId(_id, 0);
         // calculate inflationary amount to mint to sender
-        _mintFromDemurragedAmount(_from, _amount);
+        uint256 inflationaryAmount = _mintFromDemurragedAmount(_from, _amount);
+
+        emit Deposit(_from, inflationaryAmount, _amount);
+
         return this.onERC1155Received.selector;
     }
 

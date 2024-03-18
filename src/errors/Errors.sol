@@ -56,6 +56,8 @@ interface ICirclesErrors {
 
     error CirclesInvalidString(string str, uint8 code);
 
+    error CirclesInvalidParameter(uint256 parameter, uint8 code);
+
     error CirclesERC1155CannotReceiveBatch(uint8 code);
 
     error CirclesAmountOverflow(uint256 amount, uint8 code);

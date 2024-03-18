@@ -29,12 +29,12 @@ contract Demurrage is ICirclesERC1155Errors {
      * the demurrage of balances from once per second (block.timestamp)
      * to once per day.
      */
-    uint256 public constant DEMURRAGE_WINDOW = 1 days;
+    uint256 private constant DEMURRAGE_WINDOW = 1 days;
 
     /**
      * @dev Maximum value that can be stored or transferred
      */
-    uint256 public constant MAX_VALUE = type(uint192).max;
+    uint256 internal constant MAX_VALUE = type(uint192).max;
 
     /**
      * @dev Reduction factor GAMMA for applying demurrage to balances

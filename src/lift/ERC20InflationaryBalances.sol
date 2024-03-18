@@ -87,7 +87,7 @@ contract ERC20InflationaryBalances is ERC20Permit, Demurrage, IERC20 {
         emit Transfer(_from, _to, _amount);
     }
 
-    function _mintFromDemurragedAmount(address _owner, uint256 _demurragedAmount) internal {
+    function _mintFromDemurragedAmount(address _owner, uint256 _demurragedAmount) internal returns (uint256) {
         // first convert to extended accuracy representation so we have extra garbage bits,
         // before we apply the inflation factor, which will produce errors in the least significant bits
         uint256 extendedAmount =
@@ -98,6 +98,8 @@ contract ERC20InflationaryBalances is ERC20Permit, Demurrage, IERC20 {
             _extendedAccuracyBalances[_owner] += extendedAmount;
         }
         emit Transfer(address(0), _owner, extendedAmount >> EXTENDED_ACCURACY_BITS);
+
+        return extendedAmount >> EXTENDED_ACCURACY_BITS;
     }
 
     function _burn(address _owner, uint256 _amount) internal returns (uint256) {
