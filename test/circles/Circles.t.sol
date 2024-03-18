@@ -89,20 +89,20 @@ contract CirclesTest is Test, TimeSetup, Approximation {
         // send 5 CRC from alice to bob
         uint256 aliceBalance = circles.balanceOf(addresses[0], circlesIdentifiers[0]);
         uint256 bobBalance = circles.balanceOf(addresses[1], circlesIdentifiers[0]);
-        uint256 aliceInflationaryBalance = circles.inflationaryBalanceOf(addresses[0], circlesIdentifiers[0]);
-        uint256 bobInflationaryBalance = circles.inflationaryBalanceOf(addresses[1], circlesIdentifiers[0]);
+        // uint256 aliceInflationaryBalance = circles.inflationaryBalanceOf(addresses[0], circlesIdentifiers[0]);
+        // uint256 bobInflationaryBalance = circles.inflationaryBalanceOf(addresses[1], circlesIdentifiers[0]);
         vm.prank(addresses[0]);
         circles.safeTransferFrom(addresses[0], addresses[1], circlesIdentifiers[0], 5 * CRC, "");
         uint256 aliceBalanceAfter = circles.balanceOf(addresses[0], circlesIdentifiers[0]);
         uint256 bobBalanceAfter = circles.balanceOf(addresses[1], circlesIdentifiers[0]);
-        uint256 aliceInflationaryBalanceAfter = circles.inflationaryBalanceOf(addresses[0], circlesIdentifiers[0]);
-        uint256 bobInflationaryBalanceAfter = circles.inflationaryBalanceOf(addresses[1], circlesIdentifiers[0]);
+        // uint256 aliceInflationaryBalanceAfter = circles.inflationaryBalanceOf(addresses[0], circlesIdentifiers[0]);
+        // uint256 bobInflationaryBalanceAfter = circles.inflationaryBalanceOf(addresses[1], circlesIdentifiers[0]);
         assertEq(aliceBalance - 5 * CRC, aliceBalanceAfter);
         assertEq(bobBalance + 5 * CRC, bobBalanceAfter);
-        assertEq(
-            aliceInflationaryBalance - aliceInflationaryBalanceAfter,
-            bobInflationaryBalanceAfter - bobInflationaryBalance
-        );
+        // assertEq(
+        //     aliceInflationaryBalance - aliceInflationaryBalanceAfter,
+        //     bobInflationaryBalanceAfter - bobInflationaryBalance
+        // );
     }
 
     // Private functions

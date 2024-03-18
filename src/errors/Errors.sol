@@ -6,8 +6,6 @@ interface IHubErrors {
 
     error CirclesHubRegisterAvatarV1MustBeStopped(address avatar, uint8 code);
 
-    error CirclesHubAvatarMustBeRegistered(address avatar, uint8 code);
-
     error CirclesHubAvatarAlreadyRegistered(address avatar, uint8 code);
 
     error CirclesHubMustBeHuman(address avatar, uint8 code);
@@ -48,6 +46,8 @@ interface ICirclesERC1155Errors {
 }
 
 interface ICirclesErrors {
+    error CirclesAvatarMustBeRegistered(address avatar, uint8 code);
+
     error CirclesAddressCannotBeZero(uint8 code);
 
     error CirclesInvalidFunctionCaller(address caller, address expectedCaller, uint8 code);

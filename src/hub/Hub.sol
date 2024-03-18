@@ -86,6 +86,8 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
      */
     address public immutable migration;
 
+    address public immutable liftERC20;
+
     /**
      * @notice The timestamp of the start of the invitation-only period.
      * @dev This is used to determine the start of the invitation-only period.
@@ -125,10 +127,10 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
      */
     mapping(address => mapping(address => TrustMarker)) public trustMarkers;
 
-    /**
-     * @notice tokenIDToCidV0Digest is a mapping of token IDs to the IPFS CIDv0 digest.
-     */
-    mapping(uint256 => bytes32) public tokenIdToCidV0Digest;
+    // /**
+    //  * @notice tokenIDToCidV0Digest is a mapping of token IDs to the IPFS CIDv0 digest.
+    //  */
+    // mapping(uint256 => bytes32) public tokenIdToCidV0Digest;
 
     // Events
 
@@ -142,8 +144,6 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
     event Trust(address indexed truster, address indexed trustee, uint256 expiryTime);
 
     event Stopped(address indexed avatar);
-
-    event CidV0(address indexed avatar, bytes32 cidV0Digest);
 
     // Modifiers
 
@@ -184,8 +184,9 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
         IHubV1 _hubV1,
         INameRegistry _nameRegistry,
         address _migration,
-        uint256 _inflationDayZero,
+        address _liftERC20,
         address _standardTreasury,
+        uint256 _inflationDayZero,
         uint256 _bootstrapTime,
         string memory _fallbackUri
     ) Circles(_inflationDayZero, _fallbackUri) {
@@ -207,6 +208,9 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
 
         // store the migration contract address
         migration = _migration;
+
+        // store the lift ERC20 contract address
+        liftERC20 = _liftERC20;
 
         // store the standard treasury contract address for registerGroup()
         standardTreasury = _standardTreasury;
@@ -231,11 +235,9 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
         }
 
         // store the IPFS CIDv0 digest for the avatar metadata
-        tokenIdToCidV0Digest[toTokenId(msg.sender)] = _cidV0Digest;
+        nameRegistry.updateCidV0Digest(msg.sender, _cidV0Digest);
 
         emit RegisterHuman(msg.sender);
-
-        emit CidV0(msg.sender, _cidV0Digest);
     }
 
     /**
@@ -281,11 +283,9 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
         _registerGroup(msg.sender, _mint, standardTreasury, _name, _symbol);
 
         // store the IPFS CIDv0 digest for the group metadata
-        tokenIdToCidV0Digest[toTokenId(msg.sender)] = _cidV0Digest;
+        nameRegistry.updateCidV0Digest(msg.sender, _cidV0Digest);
 
         emit RegisterGroup(msg.sender, _mint, standardTreasury, _name, _symbol);
-
-        emit CidV0(msg.sender, _cidV0Digest);
     }
 
     /**
@@ -306,11 +306,9 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
         _registerGroup(msg.sender, _mint, _treasury, _name, _symbol);
 
         // store the IPFS CIDv0 digest for the group metadata
-        tokenIdToCidV0Digest[toTokenId(msg.sender)] = _cidV0Digest;
+        nameRegistry.updateCidV0Digest(msg.sender, _cidV0Digest);
 
         emit RegisterGroup(msg.sender, _mint, _treasury, _name, _symbol);
-
-        emit CidV0(msg.sender, _cidV0Digest);
     }
 
     /**
@@ -328,11 +326,9 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
         names[msg.sender] = _name;
 
         // store the IPFS CIDv0 digest for the organization metadata
-        tokenIdToCidV0Digest[toTokenId(msg.sender)] = _cidV0Digest;
+        nameRegistry.updateCidV0Digest(msg.sender, _cidV0Digest);
 
         emit RegisterOrganization(msg.sender, _name);
-
-        emit CidV0(msg.sender, _cidV0Digest);
     }
 
     /**
@@ -345,7 +341,7 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
      */
     function trust(address _trustReceiver, uint96 _expiry) external {
         if (avatars[msg.sender] == address(0)) {
-            revert CirclesHubAvatarMustBeRegistered(msg.sender, 0);
+            revert CirclesAvatarMustBeRegistered(msg.sender, 0);
         }
         if (_trustReceiver == address(0) || _trustReceiver == SENTINEL) {
             // You cannot trust the zero address or the sentinel address.
@@ -450,7 +446,7 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
     function migrate(address _owner, address[] calldata _avatars, uint256[] calldata _amounts) external onlyMigration {
         if (avatars[_owner] == address(0)) {
             // Only registered avatars can migrate v1 tokens.
-            revert CirclesHubAvatarMustBeRegistered(_owner, 1);
+            revert CirclesAvatarMustBeRegistered(_owner, 1);
         }
         if (_avatars.length != _amounts.length) {
             revert CirclesArraysLengthMismatch(_avatars.length, _amounts.length, 0);
@@ -537,12 +533,10 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
     function setIpfsCidV0(bytes32 _ipfsCid) external {
         if (avatars[msg.sender] == address(0)) {
             // Only registered avatars can set the IPFS CIDv0 digest.
-            revert CirclesHubAvatarMustBeRegistered(msg.sender, 2);
+            revert CirclesAvatarMustBeRegistered(msg.sender, 2);
         }
         // todo: we should charge in CRC, but better done later through a storage market
-        tokenIdToCidV0Digest[toTokenId(msg.sender)] = _ipfsCid;
-
-        emit CidV0(msg.sender, _ipfsCid);
+        nameRegistry.updateCidV0Digest(msg.sender, _ipfsCid);
     }
 
     function operateFlowMatrix(
@@ -789,14 +783,14 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
                 }
                 if (avatars[_flowVertices[i]] == address(0)) {
                     // Avatar must be registered.
-                    revert CirclesHubAvatarMustBeRegistered(_flowVertices[i], 3);
+                    revert CirclesAvatarMustBeRegistered(_flowVertices[i], 3);
                 }
             }
 
             address lastAvatar = _flowVertices[_flowVertices.length - 1];
             if (avatars[lastAvatar] == address(0)) {
                 // Avatar must be registered.
-                revert CirclesHubAvatarMustBeRegistered(lastAvatar, 4);
+                revert CirclesAvatarMustBeRegistered(lastAvatar, 4);
             }
         }
 

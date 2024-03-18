@@ -6,6 +6,13 @@ import "../errors/Errors.sol";
 import "../proxy/ProxyFactory.sol";
 
 contract ERC20Lift is ProxyFactory, ICirclesErrors {
+    // Type declarations
+
+    enum CirclesType {
+        Demurrage,
+        Inflation
+    }
+
     // Constants
 
     bytes4 public constant ERC20_DEMURRAGE_SETUP_CALLPREFIX = bytes4(keccak256("setup(uint256)"));
@@ -46,7 +53,7 @@ contract ERC20Lift is ProxyFactory, ICirclesErrors {
 
     // Public functions
 
-    function ensureERC20DemurrageWrapper(uint256 _id) public pure returns (address) {
+    function ensureERC20Wrapper(uint256 _id, CirclesType _circlesType) public pure returns (address) {
         // todo: first build a simple proxy factory, afterwards redo for create2 deployment
         // bytes32 salt = keccak256(abi.encodePacked(_id));
     }

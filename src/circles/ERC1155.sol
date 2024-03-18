@@ -100,37 +100,37 @@ abstract contract ERC1155 is DiscountedBalances, Context, ERC165, IERC1155, IERC
         return batchBalances;
     }
 
-    /**
-     * Inflationary balance of an account for a Circles identifier.
-     * @param _account Address for which the balance is queried.
-     * @param _id Circles identifier for which the balance is queried.
-     */
-    function inflationaryBalanceOf(address _account, uint256 _id) public view returns (uint256) {
-        return _inflationaryBalanceOf(_account, _id);
-    }
+    // /**
+    //  * Inflationary balance of an account for a Circles identifier.
+    //  * @param _account Address for which the balance is queried.
+    //  * @param _id Circles identifier for which the balance is queried.
+    //  */
+    // function inflationaryBalanceOf(address _account, uint256 _id) public view returns (uint256) {
+    //     return _inflationaryBalanceOf(_account, _id);
+    // }
 
-    /**
-     * Inflationary balance of a batch of accounts and Circles identifiers.
-     * @param _accounts Batch of addresses for which the balances are queried.
-     * @param _ids Batch of Circles identifiers for which the balances are queried.
-     */
-    function inflationaryBalanceOfBatch(address[] memory _accounts, uint256[] memory _ids)
-        public
-        view
-        returns (uint256[] memory)
-    {
-        if (_accounts.length != _ids.length) {
-            revert ERC1155InvalidArrayLength(_ids.length, _accounts.length);
-        }
+    // /**
+    //  * Inflationary balance of a batch of accounts and Circles identifiers.
+    //  * @param _accounts Batch of addresses for which the balances are queried.
+    //  * @param _ids Batch of Circles identifiers for which the balances are queried.
+    //  */
+    // function inflationaryBalanceOfBatch(address[] memory _accounts, uint256[] memory _ids)
+    //     public
+    //     view
+    //     returns (uint256[] memory)
+    // {
+    //     if (_accounts.length != _ids.length) {
+    //         revert ERC1155InvalidArrayLength(_ids.length, _accounts.length);
+    //     }
 
-        uint256[] memory batchBalances = new uint256[](_accounts.length);
+    //     uint256[] memory batchBalances = new uint256[](_accounts.length);
 
-        for (uint256 i = 0; i < _accounts.length; ++i) {
-            batchBalances[i] = _inflationaryBalanceOf(_accounts.unsafeMemoryAccess(i), _ids.unsafeMemoryAccess(i));
-        }
+    //     for (uint256 i = 0; i < _accounts.length; ++i) {
+    //         batchBalances[i] = _inflationaryBalanceOf(_accounts.unsafeMemoryAccess(i), _ids.unsafeMemoryAccess(i));
+    //     }
 
-        return batchBalances;
-    }
+    //     return batchBalances;
+    // }
 
     /**
      * @dev See {IERC1155-setApprovalForAll}.
@@ -174,53 +174,53 @@ abstract contract ERC1155 is DiscountedBalances, Context, ERC165, IERC1155, IERC
         _safeBatchTransferFrom(_from, _to, _ids, _values, _data);
     }
 
-    /**
-     * @notice safeInflationaryTransferFrom transfers Circles from one address to another by specifying inflationary units.
-     * @param _from Address from which the Circles are transferred.
-     * @param _to Address to which the Circles are transferred.
-     * @param _id Circles indentifier for which the Circles are transferred.
-     * @param _inflationaryValue Inflationary value of the Circles transferred.
-     * @param _data Data to pass to the receiver.
-     */
-    function safeInflationaryTransferFrom(
-        address _from,
-        address _to,
-        uint256 _id,
-        uint256 _inflationaryValue,
-        bytes memory _data
-    ) public {
-        address sender = _msgSender();
-        if (_from != sender && !isApprovedForAll(_from, sender)) {
-            revert ERC1155MissingApprovalForAll(sender, _from);
-        }
-        // convert inflationary value to todays demurrage value
-        uint256 value = convertInflationaryToDemurrageValue(_inflationaryValue, day(block.timestamp));
-        _safeTransferFrom(_from, _to, _id, value, _data);
-    }
+    // /**
+    //  * @notice safeInflationaryTransferFrom transfers Circles from one address to another by specifying inflationary units.
+    //  * @param _from Address from which the Circles are transferred.
+    //  * @param _to Address to which the Circles are transferred.
+    //  * @param _id Circles indentifier for which the Circles are transferred.
+    //  * @param _inflationaryValue Inflationary value of the Circles transferred.
+    //  * @param _data Data to pass to the receiver.
+    //  */
+    // function safeInflationaryTransferFrom(
+    //     address _from,
+    //     address _to,
+    //     uint256 _id,
+    //     uint256 _inflationaryValue,
+    //     bytes memory _data
+    // ) public {
+    //     address sender = _msgSender();
+    //     if (_from != sender && !isApprovedForAll(_from, sender)) {
+    //         revert ERC1155MissingApprovalForAll(sender, _from);
+    //     }
+    //     // convert inflationary value to todays demurrage value
+    //     uint256 value = convertInflationaryToDemurrageValue(_inflationaryValue, day(block.timestamp));
+    //     _safeTransferFrom(_from, _to, _id, value, _data);
+    // }
 
-    /**
-     * @notice safeInflationaryBatchTransferFrom transfers Circles from one address to another by specifying inflationary units.
-     * @param _from Address from which the Circles are transferred.
-     * @param _to Address to which the Circles are transferred.
-     * @param _ids Batch of Circles identifiers for which the Circles are transferred.
-     * @param _inflationaryValues Batch of inflationary values of the Circles transferred.
-     * @param _data Data to pass to the receiver.
-     */
-    function safeInflationaryBatchTransferFrom(
-        address _from,
-        address _to,
-        uint256[] memory _ids,
-        uint256[] memory _inflationaryValues,
-        bytes memory _data
-    ) public {
-        address sender = _msgSender();
-        if (_from != sender && !isApprovedForAll(_from, sender)) {
-            revert ERC1155MissingApprovalForAll(sender, _from);
-        }
-        uint64 today = day(block.timestamp);
-        uint256[] memory values = convertBatchInflationaryToDemurrageValues(_inflationaryValues, today);
-        _safeBatchTransferFrom(_from, _to, _ids, values, _data);
-    }
+    // /**
+    //  * @notice safeInflationaryBatchTransferFrom transfers Circles from one address to another by specifying inflationary units.
+    //  * @param _from Address from which the Circles are transferred.
+    //  * @param _to Address to which the Circles are transferred.
+    //  * @param _ids Batch of Circles identifiers for which the Circles are transferred.
+    //  * @param _inflationaryValues Batch of inflationary values of the Circles transferred.
+    //  * @param _data Data to pass to the receiver.
+    //  */
+    // function safeInflationaryBatchTransferFrom(
+    //     address _from,
+    //     address _to,
+    //     uint256[] memory _ids,
+    //     uint256[] memory _inflationaryValues,
+    //     bytes memory _data
+    // ) public {
+    //     address sender = _msgSender();
+    //     if (_from != sender && !isApprovedForAll(_from, sender)) {
+    //         revert ERC1155MissingApprovalForAll(sender, _from);
+    //     }
+    //     uint64 today = day(block.timestamp);
+    //     uint256[] memory values = convertBatchInflationaryToDemurrageValues(_inflationaryValues, today);
+    //     _safeBatchTransferFrom(_from, _to, _ids, values, _data);
+    // }
 
     // Internal functions
 

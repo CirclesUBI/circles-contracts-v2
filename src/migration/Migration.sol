@@ -31,7 +31,7 @@ contract Migration is ICirclesErrors {
     // Constructor
 
     constructor(IHubV1 _hubV1) {
-        if (address(_hubV1) != address(0)) {
+        if (address(_hubV1) == address(0)) {
             // Hub v1 address can not be zero.
             revert CirclesAddressCannotBeZero(0);
         }

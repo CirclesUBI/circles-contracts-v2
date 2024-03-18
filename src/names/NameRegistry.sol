@@ -4,7 +4,7 @@ pragma solidity >=0.8.13;
 import "../errors/Errors.sol";
 import "../hub/IHub.sol";
 
-contract NameRegistry is INameRegistryErrors {
+contract NameRegistry is INameRegistryErrors, ICirclesErrors {
     // Constants
 
     /**
@@ -18,10 +18,10 @@ contract NameRegistry is INameRegistryErrors {
     /**
      * @notice The address of the hub contract where the address must have registered first
      */
-    // IHubV2 public immutable hub;
+    IHubV2 public immutable hub;
 
     /**
-     * @notice a mapping from the address to the assigned name
+     * @notice a mapping from the avatar address to the assigned name
      * @dev 9 bytes or uint72 fit 12 characters in base58 encoding
      */
     mapping(address => uint72) public shortNames;
@@ -29,17 +29,43 @@ contract NameRegistry is INameRegistryErrors {
     /**
      * @notice a mapping from the short name to the address
      */
-    mapping(uint72 => address) public addresses;
+    mapping(uint72 => address) public shortNameToAvatar;
+
+    /**
+     * @notice avatarToCidV0Digest is a mapping of avatar to the IPFS CIDv0 digest.
+     */
+    mapping(address => bytes32) public avatarToCidV0Digest;
 
     // Events
 
     event RegisterShortName(address indexed avatar, uint72 shortName, uint256 nonce);
 
+    event CidV0(address indexed avatar, bytes32 cidV0Digest);
+
+    // Modifiers
+
+    modifier mustBeRegistered(address _avatar, uint8 _code) {
+        if (hub.avatars(_avatar) == address(0)) {
+            revert CirclesAvatarMustBeRegistered(_avatar, _code);
+        }
+        _;
+    }
+
+    modifier onlyHub(uint8 _code) {
+        if (msg.sender != address(hub)) {
+            revert CirclesInvalidFunctionCaller(msg.sender, address(hub), _code);
+        }
+        _;
+    }
+
     // Constructor
 
-    constructor() { // (IHubV2 _hub) {
-            // require(address(_hub) != address(0), "Hub cannot be the zero address.");
-            // hub = _hub;
+    constructor(IHubV2 _hub) {
+        if (address(_hub) == address(0)) {
+            // Hub cannot be the zero address.
+            revert CirclesAddressCannotBeZero(0);
+        }
+        hub = _hub;
     }
 
     // External functions
@@ -47,15 +73,13 @@ contract NameRegistry is INameRegistryErrors {
     /**
      * @notice Register a short name for the avatar
      */
-    function registerShortName() external {
-        // require(hub.avatars(msg.sender) != address(0), "Avatar has not been registered in the hub.");
-
+    function registerShortName() external mustBeRegistered(msg.sender, 0) {
         (uint72 shortName, uint256 nonce) = searchShortName(msg.sender);
 
         // assign the name to the address
         shortNames[msg.sender] = shortName;
         // assign the address to the name
-        addresses[shortName] = msg.sender;
+        shortNameToAvatar[shortName] = msg.sender;
 
         emit RegisterShortName(msg.sender, shortName, nonce);
     }
@@ -64,24 +88,29 @@ contract NameRegistry is INameRegistryErrors {
      * Registers a short name for the avatar using a specific nonce if the short name is available
      * @param _nonce nonce to be used in the calculation
      */
-    function registerShortNameWithNonce(uint256 _nonce) external {
+    function registerShortNameWithNonce(uint256 _nonce) external mustBeRegistered(msg.sender, 1) {
         if (shortNames[msg.sender] != uint72(0)) {
             revert CirclesNamesShortNameAlreadyAssigned(msg.sender, shortNames[msg.sender], 0);
         }
-        // require(hub.avatars(msg.sender) != address(0), "Avatar has not been registered in the hub.");
 
         uint72 shortName = calculateShortNameWithNonce(msg.sender, _nonce);
 
-        if (addresses[shortName] != address(0)) {
-            revert CirclesNamesShortNameWithNonceTaken(msg.sender, _nonce, shortName, addresses[shortName]);
+        if (shortNameToAvatar[shortName] != address(0)) {
+            revert CirclesNamesShortNameWithNonceTaken(msg.sender, _nonce, shortName, shortNameToAvatar[shortName]);
         }
 
         // assign the name to the address
         shortNames[msg.sender] = shortName;
         // assign the address to the name
-        addresses[shortName] = msg.sender;
+        shortNameToAvatar[shortName] = msg.sender;
 
         emit RegisterShortName(msg.sender, shortName, _nonce);
+    }
+
+    function updateCidV0Digest(address _avatar, bytes32 _cidV0Digest) external onlyHub(0) {
+        avatarToCidV0Digest[_avatar] = _cidV0Digest;
+
+        emit CidV0(_avatar, _cidV0Digest);
     }
 
     // Public functions
@@ -100,7 +129,7 @@ contract NameRegistry is INameRegistryErrors {
         while (true) {
             shortName_ = calculateShortNameWithNonce(_avatar, nonce_);
 
-            if (addresses[shortName_] == address(0)) {
+            if (shortNameToAvatar[shortName_] == address(0)) {
                 // if the name is not yet assigned, let's keep it
                 break;
             }

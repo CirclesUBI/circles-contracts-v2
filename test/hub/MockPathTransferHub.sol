@@ -9,7 +9,16 @@ contract MockPathTransferHub is Hub {
     // Constructor
 
     constructor(uint256 _inflationDayZero, uint256 _bootstrapTime)
-        Hub(IHubV1(address(1)), INameRegistry(address(0)), address(0), _inflationDayZero, address(1), _bootstrapTime, "")
+        Hub(
+            IHubV1(address(1)),
+            INameRegistry(address(0)),
+            address(0),
+            address(0),
+            address(1),
+            _inflationDayZero,
+            _bootstrapTime,
+            ""
+        )
     {}
 
     // External functions
