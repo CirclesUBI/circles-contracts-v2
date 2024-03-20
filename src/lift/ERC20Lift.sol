@@ -5,16 +5,19 @@ import "@openzeppelin/contracts/utils/Create2.sol";
 import "../errors/Errors.sol";
 import "../lift/IERC20Lift.sol";
 import "../hub/IHub.sol";
+import "../names/INameRegistry.sol";
 import "../proxy/ProxyFactory.sol";
 
 contract ERC20Lift is ProxyFactory, IERC20Lift, ICirclesErrors {
     // Constants
 
-    bytes4 public constant ERC20_WRAPPER_SETUP_CALLPREFIX = bytes4(keccak256("setup(address,address)"));
+    bytes4 public constant ERC20_WRAPPER_SETUP_CALLPREFIX = bytes4(keccak256("setup(address,address,address)"));
 
     // State variables
 
     IHubV2 public immutable hub;
+
+    INameRegistry public immutable nameRegistry;
 
     /**
      * @dev The master copy of the ERC20 demurrage and inflation Circles contract.
@@ -25,25 +28,38 @@ contract ERC20Lift is ProxyFactory, IERC20Lift, ICirclesErrors {
 
     // Constructor
 
-    constructor(IHubV2 _hub, address _masterCopyERC20Demurrage, address _masterCopyERC20Inflation) {
+    constructor(
+        IHubV2 _hub,
+        INameRegistry _nameRegistry,
+        address _masterCopyERC20Demurrage,
+        address _masterCopyERC20Inflation
+    ) {
         if (address(_hub) == address(0)) {
             // Must not be the zero address.
             revert CirclesAddressCannotBeZero(0);
         }
-        if (_masterCopyERC20Demurrage == address(0)) {
+        if (address(_nameRegistry) == address(0)) {
             // Must not be the zero address.
             revert CirclesAddressCannotBeZero(1);
         }
+        if (_masterCopyERC20Demurrage == address(0)) {
+            // Must not be the zero address.
+            revert CirclesAddressCannotBeZero(3);
+        }
         if (_masterCopyERC20Inflation == address(0)) {
             // Must not be the zero address.
-            revert CirclesAddressCannotBeZero(2);
+            revert CirclesAddressCannotBeZero(4);
         }
 
         hub = _hub;
 
+        nameRegistry = _nameRegistry;
+
         masterCopyERC20Wrapper[uint256(CirclesType.Demurrage)] = _masterCopyERC20Demurrage;
         masterCopyERC20Wrapper[uint256(CirclesType.Inflation)] = _masterCopyERC20Inflation;
     }
+
+    // External functions
 
     // Public functions
 
@@ -71,9 +87,9 @@ contract ERC20Lift is ProxyFactory, IERC20Lift, ICirclesErrors {
         return erc20Wrapper;
     }
 
-    function getDeterministicAddress(uint256 _tokenId, bytes32 _bytecodeHash) public view returns (address) {
-        return Create2.computeAddress(keccak256(abi.encodePacked(_tokenId)), _bytecodeHash);
-    }
+    // function getDeterministicAddress(uint256 _tokenId, bytes32 _bytecodeHash) public view returns (address) {
+    //     return Create2.computeAddress(keccak256(abi.encodePacked(_tokenId)), _bytecodeHash);
+    // }
 
     // Internal functions
 

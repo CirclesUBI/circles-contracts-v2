@@ -12,8 +12,6 @@ interface IHubErrors {
 
     error CirclesHubGroupIsNotRegistered(address group, uint8 code);
 
-    error CirclesHubInvalidName(address caller, string name, uint8 code);
-
     error CirclesHubInvalidTrustReceiver(address trustReceiver, uint8 code);
 
     error CirclesHubGroupMintPolicyRejectedMint(
@@ -86,7 +84,13 @@ interface IStandardTreasuryErrors {
 }
 
 interface INameRegistryErrors {
+    error CirclesNamesInvalidName(address avatar, string name, uint8 code);
+
     error CirclesNamesShortNameAlreadyAssigned(address avatar, uint72 shortName, uint8 code);
 
     error CirclesNamesShortNameWithNonceTaken(address avatar, uint256 nonce, uint72 shortName, address takenByAvatar);
+
+    error CirclesNamesAvatarAlreadyHasCustomNameOrSymbol(address avatar, string nameOrSymbol, uint8 code);
+
+    error CirclesNamesOrganizationHasNoSymbol(address organization, uint8 code);
 }

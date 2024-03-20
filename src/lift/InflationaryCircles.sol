@@ -4,6 +4,7 @@ pragma solidity >=0.8.13;
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../hub/IHub.sol";
+import "../names/INameRegistry.sol";
 import "./ERC20InflationaryBalances.sol";
 
 contract InflationaryCircles is ERC20InflationaryBalances, ERC1155Holder {
@@ -12,6 +13,8 @@ contract InflationaryCircles is ERC20InflationaryBalances, ERC1155Holder {
     // State variables
 
     IHubV2 public hub;
+
+    INameRegistry public nameRegistry;
 
     address public avatar;
 
@@ -39,7 +42,7 @@ contract InflationaryCircles is ERC20InflationaryBalances, ERC1155Holder {
 
     // Setup function
 
-    function setup(IHubV2 _hub, address _avatar) external {
+    function setup(IHubV2 _hub, INameRegistry _nameRegistry, address _avatar) external {
         if (address(hub) != address(0)) {
             // Must not be initialized already.
             revert CirclesProxyAlreadyInitialized();
@@ -48,9 +51,13 @@ contract InflationaryCircles is ERC20InflationaryBalances, ERC1155Holder {
             // Must not be the zero address.
             revert CirclesAddressCannotBeZero(0);
         }
-        if (_avatar == address(0)) {
+        if (address(_nameRegistry) == address(0)) {
             // Must not be the zero address.
             revert CirclesAddressCannotBeZero(1);
+        }
+        if (_avatar == address(0)) {
+            // Must not be the zero address.
+            revert CirclesAddressCannotBeZero(2);
         }
         hub = _hub;
         avatar = _avatar;
@@ -72,6 +79,18 @@ contract InflationaryCircles is ERC20InflationaryBalances, ERC1155Holder {
         hub.safeTransferFrom(address(this), msg.sender, toTokenId(avatar), demurragedAmount, "");
 
         emit Withdraw(msg.sender, _amount, demurragedAmount);
+    }
+
+    function name() external view returns (string memory) {
+        return string(abi.encodePacked(nameRegistry.name(avatar), "-F"));
+    }
+
+    function symbol() external view returns (string memory) {
+        return nameRegistry.symbol(avatar);
+    }
+
+    function decimals() external pure returns (uint8) {
+        return 18;
     }
 
     // Public functions

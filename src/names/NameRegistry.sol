@@ -3,8 +3,9 @@ pragma solidity >=0.8.13;
 
 import "../errors/Errors.sol";
 import "../hub/IHub.sol";
+import "./Base58Converter.sol";
 
-contract NameRegistry is INameRegistryErrors, ICirclesErrors {
+contract NameRegistry is Base58Converter, INameRegistryErrors, ICirclesErrors {
     // Constants
 
     /**
@@ -12,6 +13,10 @@ contract NameRegistry is INameRegistryErrors, ICirclesErrors {
      * which is 1449225352009601191935 in decimal when converted from base58
      */
     uint72 public constant MAX_SHORT_NAME = uint72(1449225352009601191935);
+
+    string public constant DEFAULT_CIRCLES_NAME_PREFIX = "Circles-";
+
+    string public constant DEFAULT_CIRCLES_SYMBOL = "CRC";
 
     // State variables
 
@@ -30,6 +35,10 @@ contract NameRegistry is INameRegistryErrors, ICirclesErrors {
      * @notice a mapping from the short name to the address
      */
     mapping(uint72 => address) public shortNameToAvatar;
+
+    mapping(address => string) public customNames;
+
+    mapping(address => string) public customSymbols;
 
     /**
      * @notice avatarToCidV0Digest is a mapping of avatar to the IPFS CIDv0 digest.
@@ -111,6 +120,65 @@ contract NameRegistry is INameRegistryErrors, ICirclesErrors {
         avatarToCidV0Digest[_avatar] = _cidV0Digest;
 
         emit CidV0(_avatar, _cidV0Digest);
+    }
+
+    function registerCustomName(address _avatar, string calldata _name) external onlyHub(1) {
+        if (bytes(_name).length == 0) {
+            // if name is left empty, it will default to default name "Circles-<base58(short)Name>"
+            return;
+        }
+        if (!isValidName(_name)) {
+            revert CirclesNamesInvalidName(_avatar, _name, 0);
+        }
+        customNames[_avatar] = _name;
+    }
+
+    function registerCustomSymbol(address _avatar, string calldata _symbol) external onlyHub(2) {
+        if (bytes(_symbol).length == 0) {
+            // if symbol is left empty, it will default to default symbol "CRC"
+            return;
+        }
+        if (!isValidSymbol(_symbol)) {
+            revert CirclesNamesInvalidName(_avatar, _symbol, 1);
+        }
+        customSymbols[_avatar] = _symbol;
+    }
+
+    function name(address _avatar) external view mustBeRegistered(_avatar, 1) returns (string memory) {
+        if (!hub.isHuman(_avatar)) {
+            // groups and organizations can have set a custom name
+            string memory customName = customNames[_avatar];
+            if (bytes(customName).length > 0) {
+                // if it has a custom name, use it
+                return customName;
+            }
+            // otherwise, use the default name for groups and organizations
+        }
+        // for personal Circles use default name
+        uint72 shortName = shortNames[_avatar];
+        if (shortName == uint72(0)) {
+            string memory base58FullAddress = toBase58(uint256(uint160(_avatar)));
+            return string(abi.encodePacked("Circles-", base58FullAddress));
+        }
+        string memory base58ShortName = toBase58(uint256(shortName));
+        return string(abi.encodePacked("Circles-", base58ShortName));
+    }
+
+    function symbol(address _avatar) external view mustBeRegistered(_avatar, 2) returns (string memory) {
+        if (hub.isOrganization(_avatar)) {
+            revert CirclesNamesOrganizationHasNoSymbol(_avatar, 0);
+        }
+        if (hub.isGroup(_avatar)) {
+            // groups can have set a custom symbol
+            string memory customSymbol = customSymbols[_avatar];
+            if (bytes(customSymbol).length > 0) {
+                // if it has a custom symbol, use it
+                return customSymbol;
+            }
+            // otherwise, use the default symbol for groups
+        }
+        // for all personal Circles use default symbol
+        return DEFAULT_CIRCLES_SYMBOL;
     }
 
     // Public functions

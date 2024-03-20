@@ -109,10 +109,6 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
 
     mapping(address => address) public treasuries;
 
-    mapping(address => string) public names;
-
-    mapping(address => string) public symbols;
-
     // mapping(uint256 => WrappedERC20) public tokenIDToInfERC20;
 
     /**
@@ -276,6 +272,10 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
     {
         _registerGroup(msg.sender, _mint, standardTreasury, _name, _symbol);
 
+        // for groups register possible custom name and symbol
+        nameRegistry.registerName(msg.sender, _name);
+        nameRegistry.registerSymbol(msg.sender, _symbol);
+
         // store the IPFS CIDv0 digest for the group metadata
         nameRegistry.updateCidV0Digest(msg.sender, _cidV0Digest);
 
@@ -299,6 +299,10 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
     ) external {
         _registerGroup(msg.sender, _mint, _treasury, _name, _symbol);
 
+        // for groups register possible custom name and symbol
+        nameRegistry.registerName(msg.sender, _name);
+        nameRegistry.registerSymbol(msg.sender, _symbol);
+
         // store the IPFS CIDv0 digest for the group metadata
         nameRegistry.updateCidV0Digest(msg.sender, _cidV0Digest);
 
@@ -311,13 +315,10 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
      * @param _cidV0Digest IPFS CIDv0 digest for the organization metadata
      */
     function registerOrganization(string calldata _name, bytes32 _cidV0Digest) external {
-        if (!nameRegistry.isValidName(_name)) {
-            revert CirclesHubInvalidName(msg.sender, _name, 0);
-        }
         _insertAvatar(msg.sender);
 
-        // store the name for the organization
-        names[msg.sender] = _name;
+        // for organizations, only register possible custom name
+        nameRegistry.registerName(msg.sender, _name);
 
         // store the IPFS CIDv0 digest for the organization metadata
         nameRegistry.updateCidV0Digest(msg.sender, _cidV0Digest);
@@ -1035,10 +1036,6 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
 
         // store the treasury for the group
         treasuries[_avatar] = _treasury;
-
-        // store the name and symbol for the group
-        names[_avatar] = _name;
-        symbols[_avatar] = _symbol;
     }
 
     function _trust(address _truster, address _trustee, uint96 _expiry) internal {
