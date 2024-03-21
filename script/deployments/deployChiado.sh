@@ -86,20 +86,9 @@ deploy_and_verify "Circles ERC1155 Hub" $HUB_ADDRESS_01 \
   $STANDARD_TREASURY_ADDRESS_05 $INFLATION_DAY_ZERO \
   $BOOTSTRAP_ONE_YEAR $URI
 
-
-# # Deploy the ERC1155 Hub
-# MULTITOKEN_HUB=$(forge create \
-#   --rpc-url ${RPC_URL} \
-#   --private-key ${PRIVATE_KEY} \
-#   src/hub/Hub.sol:Hub \
-#   --constructor-args ${V1_HUB_ADDRESS} ${NAMEREGISTRY_ADDRESS_03} \
-#   ${MIGRATION_ADDRESS_02} ${ERC20LIFT_ADDRESS_04} \
-#   ${STANDARD_TREASURY_ADDRESS_05} ${INFLATION_DAY_ZERO} \
-#   ${BOOTSTRAP_ONE_YEAR} ${URI})
-
-# # Extract the deployed address from the output
-# HUB_ADDRESS=$(echo "$MULTITOKEN_HUB" | grep "Deployed to:" | awk '{print $3}')
-# echo "ERC1155 Hub deployed at ${HUB_ADDRESS}"
+deploy_and_verify "Migration" $MIGRATION_ADDRESS_02 \
+  src/migration/Migration.sol:Migration \
+  --constructor-args $V1_HUB_ADDRESS
 
 # MIGRATION = $(forge create \
 #   --rpc-url ${RPC_URL} \
