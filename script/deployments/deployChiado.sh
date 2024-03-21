@@ -1,8 +1,10 @@
 #!/bin/bash
 
 # Set the environment variables, also for use in node script
-export PRIVATE_KEY=$1
-export RPC_URL=https://rpc.chiado.gnosis.gateway.fm
+source ../../.env
+
+echo "PRIVATE_KEY: $PRIVATE_KEY"
+echo "RPC_URL: $RPC_URL"
 
 # declare Chiado constants
 V1_HUB_ADDRESS='0xdbF22D4e8962Db3b2F1d9Ff55be728A887e47710'
@@ -35,6 +37,9 @@ echo "BaseGroupMintPolicy: ${BASE_GROUPMINTPOLICY_ADDRESS_06}"
 
 # Deploy the contracts
 
+echo ""
+echo "Starting deployment..."
+echo "======================"
 echo "Deploying ERC1155 Hub..."
 MULTITOKEN_HUB=$(forge create \
   --rpc-url ${RPC_URL} \
@@ -43,12 +48,15 @@ MULTITOKEN_HUB=$(forge create \
   --constructor-args ${V1_HUB_ADDRESS} ${NAMEREGISTRY_ADDRESS_03} \
   ${MIGRATION_ADDRESS_02} ${ERC20LIFT_ADDRESS_04} \
   ${STANDARD_TREASURY_ADDRESS_05} ${INFLATION_DAY_ZERO} \
-  ${BOOTSTRAP_ONE_YEAR} ${URI} 
-  
+  ${BOOTSTRAP_ONE_YEAR} ${URI} )
+
+HUB_ADDRESS=$(echo "$MULTITOKEN_HUB" | grep "Deployed to:" | awk '{print $3}')
+echo "ERC1155 Hub deployed at ${HUB_ADDRESS}"
+
 echo ""
 echo "Summary:"
 echo "========"
-echo "Hub: ${HUB_ADDRESS_01}"
+echo "Hub: ${HUB_ADDRESS}"
   
 # echo "Deploying MintSplitter..."
 # MINT_SPLITTER_DEPLOYMENT=$(forge create \

@@ -1,15 +1,14 @@
 import { ethers }  from "ethers";
+import dotenv from 'dotenv';
+dotenv.config();
 
 async function main() {
     // provider to get the nonce of deployer key
     const provider = new ethers.providers.JsonRpcProvider(process.env.RPC_URL);
-    console.log('Provider:', provider.connection.url);
     // deployer wallet
     const deployer = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
-    console.log('Deployer:', deployer.address);
     // get the nonce of deployer key
     const nonce = await deployer.getTransactionCount();
-    console.log('Nonce:', nonce);
 
     // Calculate the deployment addresses
 
