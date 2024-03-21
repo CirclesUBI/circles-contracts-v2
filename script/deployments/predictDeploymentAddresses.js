@@ -44,9 +44,27 @@ async function main() {
         from: deployer.address,
         nonce: nonce + 5
     });
+
+    const mastercopyDemurrageERC20Address_07 = ethers.utils.getContractAddress({
+        from: deployer.address,
+        nonce: nonce + 6
+    });
+
+    const mastercopyInflationaryERC20Address_08 = ethers.utils.getContractAddress({
+        from: deployer.address,
+        nonce: nonce + 7
+    });
+
+    const mastercopyStandardVaultAddress_09 = ethers.utils.getContractAddress({
+        from: deployer.address,
+        nonce: nonce + 8
+    });
     
     // output the addresses for use in the deployment script
-    console.log(`${hubAddress_01} ${migrationAddress_02} ${nameRegistryAddress_03} ${erc20LiftAddress_04} ${standardTreasuryAddress_05} ${baseGroupMintPolicyAddress_06}`);
+    console.log(`${hubAddress_01} ${migrationAddress_02} ${nameRegistryAddress_03} ` +
+    `${erc20LiftAddress_04} ${standardTreasuryAddress_05} ${baseGroupMintPolicyAddress_06} ` +
+    `${mastercopyDemurrageERC20Address_07} ${mastercopyInflationaryERC20Address_08} ` +
+    `${mastercopyStandardVaultAddress_09}`);
 }
 
 main().catch(console.error);
