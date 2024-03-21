@@ -1,0 +1,9 @@
+{
+    "name": "deploy-circles",
+    "version": "0.3.0",
+    "type": "module",
+    "dependencies": {
+      "ethers": "^5.0.0"
+    }
+  }
+  

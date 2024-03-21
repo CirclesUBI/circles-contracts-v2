@@ -1,4 +1,4 @@
-const ethers = require('ethers');
+import { ethers }  from "ethers";
 
 async function main() {
     // provider to get the nonce of deployer key
