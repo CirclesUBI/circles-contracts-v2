@@ -1,10 +1,42 @@
 #!/bin/bash
 
-# Set the environment variables, also for use in node script
-source ../../.env
+deploy_and_verify() {
+  local contract_name=$1
+  local precalculated_address=$2
+  local deployment_output
+  local deployed_address
 
-echo "PRIVATE_KEY: $PRIVATE_KEY"
-echo "RPC_URL: $RPC_URL"
+  echo ""
+  echo "Deploying ${contract_name}..."
+  deployment_output=$(forge create \
+    --rpc-url ${RPC_URL} \
+    --private-key ${PRIVATE_KEY} \
+    --optimizer-runs 200 \
+    --chain-id 10200 \
+    --verify \
+    --verifier-url $VERIFIER_URL \
+    --verifier $VERIFIER \
+    --etherscan-api-key ${VERIFIER_API_KEY} \
+    "${@:3}") # Passes all arguments beyond the second to forge create
+
+  deployed_address=$(echo "$deployment_output" | grep "Deployed to:" | awk '{print $3}')
+  echo "${contract_name} deployed at ${deployed_address}"
+
+  # Verify that the deployed address matches the precalculated address
+  if [ "$deployed_address" = "$precalculated_address" ]; then
+    echo "Verification Successful: Deployed address matches the precalculated address for ${contract_name}."
+  else
+    echo "Verification Failed: Deployed address does not match the precalculated address for ${contract_name}."
+    echo "Precalculated Address: $precalculated_address"
+    echo "Deployed Address: $deployed_address"
+    # exit the script if the addresses don't match
+    exit 1
+  fi
+}
+
+# Set the environment variables, also for use in node script
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+source "$DIR/../../.env"
 
 # declare Chiado constants
 V1_HUB_ADDRESS='0xdbF22D4e8962Db3b2F1d9Ff55be728A887e47710'
@@ -18,6 +50,12 @@ BOOTSTRAP_ONE_YEAR=31540000
 # fallback URI 
 URI='https://fallback.aboutcircles.com/v1/circles/{id}.json'
 
+# re-export the variables for use here and in the general calculation JS script
+export PRIVATE_KEY=$PRIVATE_KEY_CHIADO
+export RPC_URL=$RPC_URL_CHIADO
+VERIFIER_URL=$BLOCKSCOUT_URL_CHIADO
+VERIFIER_API_KEY=$BLOCKSCOUT_API_KEY
+VERIFIER=$BLOCKSCOUT_VERIFIER
 
 # Run the Node.js script to predict contract addresses
 # Assuming predictAddresses.js is in the current directory
@@ -40,18 +78,34 @@ echo "BaseGroupMintPolicy: ${BASE_GROUPMINTPOLICY_ADDRESS_06}"
 echo ""
 echo "Starting deployment..."
 echo "======================"
-echo "Deploying ERC1155 Hub..."
-MULTITOKEN_HUB=$(forge create \
-  --rpc-url ${RPC_URL} \
-  --private-key ${PRIVATE_KEY} \
-  src/hub/Hub.sol:Hub \
-  --constructor-args ${V1_HUB_ADDRESS} ${NAMEREGISTRY_ADDRESS_03} \
-  ${MIGRATION_ADDRESS_02} ${ERC20LIFT_ADDRESS_04} \
-  ${STANDARD_TREASURY_ADDRESS_05} ${INFLATION_DAY_ZERO} \
-  ${BOOTSTRAP_ONE_YEAR} ${URI} )
 
-HUB_ADDRESS=$(echo "$MULTITOKEN_HUB" | grep "Deployed to:" | awk '{print $3}')
-echo "ERC1155 Hub deployed at ${HUB_ADDRESS}"
+deploy_and_verify "Circles ERC1155 Hub" $HUB_ADDRESS_01 \
+  src/hub/Hub.sol:Hub \
+  --constructor-args $V1_HUB_ADDRESS \
+  $NAMEREGISTRY_ADDRESS_03 $MIGRATION_ADDRESS_02 $ERC20LIFT_ADDRESS_04 \
+  $STANDARD_TREASURY_ADDRESS_05 $INFLATION_DAY_ZERO \
+  $BOOTSTRAP_ONE_YEAR $URI
+
+
+# # Deploy the ERC1155 Hub
+# MULTITOKEN_HUB=$(forge create \
+#   --rpc-url ${RPC_URL} \
+#   --private-key ${PRIVATE_KEY} \
+#   src/hub/Hub.sol:Hub \
+#   --constructor-args ${V1_HUB_ADDRESS} ${NAMEREGISTRY_ADDRESS_03} \
+#   ${MIGRATION_ADDRESS_02} ${ERC20LIFT_ADDRESS_04} \
+#   ${STANDARD_TREASURY_ADDRESS_05} ${INFLATION_DAY_ZERO} \
+#   ${BOOTSTRAP_ONE_YEAR} ${URI})
+
+# # Extract the deployed address from the output
+# HUB_ADDRESS=$(echo "$MULTITOKEN_HUB" | grep "Deployed to:" | awk '{print $3}')
+# echo "ERC1155 Hub deployed at ${HUB_ADDRESS}"
+
+# MIGRATION = $(forge create \
+#   --rpc-url ${RPC_URL} \
+#   --private-key ${PRIVATE_KEY} \
+#   src/migration/Migration.sol:Migration \
+#   --constructor-args ${HUB_ADDRESS})
 
 echo ""
 echo "Summary:"
