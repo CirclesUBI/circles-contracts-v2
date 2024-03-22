@@ -4,7 +4,11 @@ pragma solidity >=0.8.13;
 import {Test} from "forge-std/Test.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
 
-contract TimeSetup is Test {
+contract TimeCirclesSetup is Test {
+    // Constants
+
+    uint256 internal constant CRC = uint256(10 ** 18);
+
     /**
      * Arbitrary origin for counting time since 10 December 2021
      *  "Hope" is the thing with feathers -

@@ -4,16 +4,12 @@ pragma solidity >=0.8.13;
 import {Test} from "forge-std/Test.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
 import "forge-std/console.sol";
-import "../setup/TimeSetup.sol";
+import "../setup/TimeCirclesSetup.sol";
 import "../setup/HumanRegistration.sol";
 import "./MockPathTransferHub.sol";
 import "../../src/hub/Hub.sol";
 
-contract HubPathTransferTest is Test, TimeSetup, HumanRegistration {
-    // Constants
-
-    uint256 public constant CRC = uint256(10 ** 18);
-
+contract HubPathTransferTest is Test, TimeCirclesSetup, HumanRegistration {
     // State variables
 
     MockPathTransferHub public mockHub;

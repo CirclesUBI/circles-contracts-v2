@@ -5,10 +5,10 @@ import {Test} from "forge-std/Test.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
 import "forge-std/console.sol";
 import "./MockCircles.sol";
-import "../setup/TimeSetup.sol";
+import "../setup/TimeCirclesSetup.sol";
 import "../utils/Approximation.sol";
 
-contract CirclesTest is Test, TimeSetup, Approximation {
+contract CirclesTest is Test, TimeCirclesSetup, Approximation {
     // Constants
 
     uint256 public constant N = 4;
@@ -16,8 +16,6 @@ contract CirclesTest is Test, TimeSetup, Approximation {
     uint256 public constant DAY0 = (3 * 365 days + 100 days) / 1 days;
 
     uint256 public constant EPS = 10 ** (18 - 2);
-
-    uint256 public constant CRC = 10 ** 18;
 
     // State variables
 
