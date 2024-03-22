@@ -7,6 +7,7 @@ import "../setup/TimeCircleSetup.sol";
 
 contract TimeCircleTest is Test, TimeCircleSetup {
     function testFactorySetupTimeCircle() public {
+        // vm.skip(true);
         address edgar = makeAddr("Edgar");
         vm.prank(edgar);
         graph.registerAvatar();
@@ -19,6 +20,7 @@ contract TimeCircleTest is Test, TimeCircleSetup {
     }
 
     function testSetupCannotBeCalledAgain() public {
+        // vm.skip(true);
         address edgar = makeAddr("Edgar");
         address notEdgar = makeAddr("notEdgar");
         vm.prank(edgar);

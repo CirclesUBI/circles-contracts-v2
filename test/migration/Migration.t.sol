@@ -7,7 +7,7 @@ import "../../src/migration/Migration.sol";
 import "../setup/TimeSetup.sol";
 import "./MockHub.sol";
 
-contract GraphTest is Test {
+contract MigrationTest is Test {
     // Constants
 
     uint256 private ACCURACY_ONE = uint256(10 ** 8);

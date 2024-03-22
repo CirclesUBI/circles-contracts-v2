@@ -2,10 +2,11 @@
 pragma solidity >=0.8.13;
 
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import "../errors/Errors.sol";
 import "../hub/IHub.sol";
 import "./IStandardVault.sol";
 
-contract standardVault is ERC1155Holder, IStandardVault {
+contract standardVault is ERC1155Holder, IStandardVault, ICirclesErrors {
     // State variables
 
     /**
@@ -24,7 +25,10 @@ contract standardVault is ERC1155Holder, IStandardVault {
      * @notice Ensure the caller is the standard treasury
      */
     modifier onlyTreasury() {
-        require(msg.sender == standardTreasury, "Vault: caller is not the treasury");
+        if (msg.sender != standardTreasury) {
+            // Vault: caller is not the treasury
+            revert CirclesInvalidFunctionCaller(msg.sender, standardTreasury, 0);
+        }
         _;
     }
 
@@ -45,7 +49,10 @@ contract standardVault is ERC1155Holder, IStandardVault {
      * @param _hub Address of the hub contract
      */
     function setup(IHubV2 _hub) external {
-        require(address(hub) == address(0), "Vault: already initialized");
+        if (address(hub) != address(0)) {
+            // Vault: already initialized
+            revert CirclesProxyAlreadyInitialized();
+        }
         standardTreasury = msg.sender;
         hub = _hub;
     }
@@ -63,7 +70,10 @@ contract standardVault is ERC1155Holder, IStandardVault {
         uint256[] calldata _values,
         bytes calldata _data
     ) external onlyTreasury {
-        require(_receiver != address(0), "Vault: receiver cannot be 0 address");
+        if (_receiver == address(0)) {
+            // Vault: receiver cannot be 0 address
+            revert CirclesAddressCannotBeZero(0);
+        }
 
         // return the collateral to the receiver
         hub.safeBatchTransferFrom(address(this), _receiver, _ids, _values, _data);
@@ -79,7 +89,10 @@ contract standardVault is ERC1155Holder, IStandardVault {
         external
         onlyTreasury
     {
-        require(_ids.length == _values.length, "Vault: ids and values length mismatch");
+        if (_ids.length != _values.length) {
+            // Vault: ids and values length mismatch
+            revert CirclesArraysLengthMismatch(_ids.length, _values.length, 0);
+        }
 
         // burn the collateral from the vault
         for (uint256 i = 0; i < _ids.length; i++) {

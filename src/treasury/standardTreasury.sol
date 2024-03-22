@@ -4,13 +4,21 @@ pragma solidity >=0.8.13;
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
-import "../proxy/ProxyFactory.sol";
+import "../errors/Errors.sol";
 import "../hub/MetadataDefinitions.sol";
 import "../hub/IHub.sol";
 import "../groups/IMintPolicy.sol";
+import "../proxy/ProxyFactory.sol";
 import "./IStandardVault.sol";
 
-contract standardTreasury is ERC165, IERC1155Receiver, ProxyFactory {
+contract standardTreasury is
+    ERC165,
+    ProxyFactory,
+    MetadataDefinitions,
+    IERC1155Receiver,
+    ICirclesErrors,
+    IStandardTreasuryErrors
+{
     // Constants
 
     /**
@@ -45,7 +53,10 @@ contract standardTreasury is ERC165, IERC1155Receiver, ProxyFactory {
      * @notice Ensure the caller is the hub
      */
     modifier onlyHub() {
-        require(msg.sender == address(hub), "Treasury: caller is not the hub");
+        if (msg.sender != address(hub)) {
+            // Treasury: caller is not the hub
+            revert CirclesInvalidFunctionCaller(msg.sender, address(hub), 0);
+        }
         _;
     }
 
@@ -57,8 +68,14 @@ contract standardTreasury is ERC165, IERC1155Receiver, ProxyFactory {
      * @param _mastercopyStandardVault Address of the mastercopy standard vault contract
      */
     constructor(IHubV2 _hub, address _mastercopyStandardVault) {
-        require(address(_hub) != address(0), "Hub address cannot be 0");
-        require(_mastercopyStandardVault != address(0), "Mastercopy standard vault address cannot be 0");
+        if (address(_hub) == address(0)) {
+            // Hub address cannot be 0
+            revert CirclesAddressCannotBeZero(0);
+        }
+        if (_mastercopyStandardVault == address(0)) {
+            // Mastercopy standard vault address cannot be 0
+            revert CirclesAddressCannotBeZero(1);
+        }
         hub = _hub;
         mastercopyStandardVault = _mastercopyStandardVault;
     }
@@ -68,7 +85,7 @@ contract standardTreasury is ERC165, IERC1155Receiver, ProxyFactory {
     /**
      * @dev See {IERC165-supportsInterface}.
      */
-    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165, IERC165) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view override(ERC165, IERC165) returns (bool) {
         return interfaceId == type(IERC1155Receiver).interfaceId || super.supportsInterface(interfaceId);
     }
 
@@ -76,19 +93,25 @@ contract standardTreasury is ERC165, IERC1155Receiver, ProxyFactory {
      * @dev Exclusively use single received for receiving group Circles to redeem them
      * for collateral Circles according to the group mint policy
      */
-    function onERC1155Received(address _operator, address _from, uint256 _id, uint256 _value, bytes memory _data)
+    function onERC1155Received(address _operator, address _from, uint256 _id, uint256 _value, bytes calldata _data)
         public
-        virtual
         override
+        onlyHub
         returns (bytes4)
     {
         address group = _validateCirclesIdToGroup(_id);
         IStandardVault vault = vaults[group];
-        require(address(vault) != address(0), "Treasury: Group has no vault");
+        if (address(vault) == address(0)) {
+            // Treasury: Group has no vault
+            revert CirclesStandardTreasuryGroupHasNoVault(group);
+        }
 
         // query the hub for the mint policy
         IMintPolicy policy = IMintPolicy(hub.mintPolicies(group));
-        require(address(policy) != address(0), "Treasury: Invalid group without mint policy");
+        if (address(policy) == address(0)) {
+            // Treasury: Invalid group without mint policy
+            revert CirclesLogicAssertion(0);
+        }
 
         // query the mint policy for the redemption values
         uint256[] memory redemptionIds;
@@ -106,7 +129,12 @@ contract standardTreasury is ERC165, IERC1155Receiver, ProxyFactory {
         for (uint256 i = 0; i < burnValues.length; i++) {
             sum += burnValues[i];
         }
-        require(sum == _value, "Treasury: Invalid redemption values from policy");
+        if (sum != _value) {
+            // Treasury: Invalid redemption values from policy
+            revert CirclesStandardTreasuryRedemptionCollateralMismatch(
+                _id, redemptionIds, redemptionValues, burnIds, burnValues
+            );
+        }
 
         // burn the group Circles
         hub.burn(_id, _value, _data);
@@ -130,21 +158,32 @@ contract standardTreasury is ERC165, IERC1155Receiver, ProxyFactory {
         address, /*_from*/
         uint256[] memory _ids,
         uint256[] memory _values,
-        bytes memory _data
-    ) public virtual override onlyHub returns (bytes4) {
-        // decode the data to get the group address
-        MetadataDefinitions.Metadata memory metadata = abi.decode(_data, (MetadataDefinitions.Metadata));
-        require(metadata.metadataType == MetadataDefinitions.MetadataType.GroupMint, "Treasury: Invalid metadata type");
-        MetadataDefinitions.GroupMintMetadata memory groupMintMetadata =
-            abi.decode(metadata.metadata, (MetadataDefinitions.GroupMintMetadata));
+        bytes calldata _data
+    ) public override onlyHub returns (bytes4) {
+        // decode the data to get the group address and user data
+        (address group, bytes memory userData) = _decodeMetadataForGroup(_data);
         // ensure the vault exists
-        address vault = address(_ensureVault(groupMintMetadata.group));
+        address vault = address(_ensureVault(group));
         // forward the Circles to the vault
-        hub.safeBatchTransferFrom(address(this), vault, _ids, _values, metadata.erc1155UserData);
+        hub.safeBatchTransferFrom(address(this), vault, _ids, _values, userData);
         return this.onERC1155BatchReceived.selector;
     }
 
     // Internal functions
+
+    /**
+     * @dev Decode the metadata for the group mint and revert if the type does not match group mint
+     * @param _data Metadata for the group mint
+     */
+    function _decodeMetadataForGroup(bytes memory _data) internal pure returns (address, bytes memory) {
+        Metadata memory metadata = abi.decode(_data, (Metadata));
+        if (!_isReservedGroupMint(metadata.metadataType)) {
+            // Treasury: Invalid metadata type
+            revert CirclesStandardTreasuryInvalidMetadataType(metadata.metadataType, 0);
+        }
+        GroupMintMetadata memory groupMintMetadata = abi.decode(metadata.metadata, (GroupMintMetadata));
+        return (groupMintMetadata.group, metadata.erc1155UserData);
+    }
 
     /**
      * @dev Validate the Circles id to group address
@@ -153,7 +192,10 @@ contract standardTreasury is ERC165, IERC1155Receiver, ProxyFactory {
      */
     function _validateCirclesIdToGroup(uint256 _id) internal pure returns (address) {
         address group = address(uint160(_id));
-        require(uint256(uint160(group)) == _id, "Treasury: Invalid group Circles id");
+        if (uint256(uint160(group)) != _id) {
+            // Treasury: Invalid group Circles id
+            revert CirclesIdMustBeDerivedFromAddress(_id, 0);
+        }
         return group;
     }
 
@@ -180,5 +222,11 @@ contract standardTreasury is ERC165, IERC1155Receiver, ProxyFactory {
         bytes memory vaultSetupData = abi.encodeWithSelector(STANDARD_VAULT_SETUP_CALLPREFIX, hub);
         IStandardVault vault = IStandardVault(address(_createProxy(mastercopyStandardVault, vaultSetupData)));
         return vault;
+    }
+
+    // private functions
+
+    function _isReservedGroupMint(bytes32 metadataType) private pure returns (bool) {
+        return metadataType == METADATATYPE_GROUPMINT;
     }
 }
