@@ -21,6 +21,10 @@ contract MockCircles is Circles {
         }
     }
 
+    function calculateIssuance(address _human) external returns (uint256) {
+        return _calculateIssuance(_human);
+    }
+
     function claimIssuance() external {
         require(mintTimes[msg.sender].lastMintTime != 0, "Circles: Not registered");
         _claimIssuance(msg.sender);

@@ -360,18 +360,24 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
             // Only avatars registered as human can call personal mint.
             revert CirclesHubMustBeHuman(msg.sender, 1);
         }
-        // check if v1 Circles is known to be stopped
-        if (mintTimes[msg.sender].mintV1Status != CIRCLES_STOPPED_V1) {
-            // if v1 Circles is not known to be stopped, check the status
-            address v1MintStatus = _avatarV1CirclesStatus(msg.sender);
-            _updateMintV1Status(msg.sender, v1MintStatus);
-        }
+        // check if v1 Circles is known to be stopped and update status
+        _checkHumanV1CirclesStatus(msg.sender);
 
         // claim issuance if any is available
         _claimIssuance(msg.sender);
     }
 
-    // graph transfers SHOULD allow personal -> group conversion en route
+    /**
+     * @notice Calculate issuance allows to calculate the issuance for a human avatar.
+     * @param _human address of the human avatar to calculate the issuance for
+     * @return issuance amount of Circles that can be minted
+     */
+    function calculateIssuace(address _human) external returns (uint256) {
+        // check if v1 Circles is known to be stopped and update status
+        _checkHumanV1CirclesStatus(_human);
+        // calculate issuance for the human avatar, but don't mint
+        return _calculateIssuance(_human);
+    }
 
     /**
      * @notice Group mint allows to mint group Circles by providing the required collateral.
@@ -1059,6 +1065,20 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
         }
 
         return registrationCount;
+    }
+
+    /**
+     * Check the status of an avatar's Circles in the Hub v1 contract,
+     * and update the mint status of the avatar.
+     * @param _human Address of the human avatar to check the v1 mint status of.
+     */
+    function _checkHumanV1CirclesStatus(address _human) internal {
+        // check if v1 Circles is known to be stopped
+        if (mintTimes[_human].mintV1Status != CIRCLES_STOPPED_V1) {
+            // if v1 Circles is not known to be stopped, check the status
+            address v1MintStatus = _avatarV1CirclesStatus(_human);
+            _updateMintV1Status(_human, v1MintStatus);
+        }
     }
 
     /**

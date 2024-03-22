@@ -76,11 +76,13 @@ contract Circles is ERC1155 {
 
     // Public functions
 
+    // Internal functions
+
     /**
      * @notice Calculate the demurraged issuance for a human's avatar.
      * @param _human Address of the human's avatar to calculate the issuance for.
      */
-    function calculateIssuance(address _human) public view returns (uint256) {
+    function _calculateIssuance(address _human) internal view returns (uint256) {
         MintTime storage mintTime = mintTimes[_human];
         if (mintTime.mintV1Status != address(0) && mintTime.mintV1Status != CIRCLES_STOPPED_V1) {
             // Circles v1 contract cannot be active.
@@ -118,14 +120,12 @@ contract Circles is ERC1155 {
         return Math64x64.mulu(Math64x64.sub(T[n], overcount), EXA);
     }
 
-    // Internal functions
-
     /**
      * @notice Claim issuance for a human's avatar and update the last mint time.
      * @param _human Address of the human's avatar to claim the issuance for.
      */
     function _claimIssuance(address _human) internal {
-        uint256 issuance = calculateIssuance(_human);
+        uint256 issuance = _calculateIssuance(_human);
         if (issuance == 0) {
             // No issuance to claim.
             revert CirclesERC1155NoMintToIssue(_human, mintTimes[_human].lastMintTime);
