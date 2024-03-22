@@ -21,7 +21,7 @@ contract MockCircles is Circles {
         }
     }
 
-    function calculateIssuance(address _human) external returns (uint256) {
+    function calculateIssuance(address _human) external view returns (uint256) {
         return _calculateIssuance(_human);
     }
 
