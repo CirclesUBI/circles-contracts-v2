@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity >=0.8.13;
 
-import "./ERC1155.sol";
 import "../lib/Math64x64.sol";
+import "./ERC1155.sol";
 
 contract Circles is ERC1155 {
     // Type declarations
@@ -31,23 +31,23 @@ contract Circles is ERC1155 {
      * @notice Issue one Circle per hour for each human in demurraged units.
      * So per second issue 10**18 / 3600 = 277777777777778 attoCircles.
      */
-    uint256 public constant ISSUANCE_PER_SECOND = uint256(277777777777778);
+    uint256 private constant ISSUANCE_PER_SECOND = uint256(277777777777778);
 
     /**
      * @notice Upon claiming, the maximum claim is upto two weeks
      * of history. Unclaimed older Circles are unclaimable.
      */
-    uint256 public constant MAX_CLAIM_DURATION = 2 weeks;
+    uint256 private constant MAX_CLAIM_DURATION = 2 weeks;
 
     /**
      * @dev Address used to indicate that the associated v1 Circles contract has been stopped.
      */
-    address public constant CIRCLES_STOPPED_V1 = address(0x1);
+    address internal constant CIRCLES_STOPPED_V1 = address(0x1);
 
     /**
      * @notice Indefinite future, or approximated with uint96.max
      */
-    uint96 public constant INDEFINITE_FUTURE = type(uint96).max;
+    uint96 internal constant INDEFINITE_FUTURE = type(uint96).max;
 
     // State variables
 
@@ -59,44 +59,6 @@ contract Circles is ERC1155 {
     mapping(address => MintTime) public mintTimes;
 
     // Events
-
-    /**
-     * @dev Emitted when Circles are transferred in addition to TransferSingle event,
-     * to include the demurraged value of the Circles transferred.
-     * @param operator Operator who called safeTransferFrom.
-     * @param from Address from which the Circles have been transferred.
-     * @param to Address to which the Circles have been transferred.
-     * @param id Circles identifier for which the Circles have been transferred.
-     * @param value Demurraged value of the Circles transferred.
-     * @param inflationaryValue Inflationary amount of Circles transferred.
-     */
-    event DemurragedTransferSingle(
-        address indexed operator,
-        address indexed from,
-        address indexed to,
-        uint256 id,
-        uint256 value,
-        uint256 inflationaryValue
-    );
-
-    /**
-     * @dev Emitted when Circles are transferred in addition to TransferBatch event,
-     * to include the demurraged values of the Circles transferred.
-     * @param operator Operator who called safeBatchTransferFrom.
-     * @param from Address from which the Circles have been transferred.
-     * @param to Address to which the Circles have been transferred.
-     * @param ids Array of Circles identifiers for which the Circles have been transferred.
-     * @param values Array of demurraged values of the Circles transferred.
-     * @param inflationaryValues Array of inflationary amounts of Circles transferred.
-     */
-    event DemurragedTransferBatch(
-        address indexed operator,
-        address indexed from,
-        address indexed to,
-        uint256[] ids,
-        uint256[] values,
-        uint256[] inflationaryValues
-    );
 
     // Constructor
 
@@ -120,14 +82,14 @@ contract Circles is ERC1155 {
      */
     function calculateIssuance(address _human) public view returns (uint256) {
         MintTime storage mintTime = mintTimes[_human];
-        require(
-            mintTime.mintV1Status == address(0) || mintTime.mintV1Status == CIRCLES_STOPPED_V1,
-            "Circles v1 contract cannot be active."
-        );
+        if (mintTime.mintV1Status != address(0) && mintTime.mintV1Status != CIRCLES_STOPPED_V1) {
+            // Circles v1 contract cannot be active.
+            revert CirclesERC1155MintBlocked(_human, mintTime.mintV1Status);
+        }
 
-        if (uint256(mintTime.lastMintTime) + 10 > block.timestamp) {
+        if (uint256(mintTime.lastMintTime) + 1 hours > block.timestamp) {
             // Mint time is set to indefinite future for stopped mints in v2
-            // and wait at least 10 seconds between mints
+            // and only complete hours get minted, so shortcut the calculation
             return 0;
         }
 
@@ -144,10 +106,10 @@ contract Circles is ERC1155 {
         uint256 n = dB - dA;
 
         // calculate the number of completed hours in day A until `startMint`
-        int128 k = Math64x64.fromUInt((startMint - (dA * 1 days + inflation_day_zero)) / 1 hours);
+        int128 k = Math64x64.fromUInt((startMint - (dA * 1 days + inflationDayZero)) / 1 hours);
 
         // Calculate the number of incompleted hours remaining in day B from current timestamp
-        int128 l = Math64x64.fromUInt(((dB + 1) * 1 days + inflation_day_zero - block.timestamp) / 1 hours + 1);
+        int128 l = Math64x64.fromUInt(((dB + 1) * 1 days + inflationDayZero - block.timestamp) / 1 hours + 1);
 
         // calculate the overcounted (demurraged) k (in day A) and l (in day B) hours
         int128 overcount = Math64x64.add(Math64x64.mul(R[n], k), l);
@@ -164,7 +126,10 @@ contract Circles is ERC1155 {
      */
     function _claimIssuance(address _human) internal {
         uint256 issuance = calculateIssuance(_human);
-        require(issuance > 0, "No issuance to claim.");
+        if (issuance == 0) {
+            // No issuance to claim.
+            revert CirclesERC1155NoMintToIssue(_human, mintTimes[_human].lastMintTime);
+        }
         // mint personal Circles to the human
         _mint(_human, toTokenId(_human), issuance, "");
         // update the last mint time

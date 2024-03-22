@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity >=0.8.13;
 
+import "../errors/Errors.sol";
+import "../hub/IHub.sol";
 import "./IHub.sol";
 import "./IToken.sol";
-import "../hub/IHub.sol";
 
-contract Migration {
+contract Migration is ICirclesErrors {
     // Constant
 
     uint256 private constant ACCURACY = uint256(10 ** 8);
@@ -30,7 +31,10 @@ contract Migration {
     // Constructor
 
     constructor(IHubV1 _hubV1) {
-        require(address(_hubV1) != address(0), "Hub v1 address can not be zero.");
+        if (address(_hubV1) == address(0)) {
+            // Hub v1 address can not be zero.
+            revert CirclesAddressCannotBeZero(0);
+        }
 
         hubV1 = _hubV1;
 
@@ -58,14 +62,21 @@ contract Migration {
         returns (uint256[] memory)
     {
         // note: _hubV2 is passed in as a parameter to avoid a circular dependency, and minimise code complexity
+        // todo: update this together with name registry to use deterministic deployment
 
-        require(_avatars.length == _amounts.length, "Arrays length mismatch.");
+        if (_avatars.length != _amounts.length) {
+            // Arrays length mismatch.
+            revert CirclesArraysLengthMismatch(_avatars.length, _amounts.length, 0);
+        }
 
         uint256[] memory convertedAmounts = new uint256[](_avatars.length);
 
         for (uint256 i = 0; i < _avatars.length; i++) {
             ITokenV1 circlesV1 = ITokenV1(hubV1.userToToken(_avatars[i]));
-            require(address(circlesV1) != address(0), "Invalid avatar.");
+            if (address(circlesV1) == address(0)) {
+                // Invalid avatar, not registered in hub V1.
+                revert CirclesAddressCannotBeZero(1);
+            }
             convertedAmounts[i] = convertFromV1ToDemurrage(_amounts[i]);
             // transfer the v1 Circles to this contract to be locked
             circlesV1.transferFrom(msg.sender, address(this), _amounts[i]);
