@@ -36,6 +36,17 @@ contract Hub is Circles, IHubV2 {
         uint96 expiry;
     }
 
+    struct FlowEdge {
+        uint16 streamSinkId;
+        uint240 amount;
+    }
+
+    struct Stream {
+        uint16 sourceCoordinate;
+        uint16[] flowEdgeIds; // todo: this can possible be packed more compactly manually, evaluate
+        bytes data;
+    }
+
     // Constants
 
     /**
@@ -152,7 +163,7 @@ contract Hub is Circles, IHubV2 {
     /**
      * @notice Constructor for the Hub contract.
      * @param _hubV1 address of the Hub v1 contract
-     * @param _inflation_day_zero timestamp of the start of the global inflation curve.
+     * @param _inflationDayZero timestamp of the start of the global inflation curve.
      * For deployment on Gnosis Chain this parameter should be set to midnight 15 October 2020,
      * or in unix time 1602786330 (deployment at 6:25:30 pm UTC) - 66330 (offset to midnight) = 1602720000.
      * @param _standardTreasury address of the standard treasury contract
@@ -163,11 +174,11 @@ contract Hub is Circles, IHubV2 {
     constructor(
         IHubV1 _hubV1,
         address _migration,
-        uint256 _inflation_day_zero,
+        uint256 _inflationDayZero,
         address _standardTreasury,
         uint256 _bootstrapTime,
         string memory _fallbackUri
-    ) Circles(_inflation_day_zero, _fallbackUri) {
+    ) Circles(_inflationDayZero, _fallbackUri) {
         require(address(_hubV1) != address(0), "Hub v1 address can not be zero.");
         require(_standardTreasury != address(0), "Standard treasury address can not be zero.");
 
@@ -309,7 +320,7 @@ contract Hub is Circles, IHubV2 {
      * The trusted address does not (yet) have to be registered in the Hub contract.
      */
     function trust(address _trustReceiver, uint96 _expiry) external {
-        require(avatars[msg.sender] != address(0), "Caller must be registered as an avatar in the Hub contract.");
+        require(avatars[msg.sender] != address(0), "To trust caller must be registered.");
         require(
             _trustReceiver != address(0) || _trustReceiver != SENTINEL, "You cannot trust the zero, or 0x1 address."
         );
@@ -340,53 +351,21 @@ contract Hub is Circles, IHubV2 {
     /**
      * @notice Group mint allows to mint group Circles by providing the required collateral.
      * @param _group address of the group avatar to mint Circles of
-     * @param _collateral array of (personal or group) avatar addresses to be used as collateral
+     * @param _collateralAvatars array of (personal or group) avatar addresses to be used as collateral
      * @param _amounts array of amounts of collateral to be used for minting
      * @param _data (optional) additional data to be passed to the mint policy, treasury and minter
      */
     function groupMint(
         address _group,
-        address[] calldata _collateral,
+        address[] calldata _collateralAvatars,
         uint256[] calldata _amounts,
         bytes calldata _data
     ) external {
-        require(_collateral.length == _amounts.length, "Collateral and amount arrays must have equal length");
-        require(_collateral.length > 0, "At least one collateral must be provided");
-        require(isGroup(_group), "Group is not registered as an avatar.");
-
-        // note: we don't need to check whether collateral circle ids are registered,
-        // because only for registered collateral do non-zero balances exist to transfer,
-        // so it suffices to check that all amounts are non-zero during summing.
-        uint256 sumAmounts = 0;
-        uint256[] memory collateralCirclesIds = new uint256[](_collateral.length);
-        for (uint256 i = 0; i < _amounts.length; i++) {
-            require(isTrusted(_group, _collateral[i]), "Collateral must be trusted");
-            require(_amounts[i] > 0, "Non-zero collateral must be provided.");
-            sumAmounts += _amounts[i];
-            collateralCirclesIds[i] = toTokenId(_collateral[i]);
+        uint256[] memory collateral = new uint256[](_collateralAvatars.length);
+        for (uint256 i = 0; i < _collateralAvatars.length; i++) {
+            collateral[i] = toTokenId(_collateralAvatars[i]);
         }
-
-        // Rely on the mint policy to determine whether the collateral is valid for minting
-        require(
-            IMintPolicy(mintPolicies[_group]).beforeMintPolicy(msg.sender, _group, _collateral, _amounts, _data),
-            "Mint policy rejected mint."
-        );
-
-        // abi encode the group address into the data to send onwards to the treasury
-        bytes memory metadataGroup = abi.encode(MetadataDefinitions.GroupMintMetadata({group: _group}));
-        bytes memory dataWithGroup = abi.encode(
-            MetadataDefinitions.Metadata({
-                metadataType: MetadataDefinitions.MetadataType.GroupMint,
-                metadata: metadataGroup,
-                erc1155UserData: _data
-            })
-        );
-
-        // note: treasury.on1155Received must implement and unpack the GroupMintMetadata to know the group
-        safeBatchTransferFrom(msg.sender, treasuries[_group], collateralCirclesIds, _amounts, dataWithGroup);
-
-        // mint group Circles to the sender and send the original _data onwards
-        _mint(msg.sender, toTokenId(_group), sumAmounts, _data);
+        _groupMint(msg.sender, _group, collateral, _amounts, _data);
     }
 
     /**
@@ -547,6 +526,36 @@ contract Hub is Circles, IHubV2 {
 
     function ToInflationAmount(uint256 _amount, uint256 _timestamp) external {}
 
+    function operateFlowMatrix(
+        address[] calldata _flowVertices,
+        FlowEdge[] calldata _flow,
+        Stream[] calldata _streams,
+        bytes calldata _packedCoordinates
+    ) external {
+        // first unpack the coordinates to array of uint16
+        uint16[] memory coordinates = _unpackCoordinates(_packedCoordinates, _flow.length);
+
+        // check all senders have the operator authorized
+        for (uint64 i = 0; i < _streams.length; i++) {
+            require(_flowVertices[_streams[i].sourceCoordinate] == msg.sender, "Not Alice?");
+            require(isApprovedForAll(_flowVertices[_streams[i].sourceCoordinate], msg.sender), "Operator not approved.");
+        }
+
+        // if no streams are provided, then only closed paths are allowed
+        bool closedPath = (_streams.length == 0);
+
+        // verify the correctness of the flow matrix describing the path itself,
+        // ie. well-definedness of the flow matrix itself,
+        // check all entities are registered, and the trust relations are respected.
+        int256[] memory matrixNettedFlow = _verifyFlowMatrix(_flowVertices, _flow, coordinates, closedPath);
+
+        _effectPathTransfers(_flowVertices, _flow, _streams, coordinates);
+
+        int256[] memory streamsNettedFlow = _callAcceptanceChecks(_flowVertices, _flow, _streams, coordinates);
+
+        _matchNettedFlows(streamsNettedFlow, matrixNettedFlow);
+    }
+
     // Public functions
 
     /**
@@ -581,7 +590,7 @@ contract Hub is Circles, IHubV2 {
      */
     function isTrusted(address _truster, address _trustee) public view returns (bool) {
         // trust up until expiry timestamp
-        return uint256(trustMarkers[_truster][_trustee].expiry) > block.timestamp;
+        return uint256(trustMarkers[_truster][_trustee].expiry) >= block.timestamp;
     }
 
     /**
@@ -658,6 +667,236 @@ contract Hub is Circles, IHubV2 {
     }
 
     // Internal functions
+
+    /**
+     * @notice Group mint allows to mint group Circles by providing the required collateral.
+     * @param _sender address of the sender of the group mint, and receiver of minted group Circles
+     * @param _group address of the group avatar to mint Circles of
+     * @param _collateral array of (personal or group) avatar addresses to be used as collateral
+     * @param _amounts array of amounts of collateral to be used for minting
+     * @param _data (optional) additional data to be passed to the mint policy, treasury and minter
+     */
+    function _groupMint(
+        address _sender,
+        address _group,
+        uint256[] memory _collateral,
+        uint256[] memory _amounts,
+        bytes memory _data
+    ) internal {
+        require(_collateral.length == _amounts.length, "Collateral and amount arrays must have equal length");
+        require(_collateral.length > 0, "At least one collateral must be provided");
+        require(isGroup(_group), "Group is not registered as an avatar.");
+
+        // note: we don't need to check whether collateral circle ids are registered,
+        // because only for registered collateral do non-zero balances exist to transfer,
+        // so it suffices to check that all amounts are non-zero during summing.
+        uint256 sumAmounts = 0;
+        for (uint256 i = 0; i < _amounts.length; i++) {
+            require(isTrusted(_group, address(uint160(_collateral[i]))), "Collateral must be trusted");
+            require(_amounts[i] > 0, "Non-zero collateral must be provided.");
+            sumAmounts += _amounts[i];
+        }
+
+        // Rely on the mint policy to determine whether the collateral is valid for minting
+        require(
+            IMintPolicy(mintPolicies[_group]).beforeMintPolicy(_sender, _group, _collateral, _amounts, _data),
+            "Mint policy rejected mint."
+        );
+
+        // abi encode the group address into the data to send onwards to the treasury
+        bytes memory metadataGroup = abi.encode(MetadataDefinitions.GroupMintMetadata({group: _group}));
+        bytes memory dataWithGroup = abi.encode(
+            MetadataDefinitions.Metadata({
+                metadataType: MetadataDefinitions.MetadataType.GroupMint,
+                metadata: metadataGroup,
+                erc1155UserData: _data
+            })
+        );
+
+        // note: treasury.on1155Received must implement and unpack the GroupMintMetadata to know the group
+        safeBatchTransferFrom(_sender, treasuries[_group], _collateral, _amounts, dataWithGroup);
+
+        // mint group Circles to the sender and send the original _data onwards
+        _mint(_sender, toTokenId(_group), sumAmounts, _data);
+    }
+
+    function _verifyFlowMatrix(
+        address[] calldata _flowVertices,
+        FlowEdge[] calldata _flow,
+        uint16[] memory _coordinates,
+        bool _closedPath
+    ) internal view returns (int256[] memory) {
+        require(3 * _flow.length == _coordinates.length, "Mismatch in flow and coordinates length.");
+        require(_flowVertices.length <= type(uint16).max, "Too many vertices.");
+        require(_flowVertices.length > 0 && _flow.length > 0, "Empty flow matrix.");
+
+        // initialize the netted flow array
+        int256[] memory nettedFlow = new int256[](_flowVertices.length);
+
+        {
+            // check all vertices are valid avatars, groups or organizations
+            for (uint64 i = 0; i < _flowVertices.length - 1; i++) {
+                require(
+                    uint160(_flowVertices[i]) < uint160(_flowVertices[i + 1]),
+                    "Flow vertices must be in ascending order."
+                );
+                require(avatars[_flowVertices[i]] != address(0), "Avatar must be registered.");
+            }
+
+            address lastAvatar = _flowVertices[_flowVertices.length - 1];
+            require(avatars[lastAvatar] != address(0), "Avatar must be registered.");
+        }
+
+        {
+            // iterate over the coordinate index
+            uint16 index = uint16(0);
+
+            for (uint64 i = 0; i < _flow.length; i++) {
+                // index: coordinate of Circles identifier avatar address
+                // index + 1: sender coordinate
+                // index + 2: receiver coordinate
+                address circlesId = _flowVertices[_coordinates[index]];
+                address to = _flowVertices[_coordinates[index + 2]];
+                int256 flow = int256(uint256(_flow[i].amount));
+
+                // check the receiver trusts the Circles being sent
+                require(isTrusted(to, circlesId), "Receiver does not trust Circles being sent");
+                require(
+                    !_closedPath || (to == circlesId && !isGroup(circlesId)),
+                    "Closed paths can only return personal Circles to source."
+                );
+
+                // nett the flow, dividing out the different Circle identifiers
+                // expect for all edges to a group, as they are interpreted
+                // as a request for group mint in _effectPathTransfers
+                if (!isGroup(to)) {
+                    nettedFlow[_coordinates[index + 1]] -= flow;
+                    nettedFlow[_coordinates[index + 2]] += flow;
+                }
+                index = index + 3;
+            }
+        }
+
+        return nettedFlow;
+    }
+
+    function _effectPathTransfers(
+        address[] calldata _flowVertices,
+        FlowEdge[] calldata _flow,
+        Stream[] calldata _streams,
+        uint16[] memory _coordinates
+    ) internal {
+        // Create a counter to track the proper definition of the streams
+        uint16[] memory streamBatchCounter = new uint16[](_streams.length);
+        address[] memory streamReceivers = new address[](_streams.length);
+
+        {
+            // iterate over the coordinate index
+            uint16 index = uint16(0);
+
+            for (uint16 i = 0; i < _flow.length; i++) {
+                // index: coordinate of Circles identifier avatar address
+                // index + 1: sender coordinate
+                // index + 2: receiver coordinate
+                address to = _flowVertices[_coordinates[index + 2]];
+
+                (uint256[] memory ids, uint256[] memory amounts) =
+                    _asSingletonArrays(toTokenId(_flowVertices[_coordinates[index]]), uint256(_flow[i].amount));
+
+                // check that each stream has listed the actual terminal flow edges in the correct order
+                // note, we can't do this check in _verifyFlowMatrix, because we run out of stack depth there
+                // streamSinkId starts counting from 1, so that 0 is reserved for non-terminal flow edges
+                if (_flow[i].streamSinkId > 0) {
+                    uint16 streamSinkArrayId = _flow[i].streamSinkId - 1;
+                    require(
+                        _streams[streamSinkArrayId].flowEdgeIds[streamBatchCounter[streamSinkArrayId]] == i,
+                        "Invalid stream sink"
+                    );
+                    streamBatchCounter[streamSinkArrayId]++;
+                    if (streamReceivers[streamSinkArrayId] == address(0)) {
+                        streamReceivers[streamSinkArrayId] = to;
+                    } else {
+                        require(streamReceivers[streamSinkArrayId] == to, "Invalid stream receiver");
+                    }
+                }
+
+                // effect the flow edge
+                if (!isGroup(to)) {
+                    // do a erc1155 single transfer without acceptance check,
+                    // as only nett receivers will get an acceptance call
+                    _update(
+                        _flowVertices[_coordinates[index + 1]], // sender, from coordinate
+                        to,
+                        ids,
+                        amounts
+                    );
+                } else {
+                    // do group mint, and the sender receives the minted group Circles
+                    _groupMint(
+                        _flowVertices[_coordinates[index + 1]], // sender, from coordinate
+                        to, // group
+                        ids, // collateral
+                        amounts, // amounts
+                        ""
+                    );
+                }
+
+                index = index + 3;
+            }
+
+            for (uint16 i = 0; i < _streams.length; i++) {
+                require(streamReceivers[i] != address(0), "Invalid stream receiver");
+                require(streamBatchCounter[i] == _streams[i].flowEdgeIds.length, "Invalid stream batch");
+            }
+        }
+    }
+
+    function _callAcceptanceChecks(
+        address[] calldata _flowVertices,
+        FlowEdge[] calldata _flow,
+        Stream[] calldata _streams,
+        uint16[] memory _coordinates
+    ) internal returns (int256[] memory) {
+        // initialize netted flow
+        int256[] memory nettedFlow = new int256[](_flowVertices.length);
+
+        // effect the stream transfers with acceptance calls
+        for (uint16 i = 0; i < _streams.length; i++) {
+            uint256[] memory ids = new uint256[](_streams[i].flowEdgeIds.length);
+            uint256[] memory amounts = new uint256[](_streams[i].flowEdgeIds.length);
+            uint256 streamTotal = uint256(0);
+            for (uint16 j = 0; j < _streams[i].flowEdgeIds.length; j++) {
+                // the Circles identifier coordinate is the first of three coordinates per flow edge
+                ids[j] = toTokenId(_flowVertices[_coordinates[3 * _streams[i].flowEdgeIds[j]]]);
+                amounts[j] = _flow[_streams[i].flowEdgeIds[j]].amount;
+                streamTotal += amounts[j];
+            }
+            // use the first sink flow edge to recover the receiver coordinate
+            uint16 receiverCoordinate = _coordinates[3 * _streams[i].flowEdgeIds[0] + 2];
+            address receiver = _flowVertices[receiverCoordinate];
+            require(receiver != address(0), "Invalid stream receiver");
+            _acceptanceCheck(
+                _flowVertices[_streams[i].sourceCoordinate], // from
+                receiver, // to
+                ids, // batch of Circles identifiers terminating in receiver
+                amounts, // batch of amounts terminating in receiver
+                _streams[i].data // user-provided data for stream
+            );
+            // require(streamTotal <= uint256(type(int256).max));
+            nettedFlow[_streams[i].sourceCoordinate] -= int256(streamTotal);
+            // to recover the receiver coordinate, get the first sink
+            nettedFlow[receiverCoordinate] += int256(streamTotal);
+        }
+
+        return nettedFlow;
+    }
+
+    function _matchNettedFlows(int256[] memory _streamsNettedFlow, int256[] memory _matrixNettedFlow) internal pure {
+        require(_streamsNettedFlow.length == _matrixNettedFlow.length);
+        for (uint256 i = 0; i < _streamsNettedFlow.length; i++) {
+            require(_streamsNettedFlow[i] == _matrixNettedFlow[i], "Intended flow does not match verified flow.");
+        }
+    }
 
     /**
      * Register human allows to register an avatar for a human,
@@ -788,6 +1027,33 @@ contract Hub is Circles, IHubV2 {
         require(avatars[_avatar] == address(0), "Avatar already inserted");
         avatars[_avatar] = avatars[SENTINEL];
         avatars[SENTINEL] = _avatar;
+    }
+
+    /**
+     * @dev abi.encodePacked of an array uint16[] would still pad each uint16 - I think;
+     *      if abi packing does not add padding this function is redundant and should be thrown out
+     *      Unpacks the packed coordinates from bytes.
+     *      Each coordinate is 16 bits, and each triplet is thus 48 bits.
+     * @param _packedData The packed data containing the coordinates.
+     * @param _numberOfTriplets The number of coordinate triplets in the packed data.
+     * @return unpackedCoordinates_ An array of unpacked coordinates (of length 3* numberOfTriplets)
+     */
+    function _unpackCoordinates(bytes calldata _packedData, uint256 _numberOfTriplets)
+        internal
+        pure
+        returns (uint16[] memory unpackedCoordinates_)
+    {
+        require(_packedData.length == _numberOfTriplets * 6, "Invalid packed data length");
+
+        unpackedCoordinates_ = new uint16[](_numberOfTriplets * 3);
+        uint256 index = 0;
+
+        // per three coordinates, shift each upper byte left
+        for (uint256 i = 0; i < _packedData.length; i += 6) {
+            unpackedCoordinates_[index++] = uint16(uint8(_packedData[i])) << 8 | uint16(uint8(_packedData[i + 1]));
+            unpackedCoordinates_[index++] = uint16(uint8(_packedData[i + 2])) << 8 | uint16(uint8(_packedData[i + 3]));
+            unpackedCoordinates_[index++] = uint16(uint8(_packedData[i + 4])) << 8 | uint16(uint8(_packedData[i + 5]));
+        }
     }
 
     // Private functions

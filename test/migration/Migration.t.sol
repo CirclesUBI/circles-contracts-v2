@@ -12,6 +12,7 @@ contract GraphTest is Test {
 
     uint256 private ACCURACY_ONE = uint256(10 ** 8);
     uint256 private ACCURACY_ONE_HUNDREDTH = uint256(10 ** 6);
+    // 6:00:18 pm UTC  |  Monday, December 11, 2023
     uint256 private MOMENT_IN_TIME = uint256(1702317618);
 
     // State variables
@@ -20,6 +21,8 @@ contract GraphTest is Test {
 
     Migration public migration;
 
+    // Setup
+
     function setUp() public {
         mockHubV1 = new MockHubV1();
 
@@ -27,6 +30,8 @@ contract GraphTest is Test {
 
         vm.warp(MOMENT_IN_TIME);
     }
+
+    // Tests
 
     function testConversionMigrationV1ToTimeCircles() public {
         // `MOMENT_IN_TIME` is in the third period

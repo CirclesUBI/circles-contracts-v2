@@ -293,14 +293,27 @@ abstract contract ERC1155 is DiscountedBalances, Context, ERC165, IERC1155, IERC
         bytes memory data
     ) internal virtual {
         _update(from, to, ids, values);
-        if (to != address(0)) {
+        _acceptanceCheck(from, to, ids, values, data);
+    }
+
+    /**
+     * @dev do the ERC1155 token acceptance check to the receiver
+     */
+    function _acceptanceCheck(
+        address _from,
+        address _to,
+        uint256[] memory _ids,
+        uint256[] memory _values,
+        bytes memory _data
+    ) internal {
+        if (_to != address(0)) {
             address operator = _msgSender();
-            if (ids.length == 1) {
-                uint256 id = ids.unsafeMemoryAccess(0);
-                uint256 value = values.unsafeMemoryAccess(0);
-                _doSafeTransferAcceptanceCheck(operator, from, to, id, value, data);
+            if (_ids.length == 1) {
+                uint256 id = _ids.unsafeMemoryAccess(0);
+                uint256 value = _values.unsafeMemoryAccess(0);
+                _doSafeTransferAcceptanceCheck(operator, _from, _to, id, value, _data);
             } else {
-                _doSafeBatchTransferAcceptanceCheck(operator, from, to, ids, values, data);
+                _doSafeBatchTransferAcceptanceCheck(operator, _from, _to, _ids, _values, _data);
             }
         }
     }
@@ -469,6 +482,33 @@ abstract contract ERC1155 is DiscountedBalances, Context, ERC165, IERC1155, IERC
         emit ApprovalForAll(owner, operator, approved);
     }
 
+    /**
+     * @dev Creates an array in memory with only one value for each of the elements provided.
+     */
+    function _asSingletonArrays(uint256 element1, uint256 element2)
+        internal
+        pure
+        returns (uint256[] memory array1, uint256[] memory array2)
+    {
+        /// @solidity memory-safe-assembly
+        assembly {
+            // Load the free memory pointer
+            array1 := mload(0x40)
+            // Set array length to 1
+            mstore(array1, 1)
+            // Store the single element at the next word after the length (where content starts)
+            mstore(add(array1, 0x20), element1)
+
+            // Repeat for next array locating it right after the first array
+            array2 := add(array1, 0x40)
+            mstore(array2, 1)
+            mstore(add(array2, 0x20), element2)
+
+            // Update the free memory pointer by pointing after the second array
+            mstore(0x40, add(array2, 0x40))
+        }
+    }
+
     // Private functions
 
     /**
@@ -533,33 +573,6 @@ abstract contract ERC1155 is DiscountedBalances, Context, ERC165, IERC1155, IERC
                     }
                 }
             }
-        }
-    }
-
-    /**
-     * @dev Creates an array in memory with only one value for each of the elements provided.
-     */
-    function _asSingletonArrays(uint256 element1, uint256 element2)
-        private
-        pure
-        returns (uint256[] memory array1, uint256[] memory array2)
-    {
-        /// @solidity memory-safe-assembly
-        assembly {
-            // Load the free memory pointer
-            array1 := mload(0x40)
-            // Set array length to 1
-            mstore(array1, 1)
-            // Store the single element at the next word after the length (where content starts)
-            mstore(add(array1, 0x20), element1)
-
-            // Repeat for next array locating it right after the first array
-            array2 := add(array1, 0x40)
-            mstore(array2, 1)
-            mstore(add(array2, 0x20), element2)
-
-            // Update the free memory pointer by pointing after the second array
-            mstore(0x40, add(array2, 0x40))
         }
     }
 }
