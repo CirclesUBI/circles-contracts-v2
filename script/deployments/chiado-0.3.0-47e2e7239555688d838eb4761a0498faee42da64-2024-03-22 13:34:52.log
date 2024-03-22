@@ -1,0 +1,16 @@
+Chiado deployment
+=================
+Deployment Date: 2024-03-22 13:34:52
+Version: 0.3.0
+Git Commit: 47e2e7239555688d838eb4761a0498faee42da64
+
+Deployed Contracts:
+Hub: 
+Migration: 
+NameRegistry: 
+ERC20Lift: 
+StandardTreasury: 
+BaseGroupMintPolicy: 
+MastercopyDemurrageERC20: 
+MastercopyInflationaryERC20: 
+MastercopyStandardVault: 
