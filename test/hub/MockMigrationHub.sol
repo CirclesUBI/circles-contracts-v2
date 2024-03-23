@@ -2,18 +2,18 @@
 pragma solidity >=0.8.13;
 
 import "../../src/hub/Hub.sol";
-import "../../src/migration/IHub.sol";
-
-abstract contract MockV1Hub is IHubV1 {}
+import "../migration/MockHub.sol";
 
 contract MockMigrationHub is Hub {
+    // State variables
+
     // Constructor
 
-    constructor(uint256 _inflationDayZero, uint256 _bootstrapTime)
+    constructor(IHubV1 _hubV1, address _migration, uint256 _inflationDayZero, uint256 _bootstrapTime)
         Hub(
-            IHubV1(address(1)),
+            _hubV1,
             INameRegistry(address(0)),
-            address(0),
+            _migration,
             IERC20Lift(address(0)),
             address(1),
             _inflationDayZero,
