@@ -61,7 +61,7 @@ async function main() {
     });
     
     // output the addresses for use in the deployment script
-    console.log(`${hubAddress_01} ${migrationAddress_02} ${nameRegistryAddress_03} ` +
+    console.log(`${deployer.address} ${nonce} ${hubAddress_01} ${migrationAddress_02} ${nameRegistryAddress_03} ` +
     `${erc20LiftAddress_04} ${standardTreasuryAddress_05} ${baseGroupMintPolicyAddress_06} ` +
     `${mastercopyDemurrageERC20Address_07} ${mastercopyInflationaryERC20Address_08} ` +
     `${mastercopyStandardVaultAddress_09}`);
