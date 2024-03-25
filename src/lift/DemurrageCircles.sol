@@ -7,7 +7,7 @@ import "../hub/IHub.sol";
 import "../names/INameRegistry.sol";
 import "./ERC20DiscountedBalances.sol";
 
-abstract contract DemurrageCircles is ERC20DiscountedBalances, ERC1155Holder {
+contract DemurrageCircles is ERC20DiscountedBalances, ERC1155Holder {
     // Constants
 
     // State variables
