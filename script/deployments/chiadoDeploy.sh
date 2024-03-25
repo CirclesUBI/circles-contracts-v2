@@ -55,7 +55,7 @@ generate_identifier() {
     local version=$(node -p "require('./package.json').version")
 
     # Define the summary file name with version, short git commit, and compact date
-    echo "${version}-${git_commit_short}-${deployment_date}.log"
+    echo "${version}-${git_commit_short}-${deployment_date}"
 }
 
 # Set the environment variables, also for use in node script
@@ -116,7 +116,7 @@ echo "MastercopyStandardVault: ${MASTERCOPY_STANDARD_VAULT_09}"
 
 Deploy the contracts
 
-export deployment_details_file="${OUT_DIR}/chiado-artefacts-$identifier"
+export deployment_details_file="${OUT_DIR}/chiado-artefacts-${identifier}.json"
 echo "Deployment details will be stored in $deployment_details_file"
 
 echo ""
@@ -163,7 +163,7 @@ MC_STANDARD_VAULT=$(deploy_and_store_details "MastercopyStandardVault" $MASTERCO
 # log to file
 
 # Use the function to generate the file name
-summary_file="${OUT_DIR}/chiado-$identifier"
+summary_file="${OUT_DIR}/chiado-${identifier}.log"
 
 # Now you can use $summary_file for logging
 {
