@@ -43,7 +43,7 @@ generate_summary_filename() {
     local git_commit_short=$(git rev-parse HEAD | cut -c1-7)
 
     # Get the current date and time in a compact format (YYMMDD-HMS)
-    local deployment_date=$(date "+%y%m%d-%H%M%S")
+    local deployment_date=$1
 
     # Fetch version from package.json
     local version=$(node -p "require('./package.json').version")
@@ -58,7 +58,7 @@ generate_deployment_artefacts_filename() {
     local git_commit_short=$(git rev-parse HEAD | cut -c1-7)
 
     # Get the current date and time in a compact format (YYMMDD-HMS)
-    local deployment_date=$(date "+%y%m%d-%H%M%S")
+    local deployment_date=$1
 
     # Fetch version from package.json
     local version=$(node -p "require('./package.json').version")
@@ -130,6 +130,10 @@ VERIFIER_URL=$BLOCKSCOUT_URL_CHIADO
 VERIFIER_API_KEY=$BLOCKSCOUT_API_KEY
 VERIFIER=$BLOCKSCOUT_VERIFIER
 
+# Get the current date and time in a compact format (YYMMDD-HMS) outside the functions
+deployment_date=$(date "+%y%m%d-%H%M%S")
+deployment_date_long=$(date "+%Y-%m-%d %H:%M:%S")
+
 # Run the Node.js script to predict contract addresses
 # Assuming predictAddresses.js is in the current directory
 read HUB_ADDRESS_01 MIGRATION_ADDRESS_02 NAMEREGISTRY_ADDRESS_03 \
@@ -153,7 +157,7 @@ echo "MastercopyStandardVault: ${MASTERCOPY_STANDARD_VAULT_09}"
 
 # Deploy the contracts
 
-export deployment_details_file=$(generate_deployment_artefacts_filename)
+export deployment_details_file=$(generate_deployment_artefacts_filename $deployment_date)
 echo "Deployment details will be stored in $deployment_details_file"
 
 echo ""
@@ -200,13 +204,13 @@ MC_STANDARD_VAULT=$(deploy_and_store_details "MastercopyStandardVault" $MASTERCO
 # log to file
 
 # Use the function to generate the file name
-summary_file=$(generate_summary_filename)
+summary_file=$(generate_summary_filename $deployment_date)
 
 # Now you can use $summary_file for logging
 {
     echo "Chiado deployment"
     echo "================="
-    echo "Deployment Date: $(date "+%Y-%m-%d %H:%M:%S")"
+    echo "Deployment Date: $deployment_date_long"
     echo "Version: $(node -p "require('./package.json').version")"
     echo "Git Commit: $(git rev-parse HEAD)"
     echo ""
