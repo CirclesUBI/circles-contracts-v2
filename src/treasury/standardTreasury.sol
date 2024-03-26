@@ -11,7 +11,7 @@ import "../groups/IMintPolicy.sol";
 import "../proxy/ProxyFactory.sol";
 import "./IStandardVault.sol";
 
-contract standardTreasury is
+contract StandardTreasury is
     ERC165,
     ProxyFactory,
     MetadataDefinitions,

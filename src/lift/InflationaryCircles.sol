@@ -82,7 +82,8 @@ contract InflationaryCircles is ERC20InflationaryBalances, ERC1155Holder {
     }
 
     function name() external view returns (string memory) {
-        return string(abi.encodePacked(nameRegistry.name(avatar), "-F"));
+        // append suffix for "ERC20 static" to the ERC20 name
+        return string(abi.encodePacked(nameRegistry.name(avatar), "-ERC20s"));
     }
 
     function symbol() external view returns (string memory) {
