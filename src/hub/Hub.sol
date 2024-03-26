@@ -538,19 +538,6 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
     //     safeTransferFrom(address(tokenIDToInfERC20[_tokenId]), msg.sender, _tokenId, _amount, "");
     // }
 
-    /**
-     * set IPFS CIDv0 digest for the avatar metadata.
-     * @param _ipfsCid IPFS CIDv0 digest for the avatar metadata
-     */
-    function setIpfsCidV0(bytes32 _ipfsCid) external {
-        if (avatars[msg.sender] == address(0)) {
-            // Only registered avatars can set the IPFS CIDv0 digest.
-            revert CirclesAvatarMustBeRegistered(msg.sender, 3);
-        }
-        // todo: we should charge in CRC, but better done later through a storage market
-        nameRegistry.updateCidV0Digest(msg.sender, _ipfsCid);
-    }
-
     function operateFlowMatrix(
         address[] calldata _flowVertices,
         FlowEdge[] calldata _flow,

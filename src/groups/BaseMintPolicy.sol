@@ -4,7 +4,7 @@ pragma solidity >=0.8.13;
 import "./IMintPolicy.sol";
 import "./Definitions.sol";
 
-abstract contract MintPolicy is IMintPolicy {
+contract MintPolicy is IMintPolicy {
     // External functions
 
     /**

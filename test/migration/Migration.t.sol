@@ -25,7 +25,7 @@ contract MigrationTest is Test {
     function setUp() public {
         mockHubV1 = new MockHubV1();
 
-        migration = new Migration(mockHubV1);
+        migration = new Migration(mockHubV1, IHubV2(address(1)));
 
         vm.warp(MOMENT_IN_TIME);
     }

@@ -6,7 +6,7 @@ import "../errors/Errors.sol";
 import "../hub/IHub.sol";
 import "./IStandardVault.sol";
 
-contract standardVault is ERC1155Holder, IStandardVault, ICirclesErrors {
+contract StandardVault is ERC1155Holder, IStandardVault, ICirclesErrors {
     // State variables
 
     /**
@@ -40,6 +40,7 @@ contract standardVault is ERC1155Holder, IStandardVault, ICirclesErrors {
     constructor() {
         // set the standard treasury to a blocked address for the master copy deployment
         standardTreasury = address(1);
+        hub = IHubV2(address(1));
     }
 
     // External functions
