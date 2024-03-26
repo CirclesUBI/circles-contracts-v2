@@ -21,21 +21,27 @@ contract MockHubV1 is IHubV1 {
 
     // State variables
 
+    // simplify to boolean trust
+    mapping(address => mapping(address => bool)) public trusts;
+
     mapping(address => address) public userToToken;
+    mapping(address => address) public tokenToUser;
 
     // External functions
 
-    function signup() external pure {
-        notMocked();
+    function signup() external {
+        require(address(userToToken[msg.sender]) == address(0), "You can't sign up twice");
+
+        Token token = new Token(msg.sender);
+        userToToken[msg.sender] = address(token);
+        tokenToUser[address(token)] = msg.sender;
+        // every user must trust themselves with a weight of 100
+        // this is so that all users accept their own token at all times
+        trust(msg.sender, 100);
     }
 
     function organizationSignup() external pure {
         notMocked();
-    }
-
-    function tokenToUser(address /*token*/ ) external pure returns (address) {
-        notMocked();
-        return address(0);
     }
 
     function limits(address, /*truster*/ address /*trustee*/ ) external pure returns (uint256) {
@@ -43,8 +49,8 @@ contract MockHubV1 is IHubV1 {
         return uint256(0);
     }
 
-    function trust(address, /*trustee*/ uint256 /*limit*/ ) external pure {
-        notMocked();
+    function trust(address _trustee, uint256 _limit) public {
+        trusts[msg.sender][_trustee] = _limit > 0 ? true : false;
     }
 
     function issuance() external view returns (uint256) {
