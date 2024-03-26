@@ -69,24 +69,10 @@ This Solidity project uses Foundry as a toolkit. If you don't have Foundry insta
 
 ### Deploying the contracts
 #### Chiado
-To deploy the contracts to the Chiado testnet, run `./deploy.sh` and supply a private key that has enough funds to pay for the gas:
+To deploy the contracts to the Chiado testnet, run `./chiadoDeploy.sh` and supply a private key and API keys in `.env` file in the root directory (copy `.env.example` and set private information):
 ```shell
-./script/deployChiado.sh <private_key>
+./script/deployments/chiadoDeploy.sh
 ```
-#### Local
-1. [todo] To run a local development node, use the `anvil` command in a separate terminal:
-    ```bash
-    anvil
-    ```
-
-2. [todo] Run a local network node:
-    ```bash
-    forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-    ```
-3. To access RPC calls from CLI, see:
-    ```bash
-    cast help
-    ```
 
 ## Foundry as toolkit
 
