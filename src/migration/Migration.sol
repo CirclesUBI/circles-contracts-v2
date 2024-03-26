@@ -18,6 +18,8 @@ contract Migration is ICirclesErrors {
      */
     IHubV1 public immutable hubV1;
 
+    IHubV2 public immutable hubV2;
+
     /**
      * @dev Deployment timestamp of Hub v1 contract
      */
@@ -30,13 +32,18 @@ contract Migration is ICirclesErrors {
 
     // Constructor
 
-    constructor(IHubV1 _hubV1) {
+    constructor(IHubV1 _hubV1, IHubV2 _hubV2) {
         if (address(_hubV1) == address(0)) {
             // Hub v1 address can not be zero.
             revert CirclesAddressCannotBeZero(0);
         }
+        if (address(_hubV2) == address(0)) {
+            // Hub v2 address can not be zero.
+            revert CirclesAddressCannotBeZero(1);
+        }
 
         hubV1 = _hubV1;
+        hubV2 = _hubV2;
 
         // from deployed v1 contract SHOULD return deployedAt = 1602786330
         // (for reference 6:25:30 pm UTC  |  Thursday, October 15, 2020)
@@ -54,16 +61,9 @@ contract Migration is ICirclesErrors {
      * @notice Migrates the given amounts of v1 Circles to v2 Circles.
      * @param _avatars The avatars to migrate.
      * @param _amounts The amounts in inflationary v1 units to migrate.
-     * @param _hubV2 The v2 hub contract, given as a constant by the SDK.
      * @return convertedAmounts The converted amounts of v2 Circles.
      */
-    function migrate(address[] calldata _avatars, uint256[] calldata _amounts, IHubV2 _hubV2)
-        external
-        returns (uint256[] memory)
-    {
-        // note: _hubV2 is passed in as a parameter to avoid a circular dependency, and minimise code complexity
-        // todo: update this together with name registry to use deterministic deployment
-
+    function migrate(address[] calldata _avatars, uint256[] calldata _amounts) external returns (uint256[] memory) {
         if (_avatars.length != _amounts.length) {
             // Arrays length mismatch.
             revert CirclesArraysLengthMismatch(_avatars.length, _amounts.length, 0);
@@ -75,7 +75,7 @@ contract Migration is ICirclesErrors {
             ITokenV1 circlesV1 = ITokenV1(hubV1.userToToken(_avatars[i]));
             if (address(circlesV1) == address(0)) {
                 // Invalid avatar, not registered in hub V1.
-                revert CirclesAddressCannotBeZero(1);
+                revert CirclesAddressCannotBeZero(2);
             }
             convertedAmounts[i] = convertFromV1ToDemurrage(_amounts[i]);
             // transfer the v1 Circles to this contract to be locked
@@ -83,7 +83,7 @@ contract Migration is ICirclesErrors {
         }
 
         // mint the converted amount of v2 Circles
-        _hubV2.migrate(msg.sender, _avatars, convertedAmounts);
+        hubV2.migrate(msg.sender, _avatars, convertedAmounts);
 
         return convertedAmounts;
     }

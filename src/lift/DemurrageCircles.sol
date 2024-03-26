@@ -7,7 +7,7 @@ import "../hub/IHub.sol";
 import "../names/INameRegistry.sol";
 import "./ERC20DiscountedBalances.sol";
 
-abstract contract DemurrageCircles is ERC20DiscountedBalances, ERC1155Holder {
+contract DemurrageCircles is ERC20DiscountedBalances, ERC1155Holder {
     // Constants
 
     // State variables
@@ -80,7 +80,8 @@ abstract contract DemurrageCircles is ERC20DiscountedBalances, ERC1155Holder {
     }
 
     function name() external view returns (string memory) {
-        return string(abi.encodePacked(nameRegistry.name(avatar), "-F"));
+        // append the suffix "-ERC20" to the ERC20 name of the Circles
+        return string(abi.encodePacked(nameRegistry.name(avatar), "-ERC20"));
     }
 
     function symbol() external view returns (string memory) {

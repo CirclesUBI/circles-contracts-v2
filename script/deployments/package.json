@@ -1,0 +1,9 @@
+{
+    "name": "deploy-circles",
+    "version": "0.3.0",
+    "type": "module",
+    "dependencies": {
+        "dotenv": "^16.4.5",
+        "ethers": "^5.0.0"
+    }
+}

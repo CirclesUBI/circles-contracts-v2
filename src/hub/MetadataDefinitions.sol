@@ -16,5 +16,5 @@ contract MetadataDefinitions {
 
     // Constants
 
-    bytes32 public constant METADATATYPE_GROUPMINT = keccak256("CIRCLESv2:RESERVED_DATA:CirclesGroupMint");
+    bytes32 internal constant METADATATYPE_GROUPMINT = keccak256("CIRCLESv2:RESERVED_DATA:CirclesGroupMint");
 }
