@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# v0.3.1
+
+- [PR 123] fix: `personalMint` should not revert if issuance is zero;
+    add `calculateIssuanceWithCheck` to know issuance without minting (while possibly updating v1 mint status);
+    add testing for simple migration and invitation flows
 
 ## v0.3.0 
 
