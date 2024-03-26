@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# note 26 march 2024: this does not work yet, the compiler version gets rejected
+
 # Script to verify deployed contracts on a block explorer
 
 # Function to verify contract on Block Explorer
@@ -7,14 +9,19 @@ verify_contract() {
   local contractName=$1
   local deployedAddress=$2
   local sourcePath=$3
-  local constructorArgs=$4
+  local constructorArgsFile=$4
   local compilerVersion=$5
 
-  echo "Verifying ${contractName} at ${deployedAddress} with source ${sourcePath}..."
+  echo "Verifying ${contractName} at ${deployedAddress} with source ${sourcePath}"
 
-  # Perform verification using forge
+  # Perform verification using forge with constructor args from file
   forge verify-contract --flatten --watch --compiler-version "${compilerVersion}" \
-    --constructor-args "${constructorArgs}" \
+    --constructor-args-path "${constructorArgsFile}" \
+    --chain-id 10200 \
+    --verifier-url $VERIFIER_URL \
+    --verifier $VERIFIER \
+    --etherscan-api-key ${VERIFIER_API_KEY} \
+    --delay 10 \
     "${deployedAddress}" "${sourcePath}"
 
   echo "Verification command for ${contractName} executed."
@@ -24,25 +31,34 @@ verify_contract() {
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 source "$DIR/../../.env"
 
+# The identifier containing deployment details
+DEPLOYMENT_IDENTIFIER=$1
 # The file containing deployment details
-ARTEFACTS_FILE=$1
+ARTEFACTS_FILE="${DEPLOYMENT_IDENTIFIER}/${DEPLOYMENT_IDENTIFIER}.txt"
+PATH_CONSTRUCTOR_ARGS="${DEPLOYMENT_IDENTIFIER}"
+
+echo "Using artefacts file: ${ARTEFACTS_FILE}"
 
 # taking parameters from .env file for Chiado
 VERIFIER_URL=$BLOCKSCOUT_URL_CHIADO
 VERIFIER_API_KEY=$BLOCKSCOUT_API_KEY
 VERIFIER=$BLOCKSCOUT_VERIFIER
+COMPILER_VERSION="v0.8.23+commit.f704f362"
 
 # Assuming jq is installed for JSON parsing
 # Reading the JSON file and extracting required information
-jq -c '.[]' "${ARTEFACTS_FILE}" | while read line; do
-  contractName=$(echo $line | jq -r '.contractName')
-  deployedAddress=$(echo $line | jq -r '.deployedAddress')
-  sourcePath=$(echo $line | jq -r '.sourcePath') # Assuming you have this detail
-  constructorArgs=$(echo $line | jq -r '.constructorArgs') # Assuming you have this detail
-  compilerVersion=$(echo $line | jq -r '.compilerVersion') # Assuming you have this detail
+while IFS= read -r line; do
+  contractName=$(echo "$line" | jq -r '.contractName')
+  deployedAddress=$(echo "$line" | jq -r '.deployedAddress')
+  sourcePath=$(echo "$line" | jq -r '.sourcePath')
+  argumentsFile="${PATH_CONSTRUCTOR_ARGS}/$(echo "$line" | jq -r '.argumentsFile')"
+  compilerVersion=${COMPILER_VERSION}
 
-  verify_contract "$contractName" "$deployedAddress" "$sourcePath" "$constructorArgs" "$compilerVersion"
-done
+  # Construct the full path to the constructor args file
+  constructorArgsFile="${DIR}/${argumentsFile}"
+
+  verify_contract "$contractName" "$deployedAddress" "$sourcePath" "$constructorArgsFile" "$compilerVersion"
+done < "${ARTEFACTS_FILE}"
 
 echo "All contracts submitted for verification."
 

@@ -14,6 +14,11 @@ deploy_and_store_details() {
     --private-key ${PRIVATE_KEY} \
     --optimizer-runs 200 \
     --chain-id 10200 \
+    --verify \
+    --verifier-url $VERIFIER_URL \
+    --verifier $VERIFIER \
+    --etherscan-api-key ${VERIFIER_API_KEY} \
+    --delay 10 \
     "${@:3}") # Passes all arguments beyond the second to forge create
 
   deployed_address=$(echo "$deployment_output" | grep "Deployed to:" | awk '{print $3}')
@@ -37,7 +42,7 @@ deploy_and_store_details() {
   echo "${@:5}" > "${arguments_path}"
 
   # Store deployment details in a file
-  echo "{\"contractName\":\"${contract_name}\",\"deployedAddress\":\"${deployed_address}\",\"sourcePath\":\"$2\",\"constructor-args\":\"${@:4}\",\"argumentsFile\":\"${arguments_file}\"}" >> "${deployment_details_file}"
+  echo "{\"contractName\":\"${contract_name}\",\"deployedAddress\":\"${deployed_address}\",\"sourcePath\":\"$3\",\"constructor-args\":\"${@:5}\",\"argumentsFile\":\"${arguments_file}\"}" >> "${deployment_details_file}"
 
   # return the deployed address
   echo "$deployed_address"
@@ -116,9 +121,9 @@ echo "MastercopyStandardVault: ${MASTERCOPY_STANDARD_VAULT_09}"
 
 Deploy the contracts
 
-export deployment_details_file="${OUT_DIR}/chiado-artefacts-${identifier}.json"
+export deployment_details_file="${OUT_DIR}/chiado-artefacts-${identifier}.txt"
 echo "Deployment details will be stored in $deployment_details_file"
-
+§
 echo ""
 echo "Starting deployment..."
 echo "======================"
@@ -172,8 +177,8 @@ summary_file="${OUT_DIR}/chiado-${identifier}.log"
     echo "Deployment Date: $deployment_date_long"
     echo "Version: $(node -p "require('./package.json').version")"
     echo "Git Commit: $(git rev-parse HEAD)"
-    echo "Deployer Address: $DEPLOYER_ADDRESS"
-    echo "Deployer Nonce: $NONCE_USED"
+    echo "Deployer Address: $DEPLOYER_ADDRESS, Intitial nonce: $NONCE_USED"
+    echo "Compiler Version: v0.8.23+commit.f704f362" # todo: figure out where to extract this from
     echo ""
     echo "Deployed Contracts:"
     echo "Hub: ${HUB}"
