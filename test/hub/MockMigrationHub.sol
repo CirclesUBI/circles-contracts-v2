@@ -5,8 +5,6 @@ import "../../src/hub/Hub.sol";
 import "../migration/MockHub.sol";
 
 contract MockMigrationHub is Hub {
-    // State variables
-
     // Constructor
 
     constructor(IHubV1 _hubV1, address _migration, uint256 _inflationDayZero, uint256 _bootstrapTime)

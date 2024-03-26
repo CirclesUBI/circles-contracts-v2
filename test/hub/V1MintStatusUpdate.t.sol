@@ -5,9 +5,13 @@ import {Test} from "forge-std/Test.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
 import "../setup/TimeCirclesSetup.sol";
 import "../setup/HumanRegistration.sol";
+import "../migration/MockHub.sol";
+import "./MockMigrationHub.sol";
 
 contract V1MintStatusUpdateTest is Test, TimeCirclesSetup, HumanRegistration {
     // State variables
+
+    MockMigrationHub public mockHub;
 
     // Constructor
 
@@ -18,4 +22,8 @@ contract V1MintStatusUpdateTest is Test, TimeCirclesSetup, HumanRegistration {
     function setUp() public {
         startTime();
     }
+
+    // Tests
+
+    function testMigrationFromV1DuringBootstrap() public {}
 }
