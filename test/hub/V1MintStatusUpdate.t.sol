@@ -55,11 +55,11 @@ contract V1MintStatusUpdateTest is Test, TimeCirclesSetup, HumanRegistration {
         ITokenV1 tokenBob = signupInV1(addresses[1]);
 
         // move time
-        skipTime(30 days);
+        skipTime(5 days + 1 hours + 31 minutes);
 
         uint256 mintedAlice = mintV1Tokens(tokenAlice);
         uint256 mintedBob = mintV1Tokens(tokenBob);
-        // mints 256799999999997216000 CRC
+        // mints 42799999999999536000 CRC
         // which is 8.5599999999999072 CRC per day
         console.log("mintedAlice", mintedAlice);
         console.log("mintedBob", mintedBob);
@@ -71,6 +71,46 @@ contract V1MintStatusUpdateTest is Test, TimeCirclesSetup, HumanRegistration {
         mockHub.registerHuman(bytes32(0));
         vm.stopPrank();
         require(mockHub.isHuman(addresses[0]), "Alice not registered");
+
+        // Alice invites Bob, while he is still active in V1
+        vm.prank(addresses[0]);
+        mockHub.inviteHuman(addresses[1]);
+        require(mockHub.isHuman(addresses[1]), "Bob not registered");
+
+        uint256 previousEndPeriod = 0;
+
+        for (uint256 i = 0; i < 5; i++) {
+            // Calculate issuance to get the current start and end periods
+            (, uint256 startPeriod, uint256 endPeriod) = mockHub.calculateIssuance(addresses[0]);
+
+            // For iterations after the first, check if the previous endPeriod matches the current startPeriod
+            if (i > 0) {
+                require(previousEndPeriod == startPeriod, "EndPeriod does not match next StartPeriod");
+            }
+
+            // Update previousEndPeriod with the current endPeriod for the next iteration
+            previousEndPeriod = endPeriod;
+
+            // Generate a pseudo-random number between 1 and 4
+            uint256 hoursSkip = uint256(keccak256(abi.encodePacked(block.timestamp, i, uint256(0)))) % 4 + 1;
+            uint256 secondsSkip = uint256(keccak256(abi.encodePacked(block.timestamp, i, uint256(1)))) % 3600;
+
+            // Simulate passing of time variable windows of time (1-5 hours)
+            skipTime(hoursSkip * 1 hours + secondsSkip);
+
+            // Perform the mint operation as Alice
+            vm.prank(addresses[0]);
+            mockHub.personalMint();
+        }
+
+        // move time
+        skipTime(5 days - 31 minutes);
+
+        // Alice can mint in V2
+        vm.startPrank(addresses[0]);
+        mockHub.personalMint();
+
+        //
     }
 
     // Private functions
@@ -91,4 +131,12 @@ contract V1MintStatusUpdateTest is Test, TimeCirclesSetup, HumanRegistration {
         uint256 balanceAfter = _token.balanceOf(owner);
         return balanceAfter - balanceBefore;
     }
+
+    // function mintV2Circles(address _avatar) private returns (uint256) {
+    //     // we can't check on the data (which contains id and amount),
+    //     // because we don't know the amount upfront.
+    //     vm.expectEmit(false, true, true, false);
+    //     emit IERC1155.TransferSingle(_avatar, address(0), _avatar, uint256(uint160(_avatar)), 1);
+
+    // }
 }

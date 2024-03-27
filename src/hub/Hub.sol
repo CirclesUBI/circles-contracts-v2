@@ -372,8 +372,10 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
      * to update the v1 mint status if updated.
      * @param _human address of the human avatar to calculate the issuance for
      * @return issuance amount of Circles that can be minted
+     * @return startPeriod start of the claimable period
+     * @return endPeriod end of the claimable period
      */
-    function calculateIssuanceWithCheck(address _human) external returns (uint256) {
+    function calculateIssuanceWithCheck(address _human) external returns (uint256, uint256, uint256) {
         // check if v1 Circles is known to be stopped and update status
         _checkHumanV1CirclesStatus(_human);
         // calculate issuance for the human avatar, but don't mint
