@@ -73,14 +73,14 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
      */
     IHubV1 public immutable hubV1;
 
-    INameRegistry public immutable nameRegistry;
+    INameRegistry public nameRegistry;
 
     /**
      * @notice The address of the migration contract for v1 Circles.
      */
-    address public immutable migration;
+    address public migration;
 
-    IERC20Lift public immutable liftERC20;
+    IERC20Lift public liftERC20;
 
     /**
      * @notice The timestamp of the start of the invitation-only period.
@@ -95,7 +95,7 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
      * @notice The standard treasury contract address used when
      * registering a (non-custom) group.
      */
-    address public immutable standardTreasury;
+    address public standardTreasury;
 
     /**
      * @notice The mapping of registered avatar addresses to the next avatar address,

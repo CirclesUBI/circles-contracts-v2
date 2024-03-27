@@ -23,7 +23,7 @@ contract NameRegistry is Base58Converter, INameRegistryErrors, ICirclesErrors {
     /**
      * @notice The address of the hub contract where the address must have registered first
      */
-    IHubV2 public immutable hub;
+    IHubV2 public hub;
 
     /**
      * @notice a mapping from the avatar address to the assigned name

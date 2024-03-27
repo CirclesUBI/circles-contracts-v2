@@ -11,5 +11,8 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 interface ITokenV1 is IERC20 {
     function owner() external view returns (address);
 
+    function stop() external;
     function stopped() external view returns (bool);
+
+    function update() external;
 }

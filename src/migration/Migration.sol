@@ -18,7 +18,7 @@ contract Migration is ICirclesErrors {
      */
     IHubV1 public immutable hubV1;
 
-    IHubV2 public immutable hubV2;
+    IHubV2 public hubV2;
 
     /**
      * @dev Deployment timestamp of Hub v1 contract

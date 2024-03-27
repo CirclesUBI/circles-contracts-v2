@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity >=0.8.13;
 
+import "../../src/names/INameRegistry.sol";
 import "../../src/hub/Hub.sol";
 import "../migration/MockHub.sol";
 
@@ -19,4 +20,11 @@ contract MockMigrationHub is Hub {
             ""
         )
     {}
+
+    // External functions
+
+    function setSiblings(address _migration, address _nameRegistry) external {
+        migration = _migration;
+        nameRegistry = INameRegistry(_nameRegistry);
+    }
 }
