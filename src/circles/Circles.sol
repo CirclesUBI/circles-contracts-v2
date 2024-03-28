@@ -60,6 +60,8 @@ contract Circles is ERC1155 {
 
     // Events
 
+    event PersonalMint(address indexed human, uint256 amount, uint256 startPeriod, uint256 endPeriod);
+
     // Constructor
 
     /**
@@ -79,8 +81,11 @@ contract Circles is ERC1155 {
     /**
      * @notice Calculate the demurraged issuance for a human's avatar.
      * @param _human Address of the human's avatar to calculate the issuance for.
+     * @return issuance The issuance in attoCircles.
+     * @return startPeriod The start of the claimable period.
+     * @return endPeriod The end of the claimable period.
      */
-    function calculateIssuance(address _human) public view returns (uint256) {
+    function calculateIssuance(address _human) public view returns (uint256, uint256, uint256) {
         MintTime storage mintTime = mintTimes[_human];
         if (mintTime.mintV1Status != address(0) && mintTime.mintV1Status != CIRCLES_STOPPED_V1) {
             // Circles v1 contract cannot be active.
@@ -90,7 +95,7 @@ contract Circles is ERC1155 {
         if (uint256(mintTime.lastMintTime) + 1 hours > block.timestamp) {
             // Mint time is set to indefinite future for stopped mints in v2
             // and only complete hours get minted, so shortcut the calculation
-            return 0;
+            return (0, 0, 0);
         }
 
         // calculate the start of the claimable period
@@ -115,7 +120,13 @@ contract Circles is ERC1155 {
         int128 overcount = Math64x64.add(Math64x64.mul(R[n], k), l);
 
         // subtract the overcount from the total issuance, and convert to attoCircles
-        return Math64x64.mulu(Math64x64.sub(T[n], overcount), EXA);
+        return (
+            Math64x64.mulu(Math64x64.sub(T[n], overcount), EXA),
+            // start of the claimable period
+            inflationDayZero + dA * 1 days + Math64x64.mulu(k, 1 hours),
+            // end of the claimable period
+            inflationDayZero + dB * 1 days + 1 days - Math64x64.mulu(l, 1 hours)
+        );
     }
 
     // Internal functions
@@ -125,15 +136,17 @@ contract Circles is ERC1155 {
      * @param _human Address of the human's avatar to claim the issuance for.
      */
     function _claimIssuance(address _human) internal {
-        uint256 issuance = calculateIssuance(_human);
+        (uint256 issuance, uint256 startPeriod, uint256 endPeriod) = calculateIssuance(_human);
         if (issuance == 0) {
-            // No issuance to claim.
-            revert CirclesERC1155NoMintToIssue(_human, mintTimes[_human].lastMintTime);
+            // No issuance to claim, simply return without reverting
+            return;
         }
         // mint personal Circles to the human
         _mint(_human, toTokenId(_human), issuance, "");
         // update the last mint time
         mintTimes[_human].lastMintTime = uint96(block.timestamp);
+
+        emit PersonalMint(_human, issuance, startPeriod, endPeriod);
     }
 
     // Private functions

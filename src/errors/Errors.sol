@@ -38,8 +38,6 @@ interface IHubErrors {
 interface ICirclesERC1155Errors {
     error CirclesERC1155MintBlocked(address human, address mintV1Status);
 
-    error CirclesERC1155NoMintToIssue(address human, uint96 lastMintTime);
-
     error CirclesERC1155AmountExceedsMaxUint190(address account, uint256 circlesId, uint256 amount, uint8 code);
 }
 

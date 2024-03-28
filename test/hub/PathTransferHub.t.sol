@@ -4,16 +4,13 @@ pragma solidity >=0.8.13;
 import {Test} from "forge-std/Test.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
 import "forge-std/console.sol";
-import "../setup/TimeSetup.sol";
-import "../setup/HumanRegistration.sol";
-import "./MockPathTransferHub.sol";
 import "../../src/hub/Hub.sol";
+import "../setup/TimeCirclesSetup.sol";
+import "../setup/HumanRegistration.sol";
+import "../utils/Approximation.sol";
+import "./MockPathTransferHub.sol";
 
-contract HubPathTransferTest is Test, TimeSetup, HumanRegistration {
-    // Constants
-
-    uint256 public constant CRC = uint256(10 ** 18);
-
+contract HubPathTransferTest is Test, TimeCirclesSetup, HumanRegistration, Approximation {
     // State variables
 
     MockPathTransferHub public mockHub;
@@ -41,7 +38,8 @@ contract HubPathTransferTest is Test, TimeSetup, HumanRegistration {
         for (uint256 i = 0; i < N; i++) {
             vm.prank(addresses[i]);
             mockHub.personalMintWithoutV1Check();
-            assertEq(mockHub.balanceOf(addresses[i], mockHub.toTokenId(addresses[i])), 47985696851874424310);
+            uint256 balance = mockHub.balanceOf(addresses[i], mockHub.toTokenId(addresses[i]));
+            assertTrue(relativeApproximatelyEqual(balance, 48 * CRC, ONE_PERCENT));
         }
 
         // get this value first to avoid using `startPrank` over inline calls

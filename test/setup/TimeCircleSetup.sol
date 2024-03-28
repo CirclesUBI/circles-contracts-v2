@@ -8,9 +8,9 @@ import "../../src/graph/Graph.sol";
 import "../../src/circles/TimeCircle.sol";
 import "../../src/circles/GroupCircle.sol";
 import "../migration/MockHub.sol";
-import "./TimeSetup.sol";
+import "./TimeCirclesSetup.sol";
 
-contract TimeCircleSetup is TimeSetup {
+contract TimeCircleSetup is TimeCirclesSetup {
     // Constants
     // number of avatars in the graph
     uint256 public constant N = 4;
