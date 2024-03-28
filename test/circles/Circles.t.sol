@@ -41,7 +41,7 @@ contract CirclesTest is Test, TimeCirclesSetup, Approximation {
 
     function testCalculateIssuance() public {
         for (uint256 i = 0; i < 100; i++) {
-            // Generate a pseudo-random number of seconds between 0 and 12 days (avoid edge cases in this test)
+            // Generate a pseudo-random number of seconds between 0 and 16 days (14days is max claimable period)
             uint256 secondsSkip = uint256(keccak256(abi.encodePacked(block.timestamp, i, uint256(2)))) % 16 days;
 
             _skipAndMint(secondsSkip, addresses[0]);
