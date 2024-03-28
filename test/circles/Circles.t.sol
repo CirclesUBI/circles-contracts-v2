@@ -13,7 +13,7 @@ contract CirclesTest is Test, TimeCirclesSetup, Approximation {
 
     uint256 public constant N = 4;
 
-    uint256 public constant EPS = 10 ** (18 - 1);
+    uint256 public constant EPS = 10 ** (18 - 2);
     uint256 public constant FEMTO_EPS = 10 ** (18 - 15);
 
     // State variables
@@ -40,33 +40,12 @@ contract CirclesTest is Test, TimeCirclesSetup, Approximation {
     }
 
     function testCalculateIssuance() public {
-        uint256 day = circles.day(block.timestamp);
-        (uint256 issuance,,) = circles.calculateIssuance(addresses[0]);
-        assertEq(issuance, 0);
+        for (uint256 i = 0; i < 100; i++) {
+            // Generate a pseudo-random number of seconds between 0 and 12 days (avoid edge cases in this test)
+            uint256 secondsSkip = uint256(keccak256(abi.encodePacked(block.timestamp, i, uint256(2)))) % 16 days;
 
-        skipTime(30 minutes);
-        // still the same day
-        (issuance,,) = circles.calculateIssuance(addresses[0]);
-        assertEq(issuance, 0);
-
-        skipTime(31 minutes);
-        (issuance,,) = circles.calculateIssuance(addresses[0]);
-        assertEq(issuance, 1 * CRC);
-
-        skipTime(1 days + 2 hours + 15 minutes);
-        (issuance,,) = circles.calculateIssuance(addresses[0]);
-        assertTrue(approximatelyEqual(issuance, 27 * CRC, EPS));
-
-        skipTime(1 hours + 40 minutes);
-        (issuance,,) = circles.calculateIssuance(addresses[0]);
-        console.log("issuance", issuance);
-
-        assertTrue(approximatelyEqual(issuance, 28 * CRC, EPS));
-
-        vm.prank(addresses[0]);
-        circles.claimIssuance();
-        uint256 balance = circles.balanceOf(addresses[0], circlesIdentifiers[0]);
-        assertTrue(approximatelyEqual(balance, 28 * CRC, EPS));
+            _skipAndMint(secondsSkip, addresses[0]);
+        }
     }
 
     function testConsecutiveClaimablePeriods() public {
@@ -136,5 +115,27 @@ contract CirclesTest is Test, TimeCirclesSetup, Approximation {
         //     aliceInflationaryBalance - aliceInflationaryBalanceAfter,
         //     bobInflationaryBalanceAfter - bobInflationaryBalance
         // );
+    }
+
+    // Private functions
+
+    function _skipAndMint(uint256 _seconds, address _avatar) private {
+        // ensure the avatar has no issuance already to start with
+        (uint256 issuance, uint256 startPeriod, uint256 endPeriod) = circles.calculateIssuance(_avatar);
+        assertEq(issuance, 0, "Ensure avatar has no issuance");
+
+        // skip time
+        skipTime(_seconds);
+
+        uint256 balanceBefore = circles.balanceOf(_avatar, uint256(uint160(_avatar)));
+        (issuance, startPeriod, endPeriod) = circles.calculateIssuance(_avatar);
+        uint256 hoursCount = (endPeriod - startPeriod) / 1 hours;
+        // console.log("hoursCount", hoursCount, "days:", hoursCount / 24);
+        vm.prank(_avatar);
+        circles.claimIssuance();
+        uint256 balanceAfter = circles.balanceOf(_avatar, uint256(uint160(_avatar)));
+        assertEq(balanceAfter - balanceBefore, issuance, "Ensure issuance is minted");
+        assertTrue(issuance <= hoursCount * CRC, "Ensure issuance is not more than expected");
+        assertTrue(relativeApproximatelyEqual(issuance, hoursCount * CRC, ONE_PERCENT), "Ensure issuance is correct");
     }
 }
