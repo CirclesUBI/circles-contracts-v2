@@ -73,6 +73,9 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
      */
     IHubV1 public immutable hubV1;
 
+    /**
+     * @notice The name registry contract address.
+     */
     INameRegistry public nameRegistry;
 
     /**
@@ -80,6 +83,9 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
      */
     address public migration;
 
+    /**
+     * @notice The address of the Lift ERC20 contract.
+     */
     IERC20Lift public liftERC20;
 
     /**
@@ -104,23 +110,21 @@ contract Hub is Circles, MetadataDefinitions, IHubErrors, ICirclesErrors {
      */
     mapping(address => address) public avatars;
 
-    // Mint policy registered by avatar.
+    /**
+     * @notice The mapping of group avatar addresses to the mint policy contract address.
+     */
     mapping(address => address) public mintPolicies;
 
+    /**
+     * @notice The mapping of group avatar addresses to the treasury contract address.
+     */
     mapping(address => address) public treasuries;
-
-    // mapping(uint256 => WrappedERC20) public tokenIDToInfERC20;
 
     /**
      * @notice The iterable mapping of directional trust relations between avatars and
      * their expiry times.
      */
     mapping(address => mapping(address => TrustMarker)) public trustMarkers;
-
-    // /**
-    //  * @notice tokenIDToCidV0Digest is a mapping of token IDs to the IPFS CIDv0 digest.
-    //  */
-    // mapping(uint256 => bytes32) public tokenIdToCidV0Digest;
 
     // Events
 

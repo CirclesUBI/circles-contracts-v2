@@ -14,9 +14,17 @@ contract NameRegistry is Base58Converter, INameRegistryErrors, ICirclesErrors {
      */
     uint72 public constant MAX_SHORT_NAME = uint72(1449225352009601191935);
 
-    string public constant DEFAULT_CIRCLES_NAME_PREFIX = "Circles-";
+    /**
+     * @notice The default name prefix for Circles
+     * @dev to test pre-release codes, we use a toy name prefix
+     * so that we can easily identify the test Circles
+     */
+    string public constant DEFAULT_CIRCLES_NAME_PREFIX = "Rings-";
 
-    string public constant DEFAULT_CIRCLES_SYMBOL = "CRC";
+    /**
+     * @notice The default symbol for Circles
+     */
+    string public constant DEFAULT_CIRCLES_SYMBOL = "RING";
 
     // State variables
 
@@ -158,10 +166,10 @@ contract NameRegistry is Base58Converter, INameRegistryErrors, ICirclesErrors {
         uint72 shortName = shortNames[_avatar];
         if (shortName == uint72(0)) {
             string memory base58FullAddress = toBase58(uint256(uint160(_avatar)));
-            return string(abi.encodePacked("Circles-", base58FullAddress));
+            return string(abi.encodePacked("DEFAULT_CIRCLES_NAME_PREFIX", base58FullAddress));
         }
         string memory base58ShortName = toBase58(uint256(shortName));
-        return string(abi.encodePacked("Circles-", base58ShortName));
+        return string(abi.encodePacked("DEFAULT_CIRCLES_NAME_PREFIX", base58ShortName));
     }
 
     function symbol(address _avatar) external view mustBeRegistered(_avatar, 2) returns (string memory) {
